@@ -19,8 +19,10 @@ export const config = {
             modelName: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
         },
         openai: {
-            apiKey: process.env.OPENAI_API_KEY,
+            // Support single key or comma-separated list
+            apiKeys: (process.env.OPENAI_API_KEYS || process.env.OPENAI_API_KEY || '').split(',').map(k => k.trim()).filter(Boolean),
             modelName: process.env.OPENAI_MODEL || 'gpt-4o',
+            apiKey: process.env.OPENAI_API_KEY, // Keep for backward compatibility/types
         },
         healing: {
             maxRetries: 3,

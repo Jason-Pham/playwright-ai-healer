@@ -13,17 +13,39 @@ export class AutoHealer {
     private provider: 'openai' | 'gemini';
     private modelName: string;
 
-    constructor(page: Page, apiKey: string, provider: 'openai' | 'gemini' = 'openai', modelName?: string, debug = false) {
+    private apiKeys: string[];
+    private currentKeyIndex = 0;
+
+    constructor(page: Page, apiKeys: string | string[], provider: 'openai' | 'gemini' = 'openai', modelName?: string, debug = false) {
         this.page = page;
         this.debug = debug;
         this.provider = provider;
         this.modelName = modelName || (provider === 'openai' ? 'gpt-4o' : 'gemini-1.5-flash');
+
+        this.apiKeys = Array.isArray(apiKeys) ? apiKeys : [apiKeys];
+
+        this.initializeClient();
+    }
+
+    private initializeClient() {
+        const apiKey = this.apiKeys[this.currentKeyIndex];
+        if (!apiKey) return;
 
         if (this.provider === 'openai') {
             this.openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
         } else {
             this.gemini = new GoogleGenerativeAI(apiKey);
         }
+    }
+
+    private rotateKey(): boolean {
+        if (this.currentKeyIndex < this.apiKeys.length - 1) {
+            this.currentKeyIndex++;
+            if (this.debug) console.log(`[AutoHealer] Rotating to API Key #${this.currentKeyIndex + 1}`);
+            this.initializeClient();
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -79,7 +101,11 @@ export class AutoHealer {
             let result: string | undefined;
 
             const maxRetries = config.ai.healing.maxRetries;
-            for (let i = 0; i < maxRetries; i++) {
+            const maxKeyRotations = this.apiKeys.length;
+
+            // Outer loop for key rotation
+            for (let k = 0; k < maxKeyRotations; k++) {
+                // Inner loop for retries on same key (optional, or mix)
                 try {
                     if (this.provider === 'openai' && this.openai) {
                         const completion = await this.openai.chat.completions.create({
@@ -92,12 +118,21 @@ export class AutoHealer {
                         const resultResult = await model.generateContent(promptText);
                         result = resultResult.response.text().trim();
                     }
-                    break; // Success
+                    // If success, break both loops
+                    break;
                 } catch (reqError: any) {
-                    if (reqError.message?.includes('429') || reqError.status === 429) {
-                        console.log(`[AutoHealer] Rate limited. Retrying in ${(i + 1) * 5}s...`);
-                        await new Promise(r => setTimeout(r, (i + 1) * config.ai.healing.retryDelay));
-                        continue;
+                    const isRateLimit = reqError.message?.includes('429') || reqError.status === 429;
+                    const isAuthError = reqError.message?.includes('401') || reqError.status === 401;
+
+                    if (isRateLimit || isAuthError) {
+                        console.log(`[AutoHealer] AI Error (${reqError.status || 'Unknown'}). Attempting key rotation...`);
+                        const rotated = this.rotateKey();
+                        if (rotated) {
+                            continue; // Try next key
+                        } else {
+                            console.log('[AutoHealer] No more API keys to try.');
+                            throw reqError;
+                        }
                     }
                     throw reqError;
                 }
