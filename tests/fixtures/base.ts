@@ -19,14 +19,14 @@ export const test = base.extend<MyFixtures>({
         let apiKey: string;
         let model: string;
 
-        if (ai.gemini.apiKey) {
-            provider = 'gemini';
-            apiKey = ai.gemini.apiKey;
-            model = ai.gemini.modelName;
-        } else if (ai.openai.apiKey) {
+        if (ai.openai.apiKey) {
             provider = 'openai';
             apiKey = ai.openai.apiKey;
             model = ai.openai.modelName;
+        } else if (ai.gemini.apiKey) {
+            provider = 'gemini';
+            apiKey = ai.gemini.apiKey;
+            model = ai.gemini.modelName;
         } else {
             throw new Error('❌ API Key missing! Check src/config/index.ts or .env');
         }
