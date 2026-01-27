@@ -16,7 +16,7 @@ export class AutoHealer {
     private apiKeys: string[];
     private currentKeyIndex = 0;
 
-    constructor(page: Page, apiKeys: string | string[], provider: 'openai' | 'gemini' = 'openai', modelName?: string, debug = false) {
+    constructor(page: Page, apiKeys: string | string[], provider: 'openai' | 'gemini' = 'gemini', modelName?: string, debug = false) {
         this.page = page;
         this.debug = debug;
         this.provider = provider;

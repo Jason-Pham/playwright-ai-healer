@@ -16,7 +16,7 @@ export const config = {
     ai: {
         gemini: {
             apiKey: process.env.GEMINI_API_KEY,
-            modelName: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+            modelName: process.env.GEMINI_MODEL || 'gemini-flash-latest',
         },
         openai: {
             // Support single key or comma-separated list
