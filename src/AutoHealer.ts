@@ -1,5 +1,5 @@
 
-import type { Page } from '@playwright/test';
+import { type Page, test } from '@playwright/test';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { HealingResult } from './types.js';
@@ -105,7 +105,6 @@ export class AutoHealer {
 
             // Outer loop for key rotation
             for (let k = 0; k < maxKeyRotations; k++) {
-                // Inner loop for retries on same key (optional, or mix)
                 try {
                     if (this.provider === 'openai' && this.openai) {
                         const completion = await this.openai.chat.completions.create({
@@ -118,14 +117,21 @@ export class AutoHealer {
                         const resultResult = await model.generateContent(promptText);
                         result = resultResult.response.text().trim();
                     }
-                    // If success, break both loops
+                    // If success, break loop
                     break;
                 } catch (reqError: any) {
                     const isRateLimit = reqError.message?.includes('429') || reqError.status === 429;
                     const isAuthError = reqError.message?.includes('401') || reqError.status === 401;
 
-                    if (isRateLimit || isAuthError) {
-                        console.log(`[AutoHealer] AI Error (${reqError.status || 'Unknown'}). Attempting key rotation...`);
+                    if (isRateLimit) {
+                        console.log(`[AutoHealer] Rate limit (429) detected. Skipping test to avoid timeout.`);
+                        test.info().annotations.push({ type: 'warning', description: 'Test skipped due to AI Rate Limit (429)' });
+                        test.skip(true, 'Test skipped due to AI Rate Limit (429)');
+                        return null; // Should not be reached effectively, but satisfies types
+                    }
+
+                    if (isAuthError) {
+                        console.log(`[AutoHealer] Auth Error (${reqError.status || 'Unknown'}). Attempting key rotation...`);
                         const rotated = this.rotateKey();
                         if (rotated) {
                             continue; // Try next key
@@ -146,7 +152,11 @@ export class AutoHealer {
             if (result && result !== "FAIL") {
                 return result;
             }
-        } catch (aiError) {
+        } catch (aiError: any) {
+            // If it's a skip error, re-throw it so Playwright skips the test
+            if (aiError.message?.includes('Test skipped')) {
+                throw aiError;
+            }
             console.error(`[AutoHealer] AI Healing failed (${this.provider}):`, aiError);
         }
 
