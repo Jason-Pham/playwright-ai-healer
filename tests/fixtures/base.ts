@@ -19,16 +19,16 @@ export const test = base.extend<MyFixtures>({
         let apiKey: string;
         let model: string;
 
-        if (ai.openai.apiKeys && ai.openai.apiKeys.length > 0) {
+        if (ai.gemini.apiKey) {
+            provider = 'gemini';
+            apiKey = ai.gemini.apiKey;
+            model = ai.gemini.modelName;
+        } else if (ai.openai.apiKeys && ai.openai.apiKeys.length > 0) {
             provider = 'openai';
             // Type assertion or minor adjustment needed if AutoHealer constructor expects string | string[]
             // We changed the constructor, so this is fine.
             apiKey = ai.openai.apiKeys as any;
             model = ai.openai.modelName;
-        } else if (ai.gemini.apiKey) {
-            provider = 'gemini';
-            apiKey = ai.gemini.apiKey;
-            model = ai.gemini.modelName;
         } else {
             throw new Error('❌ API Key missing! Check src/config/index.ts or .env');
         }
