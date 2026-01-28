@@ -10,8 +10,8 @@ export class GiganttiHomePage extends BasePage {
 
     // Selectors
     // Intentionally broken selector to demonstrate self-healing
-    private readonly searchInputSelector = config.app.selectors.gigantti.searchInput;
-    private readonly cookieBannerAcceptSelector = config.app.selectors.gigantti.cookieBannerAccept;
+    private readonly searchInputSelector = 'gigantti.searchInput';
+    private readonly cookieBannerAcceptSelector = 'gigantti.cookieBannerAccept';
     private readonly realSearchInputSelector = config.app.selectors.gigantti.realSearchInput;
 
     constructor(page: Page, autoHealer: AutoHealer) {

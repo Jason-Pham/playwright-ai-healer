@@ -1,0 +1,7 @@
+{
+    "gigantti": {
+        "searchInput": "#speedy-header-search",
+        "cookieBannerAccept": "button.coi-banner__accept",
+        "realSearchInput": "#speedy-header-search"
+    }
+}

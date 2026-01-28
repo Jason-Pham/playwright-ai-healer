@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { HealingResult } from './types.js';
 import { config } from './config/index.js';
+import { LocatorManager } from './utils/LocatorManager.js';
 
 export class AutoHealer {
     private page: Page;
@@ -51,9 +52,13 @@ export class AutoHealer {
     /**
      * Safe click method that attempts self-healing on failure
      */
-    async click(selector: string, options?: any) {
+    async click(selectorOrKey: string, options?: any) {
+        const locatorManager = LocatorManager.getInstance();
+        let selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
+        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
+
         try {
-            if (this.debug) console.log(`[AutoHealer] Attempting click on: ${selector}`);
+            if (this.debug) console.log(`[AutoHealer] Attempting click on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             await this.page.click(selector, { timeout: config.test.timeouts.click, ...options });
         } catch (error) {
             console.log(`[AutoHealer] Click failed. Initiating healing protocol (${this.provider})...`);
@@ -61,6 +66,12 @@ export class AutoHealer {
             if (newSelector) {
                 console.log(`[AutoHealer] Retrying with new selector: ${newSelector}`);
                 await this.page.click(newSelector, options);
+
+                // Update locator if we have a key
+                if (locatorKey) {
+                    console.log(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                    locatorManager.updateLocator(locatorKey, newSelector);
+                }
             } else {
                 throw error; // Re-throw if healing failed
             }
@@ -70,9 +81,13 @@ export class AutoHealer {
     /**
      * Safe fill method that attempts self-healing on failure
      */
-    async fill(selector: string, value: string, options?: any) {
+    async fill(selectorOrKey: string, value: string, options?: any) {
+        const locatorManager = LocatorManager.getInstance();
+        let selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
+        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
+
         try {
-            if (this.debug) console.log(`[AutoHealer] Attempting fill on: ${selector}`);
+            if (this.debug) console.log(`[AutoHealer] Attempting fill on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             await this.page.fill(selector, value, { timeout: config.test.timeouts.fill, ...options });
         } catch (error) {
             console.log(`[AutoHealer] Fill failed. Initiating healing protocol (${this.provider})...`);
@@ -80,6 +95,12 @@ export class AutoHealer {
             if (newSelector) {
                 console.log(`[AutoHealer] Retrying with new selector: ${newSelector}`);
                 await this.page.fill(newSelector, value, options);
+
+                // Update locator if we have a key
+                if (locatorKey) {
+                    console.log(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                    locatorManager.updateLocator(locatorKey, newSelector);
+                }
             } else {
                 throw error;
             }

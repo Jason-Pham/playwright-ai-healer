@@ -7,7 +7,7 @@ export const config = {
         baseUrl: process.env.BASE_URL || 'https://www.gigantti.fi/',
         selectors: {
             gigantti: {
-                searchInput: '#speedy-header-search-BROKEN-ID', // Intentionally broken
+                searchInput: '#speedy-header-search', // Intentionally broken
                 realSearchInput: '#speedy-header-search',
                 cookieBannerAccept: 'button.coi-banner__accept',
             }
