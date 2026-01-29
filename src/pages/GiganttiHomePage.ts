@@ -1,60 +1,116 @@
-import type { Page } from '@playwright/test';
 import { expect } from '@playwright/test';
-import { AutoHealer } from '../AutoHealer.js';
 import { BasePage } from './BasePage.js';
-
+import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
+import { CategoryPage } from './CategoryPage.js';
 
+/**
+ * Gigantti Home Page
+ * Entry point for the Gigantti.fi website
+ */
 export class GiganttiHomePage extends BasePage {
     private readonly url = config.app.baseUrl;
+    private readonly timeouts = config.test.timeouts;
 
-    // Selectors
-    // Intentionally broken selector to demonstrate self-healing
+    // Selectors - using locator keys for self-healing
     private readonly searchInputSelector = 'gigantti.searchInput';
-    private readonly cookieBannerAcceptSelector = 'gigantti.cookieBannerAccept';
     private readonly realSearchInputSelector = config.app.selectors.gigantti.realSearchInput;
 
-    constructor(page: Page, autoHealer: AutoHealer) {
-        super(page, autoHealer);
-    }
-
     async open() {
-        console.log(`Navigating to ${this.url} ...`);
+        logger.info(`Navigating to ${this.url} ...`);
         await this.goto(this.url);
         await this.handleCookieConsent();
     }
 
     private async handleCookieConsent() {
         try {
-            console.log('Checking for cookie banner...');
-            const cookieBtn = this.page.locator(this.cookieBannerAcceptSelector);
-            if (await cookieBtn.isVisible({ timeout: config.test.timeouts.check })) {
-                await cookieBtn.click();
-                console.log('✅ Cookie banner accepted.');
-            } else {
-                console.log('ℹ️ Cookie banner not found or already accepted.');
+            logger.debug('Checking for cookie banner...');
+
+            const acceptSelectors = [
+                'button.coi-banner__accept',
+                '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
+                'button:has-text("OK")',
+                'button:has-text("Hyväksy")',
+                '[id*="cookie"] button:has-text("OK")',
+            ];
+
+            for (const selector of acceptSelectors) {
+                const cookieBtn = this.page.locator(selector).first();
+                if (await cookieBtn.isVisible({ timeout: this.timeouts.cookieBanner }).catch(() => false)) {
+                    await cookieBtn.click({ force: true });
+                    logger.info('✅ Cookie banner accepted.');
+                    await this.page.waitForTimeout(this.timeouts.cookieBannerWait);
+                    return;
+                }
             }
+
+            logger.debug('ℹ️ Cookie banner not found or already accepted.');
         } catch (e) {
-            console.log('ℹ️ Ignored cookie banner error:', e);
+            logger.debug(`ℹ️ Ignored cookie banner error: ${e}`);
         }
     }
 
-    async searchFor(term: string) {
-        console.log(`\n🧪 Attempting to search for "${term}" using broken selector: "${this.searchInputSelector}"`);
+    /**
+     * Search for a product and navigate to search results (CategoryPage)
+     */
+    async searchFor(term: string): Promise<CategoryPage> {
+        logger.info(`🔍 Searching for "${term}"...`);
 
-        // This uses the AutoHealer instance passed via constructor
-        // If the selector fails, AutoHealer will attempt to find the correct element
         await this.autoHealer.fill(this.searchInputSelector, term);
-
-        // Verify the input actually contains the text (sanity check on the result)
-        // We use the known real selector for verification to ensure the heuristic was correct
         await expect(this.page.locator(this.realSearchInputSelector)).toHaveValue(term);
-
         await this.page.keyboard.press('Enter');
+
+        // Wait for search results to load
+        await expect(this.page).toHaveURL(/search/);
+        logger.info('✅ Search results page loaded.');
+
+        return new CategoryPage(this.page, this.autoHealer);
     }
 
-    async verifySearchResultsLoaded() {
-        await expect(this.page).toHaveURL(/search/);
-        console.log('✅ Search results page loaded.');
+    /**
+     * Navigate to a product category
+     */
+    async navigateToCategory(categoryName: string): Promise<CategoryPage> {
+        logger.info(`📂 Navigating to category: ${categoryName}...`);
+
+        await this.dismissOverlays();
+
+        // Try multiple approaches to find the category
+        const navLink = this.page.locator(`nav a:has-text("${categoryName}"), header a:has-text("${categoryName}")`).first();
+        if (await navLink.isVisible({ timeout: this.timeouts.navigation }).catch(() => false)) {
+            await navLink.click({ force: true });
+        } else {
+            const categoryLink = this.page.getByRole('link', { name: new RegExp(categoryName, 'i') }).first();
+            await categoryLink.click({ force: true, timeout: this.timeouts.categoryFallback });
+        }
+
+        await this.page.waitForLoadState('networkidle');
+        logger.info(`✅ Navigated to ${categoryName} category.`);
+
+        return new CategoryPage(this.page, this.autoHealer);
+    }
+
+    /**
+     * Dismiss any overlay modals (cookie banners, popups, etc.)
+     */
+    private async dismissOverlays() {
+        try {
+            const overlaySelectors = [
+                '#cookie-information-template-wrapper button:has-text("OK")',
+                '[id*="cookie"] button',
+                '.modal-close',
+                '[aria-label="Close"]',
+            ];
+
+            for (const selector of overlaySelectors) {
+                const overlay = this.page.locator(selector).first();
+                if (await overlay.isVisible({ timeout: this.timeouts.overlayCheck }).catch(() => false)) {
+                    await overlay.click({ force: true });
+                    await this.page.waitForTimeout(this.timeouts.overlayWait);
+                }
+            }
+        } catch {
+            // Ignore errors - overlays are optional
+        }
     }
 }

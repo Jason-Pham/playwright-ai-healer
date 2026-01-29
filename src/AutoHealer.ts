@@ -1,10 +1,9 @@
-
 import { type Page, test } from '@playwright/test';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import type { HealingResult } from './types.js';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
+import { logger } from './utils/Logger.js';
 
 export class AutoHealer {
     private page: Page;
@@ -42,7 +41,7 @@ export class AutoHealer {
     private rotateKey(): boolean {
         if (this.currentKeyIndex < this.apiKeys.length - 1) {
             this.currentKeyIndex++;
-            if (this.debug) console.log(`[AutoHealer] Rotating to API Key #${this.currentKeyIndex + 1}`);
+            if (this.debug) logger.info(`[AutoHealer] Rotating to API Key #${this.currentKeyIndex + 1}`);
             this.initializeClient();
             return true;
         }
@@ -58,18 +57,18 @@ export class AutoHealer {
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
 
         try {
-            if (this.debug) console.log(`[AutoHealer] Attempting click on: ${selector} (Key: ${locatorKey || 'N/A'})`);
+            if (this.debug) logger.info(`[AutoHealer] Attempting click on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             await this.page.click(selector, { timeout: config.test.timeouts.click, ...options });
         } catch (error) {
-            console.log(`[AutoHealer] Click failed. Initiating healing protocol (${this.provider})...`);
+            logger.warn(`[AutoHealer] Click failed. Initiating healing protocol (${this.provider})...`);
             const newSelector = await this.heal(selector, error as Error);
             if (newSelector) {
-                console.log(`[AutoHealer] Retrying with new selector: ${newSelector}`);
+                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
                 await this.page.click(newSelector, options);
 
                 // Update locator if we have a key
                 if (locatorKey) {
-                    console.log(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
                     locatorManager.updateLocator(locatorKey, newSelector);
                 }
             } else {
@@ -87,18 +86,18 @@ export class AutoHealer {
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
 
         try {
-            if (this.debug) console.log(`[AutoHealer] Attempting fill on: ${selector} (Key: ${locatorKey || 'N/A'})`);
+            if (this.debug) logger.info(`[AutoHealer] Attempting fill on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             await this.page.fill(selector, value, { timeout: config.test.timeouts.fill, ...options });
         } catch (error) {
-            console.log(`[AutoHealer] Fill failed. Initiating healing protocol (${this.provider})...`);
+            logger.warn(`[AutoHealer] Fill failed. Initiating healing protocol (${this.provider})...`);
             const newSelector = await this.heal(selector, error as Error);
             if (newSelector) {
-                console.log(`[AutoHealer] Retrying with new selector: ${newSelector}`);
+                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
                 await this.page.fill(newSelector, value, options);
 
                 // Update locator if we have a key
                 if (locatorKey) {
-                    console.log(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
                     locatorManager.updateLocator(locatorKey, newSelector);
                 }
             } else {
@@ -145,19 +144,19 @@ export class AutoHealer {
                     const isAuthError = reqError.message?.includes('401') || reqError.status === 401;
 
                     if (isRateLimit) {
-                        console.log(`[AutoHealer] Rate limit (429) detected. Skipping test to avoid timeout.`);
+                        logger.warn(`[AutoHealer] Rate limit (429) detected. Skipping test to avoid timeout.`);
                         test.info().annotations.push({ type: 'warning', description: 'Test skipped due to AI Rate Limit (429)' });
                         test.skip(true, 'Test skipped due to AI Rate Limit (429)');
                         return null; // Should not be reached effectively, but satisfies types
                     }
 
                     if (isAuthError) {
-                        console.log(`[AutoHealer] Auth Error (${reqError.status || 'Unknown'}). Attempting key rotation...`);
+                        logger.warn(`[AutoHealer] Auth Error (${reqError.status || 'Unknown'}). Attempting key rotation...`);
                         const rotated = this.rotateKey();
                         if (rotated) {
                             continue; // Try next key
                         } else {
-                            console.log('[AutoHealer] No more API keys to try.');
+                            logger.error('[AutoHealer] No more API keys to try.');
                             throw reqError;
                         }
                     }
@@ -178,7 +177,7 @@ export class AutoHealer {
             if (aiError.message?.includes('Test skipped')) {
                 throw aiError;
             }
-            console.error(`[AutoHealer] AI Healing failed (${this.provider}):`, aiError);
+            logger.error(`[AutoHealer] AI Healing failed (${this.provider}): ${aiError.message || aiError}`);
         }
 
         return null;

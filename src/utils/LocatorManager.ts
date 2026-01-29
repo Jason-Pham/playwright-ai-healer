@@ -2,6 +2,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from './Logger.js';
 
 // Get current directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -32,10 +33,10 @@ export class LocatorManager {
                 this.locators = JSON.parse(fileContent);
             } else {
                 this.locators = {};
-                console.warn(`[LocatorManager] Locators file not found at ${this.locatorsPath}`);
+                logger.warn(`[LocatorManager] Locators file not found at ${this.locatorsPath}`);
             }
         } catch (error) {
-            console.error('[LocatorManager] Failed to load locators:', error);
+            logger.error(`[LocatorManager] Failed to load locators: ${error}`);
             this.locators = {};
         }
     }
@@ -52,7 +53,7 @@ export class LocatorManager {
 
             return typeof current === 'string' ? current : null;
         } catch (error) {
-            console.error(`[LocatorManager] Error retrieving locator for key '${key}':`, error);
+            logger.error(`[LocatorManager] Error retrieving locator for key '${key}': ${error}`);
             return null;
         }
     }
@@ -84,9 +85,9 @@ export class LocatorManager {
 
             // Save to file
             this.saveLocators();
-            console.log(`[LocatorManager] Updated locator '${key}' to '${newSelector}'`);
+            logger.info(`[LocatorManager] Updated locator '${key}' to '${newSelector}'`);
         } catch (error) {
-            console.error(`[LocatorManager] Failed to update locator '${key}':`, error);
+            logger.error(`[LocatorManager] Failed to update locator '${key}': ${error}`);
         }
     }
 
@@ -94,7 +95,7 @@ export class LocatorManager {
         try {
             fs.writeFileSync(this.locatorsPath, JSON.stringify(this.locators, null, 2), 'utf-8');
         } catch (error) {
-            console.error('[LocatorManager] Failed to save locators:', error);
+            logger.error(`[LocatorManager] Failed to save locators: ${error}`);
         }
     }
 }

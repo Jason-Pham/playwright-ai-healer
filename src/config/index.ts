@@ -1,4 +1,3 @@
-
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -10,6 +9,11 @@ export const config = {
                 searchInput: '#speedy-header-search', // Intentionally broken
                 realSearchInput: '#speedy-header-search',
                 cookieBannerAccept: 'button.coi-banner__accept',
+                // New selectors for real tests
+                categoryLink: '[data-test="main-navigation"] a[href*="/tietokoneet"]',
+                productCard: '[data-test="product-card"]',
+                productTitle: '[data-test="product-title"]',
+                productPrice: '[data-test="product-price"]',
             }
         }
     },
@@ -51,12 +55,26 @@ export const config = {
             fill: 2000,
             check: 5000,
             test: 30000,
-            healing: 60000
+            healing: 60000,
+            // Page object timeouts
+            cookieBanner: 2000,
+            cookieBannerWait: 1000,
+            navigation: 5000,
+            categoryFallback: 10000,
+            productVisibility: 10000,
+            priceVisibility: 5000,
+            overlayCheck: 500,
+            overlayWait: 500,
         },
     },
     testData: {
         searchTerms: {
-            default: 'samsung fold'
+            default: 'samsung fold',
+            laptop: 'laptop',
+        },
+        categories: {
+            computers: 'Tietotekniikka',
         }
     }
 };
+
