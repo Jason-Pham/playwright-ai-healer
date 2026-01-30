@@ -7,6 +7,7 @@ vi.mock('fs', () => ({
     existsSync: vi.fn(),
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
 }));
 
 // We need to reset modules to get a fresh singleton each time

@@ -118,3 +118,26 @@
 [2026-01-29 20:34:08] [INFO]: ✅ Clicked on first product.
 [2026-01-29 20:34:08] [INFO]: 🔍 Verifying product details page loaded...
 [2026-01-29 20:34:08] [INFO]: ✅ Product details page loaded with title and price.
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Attempting click on: #existing-button (Key: N/A)
+[2026-01-30 19:38:28] [INFO]: [LocatorManager] Updated locator 'gigantti.searchInput' to '#new-selector'
+[2026-01-30 19:38:28] [INFO]: [LocatorManager] Updated locator 'new.nested.path' to '#new-selector'
+[2026-01-30 19:38:28] [WARN]: [LocatorManager] Locators file not found at C:\Workplace\personal_github\playwright-ai-healer\src\config\locators.json
+[2026-01-30 19:38:28] [ERROR]: [LocatorManager] Failed to load locators: SyntaxError: Expected property name or '}' in JSON at position 2 (line 1 column 3)
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Attempting click on: #broken-selector (Key: N/A)
+[2026-01-30 19:38:28] [WARN]: [AutoHealer] Click failed. Initiating healing protocol (gemini)...
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Retrying with new selector: #healed-selector
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Attempting click on: #nonexistent (Key: N/A)
+[2026-01-30 19:38:28] [WARN]: [AutoHealer] Click failed. Initiating healing protocol (gemini)...
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Attempting click on: #broken (Key: N/A)
+[2026-01-30 19:38:28] [WARN]: [AutoHealer] Click failed. Initiating healing protocol (gemini)...
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Retrying with new selector: #clean-selector
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Attempting fill on: #input-field (Key: N/A)
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Attempting fill on: #broken-input (Key: N/A)
+[2026-01-30 19:38:28] [WARN]: [AutoHealer] Fill failed. Initiating healing protocol (gemini)...
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Retrying with new selector: #healed-selector
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Attempting click on: #needs-healing (Key: N/A)
+[2026-01-30 19:38:28] [WARN]: [AutoHealer] Click failed. Initiating healing protocol (gemini)...
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Retrying with new selector: #healed-selector
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Attempting click on: #broken (Key: N/A)
+[2026-01-30 19:38:28] [WARN]: [AutoHealer] Click failed. Initiating healing protocol (gemini)...
+[2026-01-30 19:38:28] [INFO]: [AutoHealer] Retrying with new selector: #healed-selector
