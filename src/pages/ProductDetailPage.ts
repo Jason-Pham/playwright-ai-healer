@@ -23,7 +23,7 @@ export class ProductDetailPage extends BasePage {
         // Verify price is visible (combined check)
         const priceSelectors = ['[class*="price"]', '[data-test*="price"]', '[class*="Price"]', '.product-price'];
         try {
-            await this.page.locator(priceSelectors.join(',')).first().waitFor({ state: 'visible', timeout: 5000 });
+            await this.page.locator(priceSelectors.join(',')).first().waitFor({ state: 'visible', timeout: this.timeouts.productVisibility });
         } catch (e) {
             // Log warning but don't fail - some pages might load price dynamically
             // Log warning with browser context

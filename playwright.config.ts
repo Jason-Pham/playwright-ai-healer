@@ -17,7 +17,7 @@ export default defineConfig({
     testDir: './tests',
     timeout: parseInt(process.env['TEST_TIMEOUT'] || '120000', 10),
     retries: process.env['CI'] ? 2 : 0,
-    workers: 8,
+    workers: 4,
     fullyParallel: true,
 
     // Generate HTML report for CI artifacts
@@ -29,6 +29,9 @@ export default defineConfig({
     use: {
         headless: process.env['HEADLESS'] !== 'false',
         baseURL: process.env['BASE_URL'] || 'https://www.gigantti.fi/',
+        screenshot: 'on-first-failure',
+        video: 'retain-on-failure',
+        trace: 'retain-on-failure',
     },
 
     // Environment-specific projects
@@ -78,7 +81,12 @@ export default defineConfig({
         },
         {
             name: 'webkit',
-            use: { ...devices['Desktop Safari'] },
+            use: {
+                ...devices['Desktop Safari'],
+                launchOptions: {
+                    slowMo: 100
+                }
+            },
         },
         {
             name: 'edge',

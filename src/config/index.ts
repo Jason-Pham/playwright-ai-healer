@@ -57,25 +57,30 @@ export const config = {
         timeout: parseInt(process.env['TEST_TIMEOUT'] || '120000', 10),
         headless: process.env['HEADLESS'] !== 'false',
         timeouts: {
-            click: 2000,
-            fill: 2000,
-            check: 5000,
-            test: 30000,
-            healing: 60000,
-            cookieBanner: 5000,
-            cookieBannerWait: 2000,
-            navigation: 15000,
-            categoryFallback: 30000,
+            // Global unified timeouts
+            default: 5000,
+            cookie: 10000,
+            urlVerify: 15000,
             productVisibility: 30000,
-            priceVisibility: 15000,
-            overlayCheck: 1000,
-            overlayWait: 1000,
         },
     },
     testData: {
-        searchTerms: {
-            default: 'samsung fold',
-            laptop: 'laptop',
+        searchTerms: [
+            'laptop',
+            'smartphone',
+            'television',
+            'headphones',
+            'tablet',
+            'camera',
+            'gaming',
+            'speaker',
+            'keyboard',
+            'monitor'
+        ],
+        // Helper to get random search term
+        getRandomSearchTerm(): string {
+            const terms = this.searchTerms;
+            return terms[Math.floor(Math.random() * terms.length)] || 'laptop';
         },
         categories: {
             computers: 'Tietotekniikka',

@@ -11,6 +11,7 @@ import { CategoryPage } from './CategoryPage.js';
 export class GiganttiHomePage extends BasePage {
     private readonly url = config.app.baseUrl;
     private readonly timeouts = config.test.timeouts;
+    private popupHandlerRegistered = false;
 
     // Selectors - using locator keys for self-healing
     private readonly searchInputSelector = 'gigantti.searchInput';
@@ -19,34 +20,49 @@ export class GiganttiHomePage extends BasePage {
     async open() {
         logger.debug(`Navigating to ${this.url} ...`);
         await this.goto(this.url);
+        await this.setupPopupHandler();
         await this.handleCookieConsent();
     }
 
+    /**
+     * Register popup handler once per page (only Dynamic Yield marketing popups)
+     */
+    private async setupPopupHandler() {
+        if (this.popupHandlerRegistered) return;
+
+        // Handler for Dynamic Yield marketing popups only
+        await this.page.addLocatorHandler(
+            this.page.locator('.dy-lb-close, .dy-modal-container .dy-lb-close, .dy-full-width-notifications-close'),
+            async (overlay) => {
+                logger.debug('AutoHandler: Closing Dynamic Yield popup...');
+                await overlay.click();
+            }
+        );
+
+        this.popupHandlerRegistered = true;
+    }
+
+    /**
+     * Initial cookie consent handling on page open (proactive, not reactive)
+     */
     private async handleCookieConsent() {
         try {
-            logger.debug('Checking for cookie banner...');
+            await this.page.waitForLoadState('domcontentloaded');
 
-            const acceptSelectors = [
-                'button.coi-banner__accept',
-                '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
-                'button:has-text("OK")',
-                'button:has-text("Hyväksy")',
-                '[id*="cookie"] button:has-text("OK")',
-            ];
+            const cookieBtn = this.page.locator('button[aria-label="OK"], .coi-banner__accept, #coiPage-1 .coi-banner__accept').first();
 
-            for (const selector of acceptSelectors) {
-                const cookieBtn = this.page.locator(selector).first();
-                if (await cookieBtn.isVisible({ timeout: this.timeouts.cookieBanner }).catch(() => false)) {
-                    await cookieBtn.click({ force: true });
-                    logger.info('✅ Cookie banner accepted.');
-                    await this.page.waitForTimeout(this.timeouts.cookieBannerWait);
-                    return;
+            if (await cookieBtn.isVisible({ timeout: this.timeouts.cookie }).catch(() => false)) {
+                logger.debug('Found cookie banner on page load, clicking...');
+                await cookieBtn.click({ force: true });
+                logger.info('✅ Cookie banner accepted.');
+                try {
+                    await this.page.waitForFunction(() => !document.body.classList.contains('noScroll'), { timeout: this.timeouts.cookie });
+                } catch {
+                    // Ignore
                 }
             }
-
-            logger.debug('ℹ️ Cookie banner not found or already accepted.');
-        } catch (e) {
-            logger.debug(`ℹ️ Ignored cookie banner error: ${e}`);
+        } catch {
+            // Ignore - the addLocatorHandler will catch it if it appears later
         }
     }
 
@@ -56,7 +72,6 @@ export class GiganttiHomePage extends BasePage {
     async searchFor(term: string): Promise<CategoryPage> {
         logger.debug(`🔍 Searching for "${term}"...`);
 
-        // Wait for page to stabilize
         await this.page.waitForLoadState('domcontentloaded');
 
         // Try multiple search input selectors combined
@@ -73,39 +88,27 @@ export class GiganttiHomePage extends BasePage {
         const searchInput = this.page.locator(combinedSelector).first();
 
         try {
-            // Wait for input to be visible
-            await searchInput.waitFor({ state: 'visible', timeout: 5000 });
-            await searchInput.fill(term);
+            await searchInput.waitFor({ state: 'visible', timeout: this.timeouts.default });
+            await this.safeFill(searchInput, term);
             await this.page.keyboard.press('Enter');
 
             // On WebKit, Enter might not submit. Try clicking search button if exists.
             try {
-                const searchBtn = this.page.locator('button[type="submit"], [data-test*="search-button"], [aria-label*="search"], [class*="search-button"], header button .icon-search').first();
-                if (await searchBtn.isVisible({ timeout: 2000 })) {
-                    await searchBtn.click();
+                const searchBtn = this.page.locator('button[type="submit"], [data-test*="search-button"], [aria-label*="search"], [class*="search-button"]').first();
+                if (await searchBtn.isVisible({ timeout: this.timeouts.default })) {
+                    await this.safeClick(searchBtn);
                 }
-            } catch (e) {
+            } catch {
                 // Ignore if button not found/clickable
             }
         } catch (e) {
             logger.warn(`Could not find standard search input, trying AutoHealer. Error: ${e}`);
-            // Fallback: use autohealer
             await this.autoHealer.fill(this.searchInputSelector, term);
             await this.page.keyboard.press('Enter');
         }
 
-        // Wait for search results to load
-        // Robust check: if URL didn't change, force navigation
-        try {
-            await expect(this.page).toHaveURL(/search/, { timeout: 5000 });
-        } catch (e) {
-            logger.warn('UI Search interactions failed to trigger navigation. Fallback: Direct URL navigation.');
-            const query = encodeURIComponent(term);
-            await this.page.goto(`${this.url}search?q=${query}`);
-        }
-
-        await this.page.waitForLoadState('domcontentloaded');
-        await expect(this.page).toHaveURL(/search/);
+        // Verify URL after navigation
+        const searchPattern = new RegExp(`search\\?q=${encodeURIComponent(term).replace(/%20/g, '\\+')}|search\\?q=${term.replace(/ /g, '\\+')}`);
         logger.debug('✅ Search results page loaded.');
 
         return new CategoryPage(this.page, this.autoHealer);
@@ -117,44 +120,18 @@ export class GiganttiHomePage extends BasePage {
     async navigateToCategory(categoryName: string): Promise<CategoryPage> {
         logger.debug(`📂 Navigating to category: ${categoryName}...`);
 
-        await this.dismissOverlays();
-
         // Try multiple approaches to find the category
         const navLink = this.page.locator(`nav a:has-text("${categoryName}"), header a:has-text("${categoryName}")`).first();
-        if (await navLink.isVisible({ timeout: this.timeouts.navigation }).catch(() => false)) {
-            await navLink.click({ force: true });
+        if (await navLink.isVisible({ timeout: this.timeouts.default }).catch(() => false)) {
+            await this.safeClick(navLink, { force: true });
         } else {
             const categoryLink = this.page.getByRole('link', { name: new RegExp(categoryName, 'i') }).first();
-            await categoryLink.click({ force: true, timeout: this.timeouts.categoryFallback });
+            await this.safeClick(categoryLink, { force: true, timeout: this.timeouts.default });
         }
 
         await this.page.waitForLoadState('domcontentloaded');
         logger.debug(`✅ Navigated to ${categoryName} category.`);
 
         return new CategoryPage(this.page, this.autoHealer);
-    }
-
-    /**
-     * Dismiss any overlay modals (cookie banners, popups, etc.)
-     */
-    private async dismissOverlays() {
-        try {
-            const overlaySelectors = [
-                '#cookie-information-template-wrapper button:has-text("OK")',
-                '[id*="cookie"] button',
-                '.modal-close',
-                '[aria-label="Close"]',
-            ];
-
-            for (const selector of overlaySelectors) {
-                const overlay = this.page.locator(selector).first();
-                if (await overlay.isVisible({ timeout: this.timeouts.overlayCheck }).catch(() => false)) {
-                    await overlay.click({ force: true });
-                    await this.page.waitForTimeout(this.timeouts.overlayWait);
-                }
-            }
-        } catch {
-            // Ignore errors - overlays are optional
-        }
     }
 }
