@@ -32,6 +32,8 @@ export class CategoryPage extends BasePage {
             });
         };
 
+        await findProducts(this.timeouts.productVisibility);
+
         logger.debug('✅ Products are displayed on the page.');
     }
 

@@ -62,6 +62,8 @@ export const config = {
             cookie: 10000,
             urlVerify: 15000,
             productVisibility: 30000,
+            click: 10000,
+            fill: 10000,
         },
     },
     testData: {

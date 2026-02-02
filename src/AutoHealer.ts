@@ -53,7 +53,7 @@ export class AutoHealer {
      */
     async click(selectorOrKey: string, options?: any) {
         const locatorManager = LocatorManager.getInstance();
-        let selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
+        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
 
         try {
@@ -82,7 +82,7 @@ export class AutoHealer {
      */
     async fill(selectorOrKey: string, value: string, options?: any) {
         const locatorManager = LocatorManager.getInstance();
-        let selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
+        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
 
         try {
