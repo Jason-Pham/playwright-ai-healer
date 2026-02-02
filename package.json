@@ -4,9 +4,9 @@
   "description": "Playwright self-healing test automation framework",
   "main": "index.js",
   "scripts": {
-    "test:dev": "cross-env TEST_ENV=dev playwright test",
-    "test:staging": "cross-env TEST_ENV=staging playwright test",
-    "test:prod": "cross-env TEST_ENV=prod playwright test",
+    "test:dev": "cross-env TEST_ENV=dev playwright test --project=dev",
+    "test:staging": "cross-env TEST_ENV=staging playwright test --project=staging",
+    "test:prod": "cross-env TEST_ENV=prod playwright test --project=prod",
     "test:all-envs": "npm run test:dev && npm run test:staging && npm run test:prod",
     "test:firefox": "playwright test --project=firefox",
     "test:webkit": "playwright test --project=webkit",
