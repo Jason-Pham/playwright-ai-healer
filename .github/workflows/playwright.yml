@@ -40,8 +40,8 @@ jobs:
       - name: Run Unit Tests
         run: npm run test:unit
 
-      - name: Run Playwright tests (Production)
-        run: npm run test:prod
+      - name: Run Playwright tests (Production - All Browsers)
+        run: cross-env TEST_ENV=prod npx playwright test --project=prod --project=chromium --project=chrome --project=firefox --project=webkit --project=edge --project=mobile-chrome --project=mobile-safari --project=tablet
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

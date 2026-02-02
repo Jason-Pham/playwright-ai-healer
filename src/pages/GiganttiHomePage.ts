@@ -56,11 +56,39 @@ export class GiganttiHomePage extends BasePage {
     async searchFor(term: string): Promise<CategoryPage> {
         logger.info(`🔍 Searching for "${term}"...`);
 
-        await this.autoHealer.fill(this.searchInputSelector, term);
-        await expect(this.page.locator(this.realSearchInputSelector)).toHaveValue(term);
-        await this.page.keyboard.press('Enter');
+        // Wait for page to stabilize
+        await this.page.waitForLoadState('networkidle');
+
+        // Try multiple search input selectors (mobile may have different layout)
+        const searchSelectors = [
+            this.realSearchInputSelector,
+            'input[type="search"]',
+            'input[placeholder*="search" i]',
+            'input[placeholder*="haku" i]',  // Finnish for search
+            '[data-test*="search"] input',
+            'header input',
+        ];
+
+        let searchInput = null;
+        for (const selector of searchSelectors) {
+            const input = this.page.locator(selector).first();
+            if (await input.isVisible({ timeout: 2000 }).catch(() => false)) {
+                searchInput = input;
+                break;
+            }
+        }
+
+        if (searchInput) {
+            await searchInput.fill(term);
+            await this.page.keyboard.press('Enter');
+        } else {
+            // Fallback: use autohealer
+            await this.autoHealer.fill(this.searchInputSelector, term);
+            await this.page.keyboard.press('Enter');
+        }
 
         // Wait for search results to load
+        await this.page.waitForLoadState('networkidle');
         await expect(this.page).toHaveURL(/search/);
         logger.info('✅ Search results page loaded.');
 

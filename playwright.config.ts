@@ -35,6 +35,7 @@ export default defineConfig({
 
     // Environment-specific projects
     projects: [
+        // Environment projects (Chromium-based)
         {
             name: 'default',
             use: { ...devices['Desktop Chrome'] },
@@ -43,7 +44,7 @@ export default defineConfig({
             name: 'dev',
             use: {
                 ...devices['Desktop Chrome'],
-                headless: false, // Dev runs with visible browser
+                headless: false,
             },
         },
         {
@@ -60,7 +61,19 @@ export default defineConfig({
                 headless: true,
             },
         },
-        // Cross-browser testing (optional)
+
+        // Desktop browsers - All major engines
+        {
+            name: 'chromium',
+            use: { ...devices['Desktop Chrome'] },
+        },
+        {
+            name: 'chrome',
+            use: {
+                ...devices['Desktop Chrome'],
+                channel: 'chrome',  // Uses actual Google Chrome
+            },
+        },
         {
             name: 'firefox',
             use: { ...devices['Desktop Firefox'] },
@@ -68,6 +81,27 @@ export default defineConfig({
         {
             name: 'webkit',
             use: { ...devices['Desktop Safari'] },
+        },
+        {
+            name: 'edge',
+            use: {
+                ...devices['Desktop Edge'],
+                channel: 'msedge',  // Uses actual Microsoft Edge
+            },
+        },
+
+        // Mobile devices
+        {
+            name: 'mobile-chrome',
+            use: { ...devices['Pixel 5'] },
+        },
+        {
+            name: 'mobile-safari',
+            use: { ...devices['iPhone 12'] },
+        },
+        {
+            name: 'tablet',
+            use: { ...devices['iPad (gen 7)'] },
         },
     ],
 });
