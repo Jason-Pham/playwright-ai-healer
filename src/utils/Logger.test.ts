@@ -43,16 +43,21 @@ describe('Logger', () => {
     });
 
     it('should log info messages', () => {
-        const winstonSpy = vi.spyOn(winston.createLogger(), 'log');
+        const winstonAny: any = winston as any;
         loggerInstance.info('test info');
-        expect(winstonSpy).toHaveBeenCalled();
-        expect(winstonSpy).toHaveBeenCalledWith('info', 'test info');
+
+        expect(winstonAny.default.createLogger).toHaveBeenCalled();
+        const mockLogger = (winstonAny.default.createLogger as any).mock.results[0].value;
+        expect(mockLogger.log).toHaveBeenCalledWith('info', 'test info');
     });
 
     it('should log error messages', () => {
-        const winstonSpy = vi.spyOn(winston.createLogger(), 'log');
+        const winstonAny: any = winston as any;
         loggerInstance.error('test error');
-        expect(winstonSpy).toHaveBeenCalledWith('error', 'test error');
+
+        expect(winstonAny.default.createLogger).toHaveBeenCalled();
+        const mockLogger = (winstonAny.default.createLogger as any).mock.results[0].value;
+        expect(mockLogger.log).toHaveBeenCalledWith('error', 'test error');
     });
 
     describe('Test Info Integration', () => {
