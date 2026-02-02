@@ -14,31 +14,23 @@ export class CategoryPage extends BasePage {
     async verifyProductsDisplayed() {
         logger.debug('🔍 Verifying products are displayed...');
 
-        // Wait for page to fully load - domcontentloaded is more stable for WebKit than networkidle
+        // Wait for page to fully load
         await this.page.waitForLoadState('domcontentloaded');
 
-        // Try multiple product card selectors (Gigantti-specific)
-        // Target clickable links and visible containers, NOT hidden child elements
+        // Primary selector from actual Gigantti search page structure
         const productSelectors = [
-            'a[href*="/product/"]',  // Most reliable - direct product links
-            'article a[href*="/tuote/"]',  // Finnish product URLs
-            '[data-test-id*="product"] a',  // Test ID product links
-            'article.product-card a',  // Article with product-card class containing link
-            '.product-list a[href*="/product"]',  // Links within product list
-            'main article a:has(img)',  // Articles with images (likely products)
-            'a:has([class*="product-card"])',  // Links containing product card elements
-            'article:has(h2) a',  // Articles with headings (product titles)
+            '[data-testid="product-card"]',
+            '[data-testid="product-card"] a',
+            'a[href*="/product/"]',
+            'article a[href*="/tuote/"]',
         ];
 
-        try {
-            await this.findFirstElement(productSelectors, {
+        const findProducts = async (timeout: number) => {
+            return this.findFirstElement(productSelectors, {
                 state: 'visible',
-                timeout: this.timeouts.productVisibility
+                timeout: timeout
             });
-        } catch (e) {
-            logger.warn(`Could not find any product card after ${this.timeouts.productVisibility}ms. Page content might be blocked or empty.`);
-            throw e;
-        }
+        };
 
         logger.debug('✅ Products are displayed on the page.');
     }
@@ -46,9 +38,8 @@ export class CategoryPage extends BasePage {
     async clickFirstProduct(): Promise<ProductDetailPage> {
         logger.debug('🖱️ Clicking on first product...');
 
-        // Click on the first product link using improved selectors
-        // Prioritize actual product links over generic elements
-        const firstProduct = this.page.locator('a[href*="/product/"], article a[href*="/tuote/"], article.product-card a').first();
+        // Click on the first product card using correct Gigantti selector
+        const firstProduct = this.page.locator('[data-testid="product-card"] a, [data-testid="product-card"]').first();
         await firstProduct.click({ force: true });
 
         // Wait for navigation to product detail page
