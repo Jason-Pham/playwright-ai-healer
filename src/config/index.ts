@@ -1,15 +1,19 @@
-import dotenv from 'dotenv';
-dotenv.config();
+import { loadEnvironment } from '../utils/Environment.js';
+
+// Load environment-specific config first
+loadEnvironment();
 
 export const config = {
+    // Current environment
+    env: process.env['ENV'] || 'dev',
+
     app: {
-        baseUrl: process.env.BASE_URL || 'https://www.gigantti.fi/',
+        baseUrl: process.env['BASE_URL'] || 'https://www.gigantti.fi/',
         selectors: {
             gigantti: {
-                searchInput: '#speedy-header-search', // Intentionally broken
+                searchInput: '#speedy-header-search',
                 realSearchInput: '#speedy-header-search',
                 cookieBannerAccept: 'button.coi-banner__accept',
-                // New selectors for real tests
                 categoryLink: '[data-test="main-navigation"] a[href*="/tietokoneet"]',
                 productCard: '[data-test="product-card"]',
                 productTitle: '[data-test="product-title"]',
@@ -18,15 +22,15 @@ export const config = {
         }
     },
     ai: {
+        provider: (process.env['AI_PROVIDER'] || 'gemini') as 'gemini' | 'openai',
         gemini: {
-            apiKey: process.env.GEMINI_API_KEY,
-            modelName: process.env.GEMINI_MODEL || 'gemini-flash-latest',
+            apiKey: process.env['GEMINI_API_KEY'],
+            modelName: process.env['GEMINI_MODEL'] || 'gemini-flash-latest',
         },
         openai: {
-            // Support single key or comma-separated list
-            apiKeys: (process.env.OPENAI_API_KEYS || process.env.OPENAI_API_KEY || '').split(',').map(k => k.trim()).filter(Boolean),
-            modelName: process.env.OPENAI_MODEL || 'gpt-4o',
-            apiKey: process.env.OPENAI_API_KEY, // Keep for backward compatibility/types
+            apiKeys: (process.env['OPENAI_API_KEYS'] || process.env['OPENAI_API_KEY'] || '').split(',').map(k => k.trim()).filter(Boolean),
+            modelName: process.env['OPENAI_MODEL'] || 'gpt-4o',
+            apiKey: process.env['OPENAI_API_KEY'],
         },
         healing: {
             maxRetries: 3,
@@ -50,13 +54,14 @@ export const config = {
         }
     },
     test: {
+        timeout: parseInt(process.env['TEST_TIMEOUT'] || '120000', 10),
+        headless: process.env['HEADLESS'] !== 'false',
         timeouts: {
             click: 2000,
             fill: 2000,
             check: 5000,
             test: 30000,
             healing: 60000,
-            // Page object timeouts
             cookieBanner: 2000,
             cookieBannerWait: 1000,
             navigation: 5000,
@@ -77,4 +82,3 @@ export const config = {
         }
     }
 };
-

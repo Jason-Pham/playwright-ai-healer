@@ -1,15 +1,26 @@
 {
   "name": "self-healing-agent",
   "version": "1.0.0",
-  "description": "",
+  "description": "Playwright self-healing test automation framework",
   "main": "index.js",
   "scripts": {
-    "test": "playwright test",
+    "test:dev": "cross-env TEST_ENV=dev playwright test",
+    "test:staging": "cross-env TEST_ENV=staging playwright test",
+    "test:prod": "cross-env TEST_ENV=prod playwright test",
+    "test:all-envs": "npm run test:dev && npm run test:staging && npm run test:prod",
+    "test:firefox": "playwright test --project=firefox",
+    "test:webkit": "playwright test --project=webkit",
+    "test:all-browsers": "playwright test --project=default --project=firefox --project=webkit",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "keywords": [],
+  "keywords": [
+    "playwright",
+    "self-healing",
+    "test-automation",
+    "ai"
+  ],
   "author": "",
   "license": "ISC",
   "type": "module",
@@ -26,6 +37,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
+    "cross-env": "^7.0.3",
     "vitest": "^4.0.18"
   }
 }
