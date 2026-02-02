@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 10
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TEST_ENV: prod
 
     steps:
       - name: Checkout repository
@@ -34,7 +35,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps
 
       - name: Run Unit Tests
         run: npm run test:unit
