@@ -18,8 +18,8 @@ if (fs.existsSync(envPath)) {
 export default defineConfig({
     testDir: './tests',
     timeout: parseInt(process.env['TEST_TIMEOUT'] || '120000', 10),
-    retries: process.env['CI'] ? 8 : 0,
-    workers: 4,
+    retries: process.env['CI'] ? 2 : 0,
+    workers: 8,
     fullyParallel: true,
 
     // Generate HTML report for CI artifacts
