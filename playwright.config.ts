@@ -8,11 +8,9 @@ const testEnv = process.env['TEST_ENV'] || 'dev';
 const envPath = path.resolve(`.env.${testEnv}`);
 
 if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath });
-    console.log(`[Playwright] Loaded environment: ${testEnv}`);
+    dotenv.config({ path: envPath, quiet: true } as any);
 } else {
-    dotenv.config();
-    console.log(`[Playwright] Using default .env (no .env.${testEnv} found)`);
+    dotenv.config({ quiet: true } as any);
 }
 
 export default defineConfig({

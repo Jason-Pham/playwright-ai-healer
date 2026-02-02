@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
@@ -46,7 +46,9 @@ export class ProductDetailPage extends BasePage {
 
         if (!priceFound) {
             // Log warning but don't fail - some pages might load price dynamically
-            logger.warn('⚠️ Price element not immediately visible, but page loaded.');
+            // Log warning with browser context
+            const project = test.info().project.name;
+            logger.warn(`[${project}] ⚠️ Price element not immediately visible, but page loaded.`);
         }
 
         logger.debug('✅ Product details page loaded with title and price.');
