@@ -10,7 +10,7 @@
     "test:prod:all-browsers": "cross-env TEST_ENV=prod playwright test --project=prod --project=chromium --project=chrome --project=firefox --project=webkit --project=edge --project=mobile-chrome --project=mobile-safari --project=tablet",
     "test:all-envs": "npm run test:dev && npm run test:staging && npm run test:prod",
     "test:firefox": "playwright test --project=firefox",
-    "test:webkit": "playwright test --project=webkit",
+    "test:webkit": "cross-env TEST_ENV=prod playwright test --project=webkit",
     "test:all-browsers": "playwright test --project=default --project=firefox --project=webkit",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
