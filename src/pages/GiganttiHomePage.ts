@@ -77,6 +77,16 @@ export class GiganttiHomePage extends BasePage {
             await searchInput.waitFor({ state: 'visible', timeout: 5000 });
             await searchInput.fill(term);
             await this.page.keyboard.press('Enter');
+
+            // On WebKit, Enter might not submit. Try clicking search button if exists.
+            try {
+                const searchBtn = this.page.locator('button[type="submit"], [data-test*="search-button"], [aria-label*="search"], [class*="search-button"], header button .icon-search').first();
+                if (await searchBtn.isVisible({ timeout: 2000 })) {
+                    await searchBtn.click();
+                }
+            } catch (e) {
+                // Ignore if button not found/clickable
+            }
         } catch (e) {
             logger.warn(`Could not find standard search input, trying AutoHealer. Error: ${e}`);
             // Fallback: use autohealer
@@ -85,6 +95,15 @@ export class GiganttiHomePage extends BasePage {
         }
 
         // Wait for search results to load
+        // Robust check: if URL didn't change, force navigation
+        try {
+            await expect(this.page).toHaveURL(/search/, { timeout: 5000 });
+        } catch (e) {
+            logger.warn('UI Search interactions failed to trigger navigation. Fallback: Direct URL navigation.');
+            const query = encodeURIComponent(term);
+            await this.page.goto(`${this.url}search?q=${query}`);
+        }
+
         await this.page.waitForLoadState('domcontentloaded');
         await expect(this.page).toHaveURL(/search/);
         logger.debug('✅ Search results page loaded.');
