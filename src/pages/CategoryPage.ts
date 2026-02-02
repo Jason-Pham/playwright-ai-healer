@@ -18,6 +18,8 @@ export class CategoryPage extends BasePage {
         await this.page.waitForLoadState('domcontentloaded');
 
         // Try multiple product card selectors (Gigantti-specific)
+        // Try multiple product card selectors combined
+        // This allows Playwright to wait for ANY of them to become visible
         const productSelectors = [
             '[data-test*="product"]',
             '[class*="ProductCard"]',
@@ -25,21 +27,17 @@ export class CategoryPage extends BasePage {
             'article[class*="product"]',
             '.product-list article',
             '[class*="ProductList"] > div',
+            'article', // Fallback generic article
+            'main a[href*="/product"]' // Fallback product link
         ];
 
-        let found = false;
-        for (const selector of productSelectors) {
-            const products = this.page.locator(selector).first();
-            if (await products.isVisible({ timeout: 2000 }).catch(() => false)) {
-                found = true;
-                break;
-            }
-        }
+        const combinedSelector = productSelectors.join(',');
 
-        if (!found) {
-            // Fallback: just check if there's any article or link on the page
-            const fallback = this.page.locator('article, main a[href*="/product"]').first();
-            await expect(fallback).toBeVisible({ timeout: this.timeouts.productVisibility });
+        try {
+            await this.page.locator(combinedSelector).first().waitFor({ state: 'visible', timeout: this.timeouts.productVisibility });
+        } catch (e) {
+            logger.warn(`Could not find any product card. Page might be empty or loading failed. Error: ${e}`);
+            throw e;
         }
 
         logger.debug('✅ Products are displayed on the page.');
