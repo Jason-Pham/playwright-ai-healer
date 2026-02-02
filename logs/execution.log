@@ -209,3 +209,6 @@
 [2026-02-02 09:47:23] [WARN]: [chromium] ⚠️ Price element not immediately visible, but page loaded.
 [2026-02-02 09:47:46] [WARN]: [edge] ⚠️ Price element not immediately visible, but page loaded.
 [2026-02-02 09:47:55] [WARN]: [mobile-chrome] ⚠️ Price element not immediately visible, but page loaded.
+[2026-02-02 09:59:24] [WARN]: [firefox] ⚠️ Price element not immediately visible, but page loaded.
+[2026-02-02 09:59:37] [WARN]: [edge] ⚠️ Price element not immediately visible, but page loaded.
+[2026-02-02 09:59:59] [WARN]: [mobile-chrome] ⚠️ Price element not immediately visible, but page loaded.

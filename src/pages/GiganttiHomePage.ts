@@ -57,38 +57,35 @@ export class GiganttiHomePage extends BasePage {
         logger.debug(`🔍 Searching for "${term}"...`);
 
         // Wait for page to stabilize
-        await this.page.waitForLoadState('networkidle');
+        await this.page.waitForLoadState('domcontentloaded');
 
-        // Try multiple search input selectors (mobile may have different layout)
+        // Try multiple search input selectors combined
         const searchSelectors = [
             this.realSearchInputSelector,
             'input[type="search"]',
             'input[placeholder*="search" i]',
-            'input[placeholder*="haku" i]',  // Finnish for search
+            'input[placeholder*="haku" i]',
             '[data-test*="search"] input',
             'header input',
         ];
 
-        let searchInput = null;
-        for (const selector of searchSelectors) {
-            const input = this.page.locator(selector).first();
-            if (await input.isVisible({ timeout: 2000 }).catch(() => false)) {
-                searchInput = input;
-                break;
-            }
-        }
+        const combinedSelector = searchSelectors.join(',');
+        const searchInput = this.page.locator(combinedSelector).first();
 
-        if (searchInput) {
+        try {
+            // Wait for input to be visible
+            await searchInput.waitFor({ state: 'visible', timeout: 5000 });
             await searchInput.fill(term);
             await this.page.keyboard.press('Enter');
-        } else {
+        } catch (e) {
+            logger.warn(`Could not find standard search input, trying AutoHealer. Error: ${e}`);
             // Fallback: use autohealer
             await this.autoHealer.fill(this.searchInputSelector, term);
             await this.page.keyboard.press('Enter');
         }
 
         // Wait for search results to load
-        await this.page.waitForLoadState('networkidle');
+        await this.page.waitForLoadState('domcontentloaded');
         await expect(this.page).toHaveURL(/search/);
         logger.debug('✅ Search results page loaded.');
 
@@ -112,7 +109,7 @@ export class GiganttiHomePage extends BasePage {
             await categoryLink.click({ force: true, timeout: this.timeouts.categoryFallback });
         }
 
-        await this.page.waitForLoadState('networkidle');
+        await this.page.waitForLoadState('domcontentloaded');
         logger.debug(`✅ Navigated to ${categoryName} category.`);
 
         return new CategoryPage(this.page, this.autoHealer);

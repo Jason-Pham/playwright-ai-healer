@@ -14,8 +14,8 @@ export class CategoryPage extends BasePage {
     async verifyProductsDisplayed() {
         logger.debug('🔍 Verifying products are displayed...');
 
-        // Wait for page to fully load
-        await this.page.waitForLoadState('networkidle');
+        // Wait for page to fully load - domcontentloaded is more stable for WebKit than networkidle
+        await this.page.waitForLoadState('domcontentloaded');
 
         // Try multiple product card selectors (Gigantti-specific)
         const productSelectors = [
@@ -56,7 +56,7 @@ export class CategoryPage extends BasePage {
         await firstProduct.click({ force: true });
 
         // Wait for navigation
-        await this.page.waitForLoadState('networkidle');
+        await this.page.waitForLoadState('domcontentloaded');
         logger.debug('✅ Clicked on first product.');
 
         // Dynamically import to avoid circular dependency

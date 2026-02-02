@@ -14,37 +14,17 @@ export class ProductDetailPage extends BasePage {
         logger.debug('🔍 Verifying product details page loaded...');
 
         // Wait for page to fully load
-        await this.page.waitForLoadState('networkidle');
+        await this.page.waitForLoadState('domcontentloaded');
 
-        // Verify product title is visible (try multiple selectors)
+        // Verify product title is visible (combined check)
         const titleSelectors = ['h1', '[data-test*="title"]', '[class*="ProductTitle"]', '.product-title'];
-        let titleFound = false;
-        for (const selector of titleSelectors) {
-            const title = this.page.locator(selector).first();
-            if (await title.isVisible({ timeout: 2000 }).catch(() => false)) {
-                titleFound = true;
-                break;
-            }
-        }
+        await this.page.locator(titleSelectors.join(',')).first().waitFor({ state: 'visible', timeout: this.timeouts.productVisibility });
 
-        if (!titleFound) {
-            // Fallback: any visible heading
-            const heading = this.page.locator('h1, h2').first();
-            await expect(heading).toBeVisible({ timeout: this.timeouts.productVisibility });
-        }
-
-        // Verify price is visible (try multiple selectors)
+        // Verify price is visible (combined check)
         const priceSelectors = ['[class*="price"]', '[data-test*="price"]', '[class*="Price"]', '.product-price'];
-        let priceFound = false;
-        for (const selector of priceSelectors) {
-            const price = this.page.locator(selector).first();
-            if (await price.isVisible({ timeout: 2000 }).catch(() => false)) {
-                priceFound = true;
-                break;
-            }
-        }
-
-        if (!priceFound) {
+        try {
+            await this.page.locator(priceSelectors.join(',')).first().waitFor({ state: 'visible', timeout: 5000 });
+        } catch (e) {
             // Log warning but don't fail - some pages might load price dynamically
             // Log warning with browser context
             const project = test.info().project.name;
