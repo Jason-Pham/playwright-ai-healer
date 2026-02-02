@@ -168,3 +168,4 @@
 [2026-02-02 08:42:41] [INFO]: ✅ Clicked on first product.
 [2026-02-02 08:42:41] [INFO]: 🔍 Verifying product details page loaded...
 [2026-02-02 08:42:41] [INFO]: ✅ Product details page loaded with title and price.
+[2026-02-02 09:11:11] [WARN]: ⚠️ Price element not immediately visible, but page loaded.

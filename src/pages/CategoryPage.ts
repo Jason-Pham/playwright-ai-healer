@@ -14,9 +14,33 @@ export class CategoryPage extends BasePage {
     async verifyProductsDisplayed() {
         logger.info('🔍 Verifying products are displayed...');
 
-        // Look for product cards on the page
-        const productCards = this.page.locator('article, [class*="product"], [data-test*="product"]').first();
-        await expect(productCards).toBeVisible({ timeout: this.timeouts.productVisibility });
+        // Wait for page to fully load
+        await this.page.waitForLoadState('networkidle');
+
+        // Try multiple product card selectors (Gigantti-specific)
+        const productSelectors = [
+            '[data-test*="product"]',
+            '[class*="ProductCard"]',
+            '[class*="product-card"]',
+            'article[class*="product"]',
+            '.product-list article',
+            '[class*="ProductList"] > div',
+        ];
+
+        let found = false;
+        for (const selector of productSelectors) {
+            const products = this.page.locator(selector).first();
+            if (await products.isVisible({ timeout: 2000 }).catch(() => false)) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            // Fallback: just check if there's any article or link on the page
+            const fallback = this.page.locator('article, main a[href*="/product"]').first();
+            await expect(fallback).toBeVisible({ timeout: this.timeouts.productVisibility });
+        }
 
         logger.info('✅ Products are displayed on the page.');
     }
