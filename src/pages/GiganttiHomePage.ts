@@ -17,7 +17,7 @@ export class GiganttiHomePage extends BasePage {
     private readonly realSearchInputSelector = config.app.selectors.gigantti.realSearchInput;
 
     async open() {
-        logger.info(`Navigating to ${this.url} ...`);
+        logger.debug(`Navigating to ${this.url} ...`);
         await this.goto(this.url);
         await this.handleCookieConsent();
     }
@@ -54,7 +54,7 @@ export class GiganttiHomePage extends BasePage {
      * Search for a product and navigate to search results (CategoryPage)
      */
     async searchFor(term: string): Promise<CategoryPage> {
-        logger.info(`🔍 Searching for "${term}"...`);
+        logger.debug(`🔍 Searching for "${term}"...`);
 
         // Wait for page to stabilize
         await this.page.waitForLoadState('networkidle');
@@ -90,7 +90,7 @@ export class GiganttiHomePage extends BasePage {
         // Wait for search results to load
         await this.page.waitForLoadState('networkidle');
         await expect(this.page).toHaveURL(/search/);
-        logger.info('✅ Search results page loaded.');
+        logger.debug('✅ Search results page loaded.');
 
         return new CategoryPage(this.page, this.autoHealer);
     }
@@ -99,7 +99,7 @@ export class GiganttiHomePage extends BasePage {
      * Navigate to a product category
      */
     async navigateToCategory(categoryName: string): Promise<CategoryPage> {
-        logger.info(`📂 Navigating to category: ${categoryName}...`);
+        logger.debug(`📂 Navigating to category: ${categoryName}...`);
 
         await this.dismissOverlays();
 
@@ -113,7 +113,7 @@ export class GiganttiHomePage extends BasePage {
         }
 
         await this.page.waitForLoadState('networkidle');
-        logger.info(`✅ Navigated to ${categoryName} category.`);
+        logger.debug(`✅ Navigated to ${categoryName} category.`);
 
         return new CategoryPage(this.page, this.autoHealer);
     }

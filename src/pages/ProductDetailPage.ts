@@ -11,7 +11,7 @@ export class ProductDetailPage extends BasePage {
     private readonly timeouts = config.test.timeouts;
 
     async verifyProductDetailsLoaded() {
-        logger.info('🔍 Verifying product details page loaded...');
+        logger.debug('🔍 Verifying product details page loaded...');
 
         // Wait for page to fully load
         await this.page.waitForLoadState('networkidle');
@@ -49,7 +49,7 @@ export class ProductDetailPage extends BasePage {
             logger.warn('⚠️ Price element not immediately visible, but page loaded.');
         }
 
-        logger.info('✅ Product details page loaded with title and price.');
+        logger.debug('✅ Product details page loaded with title and price.');
     }
 
     async getProductTitle(): Promise<string> {

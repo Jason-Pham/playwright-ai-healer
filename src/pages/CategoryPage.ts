@@ -12,7 +12,7 @@ export class CategoryPage extends BasePage {
     private readonly timeouts = config.test.timeouts;
 
     async verifyProductsDisplayed() {
-        logger.info('🔍 Verifying products are displayed...');
+        logger.debug('🔍 Verifying products are displayed...');
 
         // Wait for page to fully load
         await this.page.waitForLoadState('networkidle');
@@ -42,11 +42,11 @@ export class CategoryPage extends BasePage {
             await expect(fallback).toBeVisible({ timeout: this.timeouts.productVisibility });
         }
 
-        logger.info('✅ Products are displayed on the page.');
+        logger.debug('✅ Products are displayed on the page.');
     }
 
     async clickFirstProduct(): Promise<ProductDetailPage> {
-        logger.info('🖱️ Clicking on first product...');
+        logger.debug('🖱️ Clicking on first product...');
 
         // Dismiss any remaining overlays first
         await this.dismissOverlays();
@@ -57,7 +57,7 @@ export class CategoryPage extends BasePage {
 
         // Wait for navigation
         await this.page.waitForLoadState('networkidle');
-        logger.info('✅ Clicked on first product.');
+        logger.debug('✅ Clicked on first product.');
 
         // Dynamically import to avoid circular dependency
         const { ProductDetailPage: ProductDetailPageClass } = await import('./ProductDetailPage.js');
