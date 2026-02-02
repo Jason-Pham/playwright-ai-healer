@@ -4,19 +4,20 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
+import type { AIProvider } from './types.js';
 
 export class AutoHealer {
     private page: Page;
     private openai?: OpenAI;
     private gemini?: GoogleGenerativeAI;
     private debug: boolean;
-    private provider: 'openai' | 'gemini';
+    private provider: AIProvider;
     private modelName: string;
 
     private apiKeys: string[];
     private currentKeyIndex = 0;
 
-    constructor(page: Page, apiKeys: string | string[], provider: 'openai' | 'gemini' = 'gemini', modelName?: string, debug = false) {
+    constructor(page: Page, apiKeys: string | string[], provider: AIProvider = 'gemini', modelName?: string, debug = false) {
         this.page = page;
         this.debug = debug;
         this.provider = provider;
