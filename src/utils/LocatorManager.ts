@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from './Logger.js';
+import type { LocatorMap } from '../types.js';
 
 // Get current directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -11,7 +12,7 @@ const __dirname = path.dirname(__filename);
 export class LocatorManager {
     private static instance: LocatorManager;
     private locatorsPath: string;
-    private locators: any;
+    private locators: LocatorMap = {};
 
     private constructor() {
         // Resolve path relative to this file (src/utils -> src/config/locators.json)
@@ -44,10 +45,10 @@ export class LocatorManager {
     public getLocator(key: string): string | null {
         try {
             const parts = key.split('.');
-            let current = this.locators;
+            let current: string | LocatorMap | undefined = this.locators;
 
             for (const part of parts) {
-                if (current === undefined || current === null) return null;
+                if (current === undefined || current === null || typeof current === 'string') return null;
                 current = current[part];
             }
 
@@ -61,7 +62,7 @@ export class LocatorManager {
     public updateLocator(key: string, newSelector: string) {
         try {
             const parts = key.split('.');
-            let current = this.locators;
+            let current: LocatorMap = this.locators;
 
             // Traverse to the second to last part
             for (let i = 0; i < parts.length - 1; i++) {
@@ -71,10 +72,10 @@ export class LocatorManager {
                 if (current === null || typeof current !== 'object') {
                     throw new Error(`Cannot traverse path segment '${part}'`);
                 }
-                if (!current[part]) {
+                if (!current[part] || typeof current[part] === 'string') {
                     current[part] = {};
                 }
-                current = current[part];
+                current = current[part] as LocatorMap;
             }
 
             // Set the new value
