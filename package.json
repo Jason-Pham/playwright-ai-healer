@@ -8,7 +8,7 @@
     "test:staging": "cross-env TEST_ENV=staging playwright test --project=staging",
     "test:prod": "cross-env TEST_ENV=prod playwright test --project=prod",
     "test:prod:all-browsers": "cross-env TEST_ENV=prod playwright test --project=prod --project=chromium --project=chrome --project=firefox --project=webkit --project=edge --project=mobile-chrome --project=mobile-safari --project=tablet",
-    "test:firefox": "playwright test --project=firefox",
+    "test:firefox": "cross-env TEST_ENV=prod playwright test --project=firefox",
     "test:webkit": "cross-env TEST_ENV=prod playwright test --project=webkit",
     "test:all-browsers": "playwright test --project=default --project=firefox --project=webkit",
     "test:unit": "vitest run",

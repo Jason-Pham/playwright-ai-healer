@@ -79,11 +79,12 @@ export abstract class BasePage {
      * @returns Locator for the first matching element
      */
     async findFirstElement(selectors: string[], options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }): Promise<Locator> {
-        await this.dismissOverlaysBeforeAction();
+        await this.page.waitForLoadState('domcontentloaded');
         const combinedSelector = selectors.join(',');
         const locator = this.page.locator(combinedSelector).first();
 
         if (options) {
+            await this.dismissOverlaysBeforeAction();
             await locator.waitFor(options);
         }
 
