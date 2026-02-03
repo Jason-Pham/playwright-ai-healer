@@ -2,7 +2,6 @@ import { test } from './fixtures/base.js';
 import { config } from '../src/config/index.js';
 
 test.describe('Gigantti.fi E2E Tests', () => {
-
     test('should search for a product and verify results', async ({ giganttiPage }) => {
         await giganttiPage.open();
         const searchTerm = config.testData.getRandomSearchTerm();
@@ -24,5 +23,4 @@ test.describe('Gigantti.fi E2E Tests', () => {
         const productDetailPage = await searchResultsPage.clickFirstProduct();
         await productDetailPage.verifyProductDetailsLoaded();
     });
-
 });

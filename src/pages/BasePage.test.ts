@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Page } from '@playwright/test';
 import { BasePage } from './BasePage.js';
@@ -55,8 +54,8 @@ describe('BasePage', () => {
             mockPage.locator.mockReturnValue({
                 first: () => ({
                     isVisible: vi.fn().mockResolvedValue(false),
-                    click: vi.fn()
-                })
+                    click: vi.fn(),
+                }),
             });
 
             await basePage.safeClick(mockLocator as any);
@@ -89,11 +88,11 @@ describe('BasePage', () => {
     describe('findFirstElement', () => {
         it('should construct a combined selector and wait', async () => {
             const mockCombinedLocator = {
-                waitFor: vi.fn()
+                waitFor: vi.fn(),
             };
 
             mockPage.locator.mockReturnValue({
-                first: () => mockCombinedLocator
+                first: () => mockCombinedLocator,
             });
 
             const selectors = ['.one', '#two'];

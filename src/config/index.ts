@@ -18,8 +18,8 @@ export const config = {
                 productCard: '[data-test="product-card"]',
                 productTitle: '[data-test="product-title"]',
                 productPrice: '[data-test="product-price"]',
-            }
-        }
+            },
+        },
     },
     ai: {
         provider: (process.env['AI_PROVIDER'] || 'gemini') as 'gemini' | 'openai',
@@ -28,7 +28,10 @@ export const config = {
             modelName: process.env['GEMINI_MODEL'] || 'gemini-flash-latest',
         },
         openai: {
-            apiKeys: (process.env['OPENAI_API_KEYS'] || process.env['OPENAI_API_KEY'] || '').split(',').map(k => k.trim()).filter(Boolean),
+            apiKeys: (process.env['OPENAI_API_KEYS'] || process.env['OPENAI_API_KEY'] || '')
+                .split(',')
+                .map(k => k.trim())
+                .filter(Boolean),
             modelName: process.env['OPENAI_MODEL'] || 'gpt-4o',
             apiKey: process.env['OPENAI_API_KEY'],
         },
@@ -50,8 +53,8 @@ export const config = {
       
       HTML Snippet:
       ${html}
-    `
-        }
+    `,
+        },
     },
     test: {
         timeout: parseInt(process.env['TEST_TIMEOUT'] || '120000', 10),
@@ -78,7 +81,7 @@ export const config = {
             'gaming',
             'speaker',
             'keyboard',
-            'monitor'
+            'monitor',
         ],
         // Helper to get random search term
         getRandomSearchTerm(): string {
@@ -87,6 +90,6 @@ export const config = {
         },
         categories: {
             computers: 'Tietotekniikka',
-        }
-    }
+        },
+    },
 };

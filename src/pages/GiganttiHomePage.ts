@@ -32,7 +32,7 @@ export class GiganttiHomePage extends BasePage {
         // Handler for Dynamic Yield marketing popups only
         await this.page.addLocatorHandler(
             this.page.locator('.dy-lb-close, .dy-modal-container .dy-lb-close, .dy-full-width-notifications-close'),
-            async (overlay) => {
+            async overlay => {
                 logger.debug('AutoHandler: Closing Dynamic Yield popup...');
                 await overlay.click();
             }
@@ -48,14 +48,18 @@ export class GiganttiHomePage extends BasePage {
         try {
             await this.page.waitForLoadState('domcontentloaded');
 
-            const cookieBtn = this.page.locator('button[aria-label="OK"], .coi-banner__accept, #coiPage-1 .coi-banner__accept').first();
+            const cookieBtn = this.page
+                .locator('button[aria-label="OK"], .coi-banner__accept, #coiPage-1 .coi-banner__accept')
+                .first();
 
             if (await cookieBtn.isVisible({ timeout: this.timeouts.cookie }).catch(() => false)) {
                 logger.debug('Found cookie banner on page load, clicking...');
                 await cookieBtn.click({ force: true });
                 logger.info('✅ Cookie banner accepted.');
                 try {
-                    await this.page.waitForFunction(() => !document.body.classList.contains('noScroll'), { timeout: this.timeouts.cookie });
+                    await this.page.waitForFunction(() => !document.body.classList.contains('noScroll'), {
+                        timeout: this.timeouts.cookie,
+                    });
                 } catch {
                     // Ignore
                 }
@@ -93,7 +97,11 @@ export class GiganttiHomePage extends BasePage {
 
             // On WebKit, Enter might not submit. Try clicking search button if exists.
             try {
-                const searchBtn = this.page.locator('button[type="submit"], [data-test*="search-button"], [aria-label*="search"], [class*="search-button"]').first();
+                const searchBtn = this.page
+                    .locator(
+                        'button[type="submit"], [data-test*="search-button"], [aria-label*="search"], [class*="search-button"]'
+                    )
+                    .first();
                 if (await searchBtn.isVisible({ timeout: this.timeouts.default })) {
                     await this.safeClick(searchBtn);
                 }
@@ -120,7 +128,9 @@ export class GiganttiHomePage extends BasePage {
         logger.debug(`📂 Navigating to category: ${categoryName}...`);
 
         // Try multiple approaches to find the category
-        const navLink = this.page.locator(`nav a:has-text("${categoryName}"), header a:has-text("${categoryName}")`).first();
+        const navLink = this.page
+            .locator(`nav a:has-text("${categoryName}"), header a:has-text("${categoryName}")`)
+            .first();
         if (await navLink.isVisible({ timeout: this.timeouts.default }).catch(() => false)) {
             await this.safeClick(navLink, { force: true });
         } else {

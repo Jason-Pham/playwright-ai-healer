@@ -8,7 +8,7 @@ const { mockLogger } = vi.hoisted(() => {
             log: vi.fn(),
             add: vi.fn(),
             remove: vi.fn(),
-        }
+        },
     };
 });
 
@@ -59,7 +59,7 @@ describe('Logger', () => {
     describe('Test Info Integration', () => {
         it('should attach annotations to test info if present', () => {
             const mockTestInfo: any = {
-                annotations: []
+                annotations: [],
             };
 
             loggerInstance.setTestInfo(mockTestInfo);
@@ -68,7 +68,7 @@ describe('Logger', () => {
             expect(mockTestInfo.annotations).toHaveLength(1);
             expect(mockTestInfo.annotations[0]).toEqual({
                 type: 'warn',
-                description: 'test warning'
+                description: 'test warning',
             });
 
             // Cleanup
@@ -77,7 +77,7 @@ describe('Logger', () => {
 
         it('should NOT attach annotations if test info is cleared', () => {
             const mockTestInfo: any = {
-                annotations: []
+                annotations: [],
             };
 
             loggerInstance.setTestInfo(mockTestInfo);

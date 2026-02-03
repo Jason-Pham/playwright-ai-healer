@@ -29,7 +29,9 @@ export abstract class BasePage {
     protected async dismissOverlaysBeforeAction(): Promise<void> {
         try {
             // Handle Gigantti cookie consent banner
-            const cookieBtn = this.page.locator('button[aria-label="OK"], .coi-banner__accept, #coiPage-1 .coi-banner__accept').first();
+            const cookieBtn = this.page
+                .locator('button[aria-label="OK"], .coi-banner__accept, #coiPage-1 .coi-banner__accept')
+                .first();
 
             if (await cookieBtn.isVisible({ timeout: config.test.timeouts.default }).catch(() => false)) {
                 logger.debug('Dismissing cookie banner before action...');
@@ -37,7 +39,9 @@ export abstract class BasePage {
 
                 // Wait for body.noScroll to be removed
                 try {
-                    await this.page.waitForFunction(() => !document.body.classList.contains('noScroll'), { timeout: config.test.timeouts.default });
+                    await this.page.waitForFunction(() => !document.body.classList.contains('noScroll'), {
+                        timeout: config.test.timeouts.default,
+                    });
                 } catch {
                     // Ignore - not all pages have noScroll
                 }
@@ -78,7 +82,10 @@ export abstract class BasePage {
      * @param options Optional waitFor options
      * @returns Locator for the first matching element
      */
-    async findFirstElement(selectors: string[], options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }): Promise<Locator> {
+    async findFirstElement(
+        selectors: string[],
+        options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }
+    ): Promise<Locator> {
         await this.page.waitForLoadState('domcontentloaded');
         const combinedSelector = selectors.join(',');
         const locator = this.page.locator(combinedSelector).first();

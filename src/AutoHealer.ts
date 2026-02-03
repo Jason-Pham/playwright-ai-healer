@@ -4,19 +4,48 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
+import type { AIProvider, ClickOptions, FillOptions, AIError } from './types.js';
 
+/**
+ * AutoHealer - Self-healing test automation agent
+ *
+ * This class wraps Playwright page interactions and automatically attempts to heal
+ * broken selectors using AI (OpenAI or Google Gemini) when interactions fail.
+ *
+ * @example
+ * ```typescript
+ * const healer = new AutoHealer(page, 'your-api-key', 'gemini');
+ * await healer.click('#submit-button');
+ * await healer.fill('#search-input', 'test query');
+ * ```
+ */
 export class AutoHealer {
     private page: Page;
     private openai?: OpenAI;
     private gemini?: GoogleGenerativeAI;
     private debug: boolean;
-    private provider: 'openai' | 'gemini';
+    private provider: AIProvider;
     private modelName: string;
 
     private apiKeys: string[];
     private currentKeyIndex = 0;
 
-    constructor(page: Page, apiKeys: string | string[], provider: 'openai' | 'gemini' = 'gemini', modelName?: string, debug = false) {
+    /**
+     * Creates an AutoHealer instance
+     *
+     * @param page - Playwright page instance
+     * @param apiKeys - API key(s) for the AI provider. Can be a single key or array for rotation
+     * @param provider - AI provider to use ('openai' or 'gemini')
+     * @param modelName - Model name to use (defaults based on provider)
+     * @param debug - Enable debug logging
+     */
+    constructor(
+        page: Page,
+        apiKeys: string | string[],
+        provider: AIProvider = 'gemini',
+        modelName?: string,
+        debug = false
+    ) {
         this.page = page;
         this.debug = debug;
         this.provider = provider;
@@ -50,8 +79,15 @@ export class AutoHealer {
 
     /**
      * Safe click method that attempts self-healing on failure
+     *
+     * Attempts to click on an element. If the click fails, uses AI to find
+     * a new selector and retries the click.
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright click options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async click(selectorOrKey: string, options?: any) {
+    async click(selectorOrKey: string, options?: ClickOptions) {
         const locatorManager = LocatorManager.getInstance();
         const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
@@ -79,8 +115,16 @@ export class AutoHealer {
 
     /**
      * Safe fill method that attempts self-healing on failure
+     *
+     * Attempts to fill an input element. If the fill fails, uses AI to find
+     * a new selector and retries the fill.
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param value - Text value to fill
+     * @param options - Playwright fill options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async fill(selectorOrKey: string, value: string, options?: any) {
+    async fill(selectorOrKey: string, value: string, options?: FillOptions) {
         const locatorManager = LocatorManager.getInstance();
         const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
@@ -107,15 +151,23 @@ export class AutoHealer {
     }
 
     /**
-     * Core healing logic
+     * Core healing logic - attempts to find a new selector using AI
+     *
+     * @param originalSelector - The selector that failed
+     * @param error - The error that occurred
+     * @returns New selector if healing succeeds, null otherwise
+     * @private
      */
     private async heal(originalSelector: string, error: Error): Promise<string | null> {
-
         // 1. Capture simplified DOM
         const htmlSnapshot = await this.getSimplifiedDOM();
 
         // 2. Construct Prompt
-        const promptText = config.ai.prompts.healingPrompt(originalSelector, error.message, htmlSnapshot.substring(0, 2000));
+        const promptText = config.ai.prompts.healingPrompt(
+            originalSelector,
+            error.message,
+            htmlSnapshot.substring(0, 2000)
+        );
 
         try {
             let result: string | undefined;
@@ -138,28 +190,34 @@ export class AutoHealer {
                     }
                     // If success, break loop
                     break;
-                } catch (reqError: any) {
-                    const isRateLimit = reqError.message?.includes('429') || reqError.status === 429;
-                    const isAuthError = reqError.message?.includes('401') || reqError.status === 401;
+                } catch (reqError) {
+                    const error = reqError as AIError;
+                    const isRateLimit = error.message?.includes('429') || error.status === 429;
+                    const isAuthError = error.message?.includes('401') || error.status === 401;
 
                     if (isRateLimit) {
                         logger.warn(`[AutoHealer] Rate limit (429) detected. Skipping test to avoid timeout.`);
-                        test.info().annotations.push({ type: 'warning', description: 'Test skipped due to AI Rate Limit (429)' });
+                        test.info().annotations.push({
+                            type: 'warning',
+                            description: 'Test skipped due to AI Rate Limit (429)',
+                        });
                         test.skip(true, 'Test skipped due to AI Rate Limit (429)');
                         return null; // Should not be reached effectively, but satisfies types
                     }
 
                     if (isAuthError) {
-                        logger.warn(`[AutoHealer] Auth Error (${reqError.status || 'Unknown'}). Attempting key rotation...`);
+                        logger.warn(
+                            `[AutoHealer] Auth Error (${error.status || 'Unknown'}). Attempting key rotation...`
+                        );
                         const rotated = this.rotateKey();
                         if (rotated) {
                             continue; // Try next key
                         } else {
                             logger.error('[AutoHealer] No more API keys to try.');
-                            throw reqError;
+                            throw error;
                         }
                     }
-                    throw reqError;
+                    throw error;
                 }
             }
 
@@ -168,15 +226,16 @@ export class AutoHealer {
                 result = result.replace(/```/g, '').trim();
             }
 
-            if (result && result !== "FAIL") {
+            if (result && result !== 'FAIL') {
                 return result;
             }
-        } catch (aiError: any) {
+        } catch (aiError) {
+            const error = aiError as Error;
             // If it's a skip error, re-throw it so Playwright skips the test
-            if (aiError.message?.includes('Test skipped')) {
-                throw aiError;
+            if (error.message?.includes('Test skipped')) {
+                throw error;
             }
-            logger.error(`[AutoHealer] AI Healing failed (${this.provider}): ${aiError.message || aiError}`);
+            logger.error(`[AutoHealer] AI Healing failed (${this.provider}): ${error.message || String(error)}`);
         }
 
         return null;
@@ -184,6 +243,9 @@ export class AutoHealer {
 
     /**
      * Captures the DOM and removes noise (scripts, styles, SVGs) to save tokens
+     *
+     * @returns Simplified HTML string
+     * @private
      */
     private async getSimplifiedDOM(): Promise<string> {
         return await this.page.evaluate(() => {
@@ -199,7 +261,7 @@ export class AutoHealer {
             // Remove comments
             const iterator = document.createNodeIterator(clone, NodeFilter.SHOW_COMMENT);
             let currentNode;
-             
+
             while ((currentNode = iterator.nextNode())) {
                 currentNode.parentNode?.removeChild(currentNode);
             }

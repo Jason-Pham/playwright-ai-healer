@@ -9,14 +9,14 @@
 
 ## ✨ Features
 
-| Feature | Description |
-|---------|-------------|
-| 🔧 **AI Self-Healing** | Automatically fixes broken selectors using OpenAI or Gemini |
-| 🌐 **Multi-Browser** | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices |
-| 🌍 **Multi-Environment** | Dev, Staging, Prod configs with `.env.{env}` files |
-| 📊 **Structured Logging** | Winston logger with console + file output |
-| 📄 **Page Object Model** | Clean POM architecture with proper page flows |
-| 🔄 **CI/CD Ready** | GitHub Actions with retries and HTML reports |
+| Feature                   | Description                                                 |
+| ------------------------- | ----------------------------------------------------------- |
+| 🔧 **AI Self-Healing**    | Automatically fixes broken selectors using OpenAI or Gemini |
+| 🌐 **Multi-Browser**      | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices    |
+| 🌍 **Multi-Environment**  | Dev, Staging, Prod configs with `.env.{env}` files          |
+| 📊 **Structured Logging** | Winston logger with console + file output                   |
+| 📄 **Page Object Model**  | Clean POM architecture with proper page flows               |
+| 🔄 **CI/CD Ready**        | GitHub Actions with retries and HTML reports                |
 
 ## 🚀 Quick Start
 
@@ -46,6 +46,7 @@ npm run test:prod
 ```
 
 **Environment files:**
+
 - `.env.dev` - Development configuration
 - `.env.staging` - Staging configuration
 - `.env.prod` - Production configuration
@@ -53,17 +54,17 @@ npm run test:prod
 
 ## 🌐 Cross-Browser Testing
 
-| Project | Browser/Device |
-|---------|----------------|
-| `prod` | Desktop Chrome |
-| `chromium` | Chromium |
-| `chrome` | Google Chrome |
-| `firefox` | Firefox |
-| `webkit` | Safari |
-| `edge` | Microsoft Edge |
-| `mobile-chrome` | Pixel 5 |
-| `mobile-safari` | iPhone 12 |
-| `tablet` | iPad (gen 7) |
+| Project         | Browser/Device |
+| --------------- | -------------- |
+| `prod`          | Desktop Chrome |
+| `chromium`      | Chromium       |
+| `chrome`        | Google Chrome  |
+| `firefox`       | Firefox        |
+| `webkit`        | Safari         |
+| `edge`          | Microsoft Edge |
+| `mobile-chrome` | Pixel 5        |
+| `mobile-safari` | iPhone 12      |
+| `tablet`        | iPad (gen 7)   |
 
 ```bash
 # Run on all browsers
@@ -149,6 +150,7 @@ async click(selector: string) {
 ## 📚 Portfolio Notes
 
 This project demonstrates:
+
 - **Agentic Workflows**: Combining LLMs with deterministic runtime logic
 - **Enterprise Architecture**: Multi-environment, structured logging, centralized config
 - **Modern QA**: Moving beyond "record and playback" to intelligent, resilient automation
