@@ -94,7 +94,7 @@ export class AutoHealer {
 
         try {
             if (this.debug) logger.info(`[AutoHealer] Attempting click on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.click(selector, { timeout: config.test.timeouts.click, ...options });
+            await this.page.click(selector, { timeout: config.test.timeouts.short, ...options });
         } catch (error) {
             logger.warn(`[AutoHealer] Click failed. Initiating healing protocol (${this.provider})...`);
             const newSelector = await this.heal(selector, error as Error);
@@ -131,7 +131,7 @@ export class AutoHealer {
 
         try {
             if (this.debug) logger.info(`[AutoHealer] Attempting fill on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.fill(selector, value, { timeout: config.test.timeouts.fill, ...options });
+            await this.page.fill(selector, value, { timeout: config.test.timeouts.short, ...options });
         } catch (error) {
             logger.warn(`[AutoHealer] Fill failed. Initiating healing protocol (${this.provider})...`);
             const newSelector = await this.heal(selector, error as Error);

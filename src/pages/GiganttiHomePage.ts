@@ -2,6 +2,7 @@ import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
 import { CategoryPage } from './CategoryPage.js';
+import { expect } from '@playwright/test';
 import locators from '../config/locators.json' with { type: "json" };
 
 const { searchInput } = locators.gigantti;
@@ -25,18 +26,7 @@ export class GiganttiHomePage extends BasePage {
      * Register popup handler once per page (only Dynamic Yield marketing popups)
      */
     private async setupPopupHandler() {
-        if (this.popupHandlerRegistered) return;
-
-        // Handler for Dynamic Yield marketing popups only
-        await this.page.addLocatorHandler(
-            this.page.locator('.dy-lb-close, .dy-modal-container .dy-lb-close, .dy-full-width-notifications-close'),
-            async overlay => {
-                logger.debug('AutoHandler: Closing Dynamic Yield popup...');
-                await overlay.click();
-            }
-        );
-
-        this.popupHandlerRegistered = true;
+        await this.dismissOverlaysBeforeAction();
     }
 
     /**
@@ -45,13 +35,13 @@ export class GiganttiHomePage extends BasePage {
     async searchFor(term: string): Promise<CategoryPage> {
         logger.debug(`🔍 Searching for "${term}"...`);
 
-        await this.safeFill(this.page.locator(searchInput), term);
+        await this.safeFill(this.page.locator(searchInput), term, { force: true });
 
         const searchBtn = this.page
             .locator('[data-testid="search-button"]')
             .first();
 
-        await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
+        await this.expectValue(this.page.locator(searchInput), term);
         await this.safeClick(searchBtn);
 
         return new CategoryPage(this.page, this.autoHealer);
