@@ -82,3 +82,28 @@ export interface AIConfig {
 export interface LocatorStore {
     [key: string]: string | LocatorStore;
 }
+
+/**
+ * Performance metrics for healing operations
+ */
+export interface HealingMetrics {
+    totalAttempts: number;
+    successfulHeals: number;
+    failedHeals: number;
+    totalLatencyMs: number;
+    averageLatencyMs: number;
+    successRate: number;
+    totalTokensUsed?: number;
+}
+
+/**
+ * Individual healing attempt record
+ */
+export interface HealingAttempt {
+    timestamp: Date;
+    selector: string;
+    success: boolean;
+    latencyMs: number;
+    provider: AIProvider;
+    error?: string | undefined;
+}

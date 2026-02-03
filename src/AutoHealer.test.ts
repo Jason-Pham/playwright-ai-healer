@@ -153,4 +153,97 @@ describe('AutoHealer', () => {
             expect(callArg).toContain('Element not found'); // Error message in prompt
         });
     });
+
+    describe('Performance Metrics', () => {
+        it('should track successful healing attempts', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Element not found'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            await healer.click('#broken');
+
+            const metrics = healer.getMetrics();
+            expect(metrics.totalAttempts).toBe(1);
+            expect(metrics.successfulHeals).toBe(1);
+            expect(metrics.failedHeals).toBe(0);
+            expect(metrics.successRate).toBe(1);
+        });
+
+        it('should track failed healing attempts', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Element not found'));
+            mockGeminiGenerateContent.mockResolvedValue({
+                response: { text: () => 'FAIL' },
+            });
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            await expect(healer.click('#nonexistent')).rejects.toThrow();
+
+            const metrics = healer.getMetrics();
+            expect(metrics.totalAttempts).toBe(1);
+            expect(metrics.successfulHeals).toBe(0);
+            expect(metrics.failedHeals).toBe(1);
+            expect(metrics.successRate).toBe(0);
+        });
+
+        it('should calculate average latency correctly', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Not found'))
+                .mockResolvedValueOnce(undefined)
+                .mockRejectedValueOnce(new Error('Not found'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            await healer.click('#test1');
+            await healer.click('#test2');
+
+            const metrics = healer.getMetrics();
+            expect(metrics.totalAttempts).toBe(2);
+            // Latency might be 0 in fast tests, just check it's calculated
+            expect(metrics.averageLatencyMs).toBeGreaterThanOrEqual(0);
+            expect(metrics.totalLatencyMs).toBeGreaterThanOrEqual(0);
+            if (metrics.totalAttempts > 0) {
+                expect(metrics.averageLatencyMs).toBe(metrics.totalLatencyMs / metrics.totalAttempts);
+            }
+        });
+
+        it('should provide healing history', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Not found'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            await healer.click('#test');
+
+            const history = healer.getHealingHistory();
+            expect(history).toHaveLength(1);
+            expect(history[0]?.selector).toBe('#test');
+            expect(history[0]?.success).toBe(true);
+            expect(history[0]?.provider).toBe('gemini');
+        });
+
+        it('should reset metrics when requested', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Not found'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            await healer.click('#test');
+
+            let metrics = healer.getMetrics();
+            expect(metrics.totalAttempts).toBe(1);
+
+            healer.resetMetrics();
+
+            metrics = healer.getMetrics();
+            expect(metrics.totalAttempts).toBe(0);
+            expect(metrics.successfulHeals).toBe(0);
+            expect(metrics.failedHeals).toBe(0);
+        });
+
+        it('should log metrics summary', () => {
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            expect(() => healer.logMetricsSummary()).not.toThrow();
+        });
+    });
 });

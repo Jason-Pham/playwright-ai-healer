@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
-import type { AIProvider, ClickOptions, FillOptions, AIError } from './types.js';
+import type { AIProvider, ClickOptions, FillOptions, AIError, HealingMetrics, HealingAttempt } from './types.js';
 
 /**
  * AutoHealer - Self-healing test automation agent
@@ -29,6 +29,18 @@ export class AutoHealer {
 
     private apiKeys: string[];
     private currentKeyIndex = 0;
+
+    // Performance metrics tracking
+    private healingAttempts: HealingAttempt[] = [];
+    private metrics: HealingMetrics = {
+        totalAttempts: 0,
+        successfulHeals: 0,
+        failedHeals: 0,
+        totalLatencyMs: 0,
+        averageLatencyMs: 0,
+        successRate: 0,
+        totalTokensUsed: 0,
+    };
 
     /**
      * Creates an AutoHealer instance
@@ -159,17 +171,21 @@ export class AutoHealer {
      * @private
      */
     private async heal(originalSelector: string, error: Error): Promise<string | null> {
-        // 1. Capture simplified DOM
-        const htmlSnapshot = await this.getSimplifiedDOM();
-
-        // 2. Construct Prompt
-        const promptText = config.ai.prompts.healingPrompt(
-            originalSelector,
-            error.message,
-            htmlSnapshot.substring(0, 2000)
-        );
+        const startTime = Date.now();
+        let success = false;
+        let healedSelector: string | null = null;
 
         try {
+            // 1. Capture simplified DOM
+            const htmlSnapshot = await this.getSimplifiedDOM();
+
+            // 2. Construct Prompt
+            const promptText = config.ai.prompts.healingPrompt(
+                originalSelector,
+                error.message,
+                htmlSnapshot.substring(0, 2000)
+            );
+
             let result: string | undefined;
 
             const maxKeyRotations = this.apiKeys.length;
@@ -227,6 +243,8 @@ export class AutoHealer {
             }
 
             if (result && result !== 'FAIL') {
+                success = true;
+                healedSelector = result;
                 return result;
             }
         } catch (aiError) {
@@ -236,6 +254,10 @@ export class AutoHealer {
                 throw error;
             }
             logger.error(`[AutoHealer] AI Healing failed (${this.provider}): ${error.message || String(error)}`);
+        } finally {
+            // Track metrics regardless of success/failure
+            const latencyMs = Date.now() - startTime;
+            this.recordHealingAttempt(originalSelector, success, latencyMs, healedSelector);
         }
 
         return null;
@@ -268,5 +290,100 @@ export class AutoHealer {
 
             return clone.outerHTML;
         });
+    }
+
+    /**
+     * Record a healing attempt for metrics tracking
+     */
+    private recordHealingAttempt(
+        selector: string,
+        success: boolean,
+        latencyMs: number,
+        healedSelector: string | null
+    ): void {
+        const attempt: HealingAttempt = {
+            timestamp: new Date(),
+            selector,
+            success,
+            latencyMs,
+            provider: this.provider,
+            error: success ? undefined : 'Healing failed',
+        };
+
+        this.healingAttempts.push(attempt);
+
+        // Update metrics
+        this.metrics.totalAttempts++;
+        if (success) {
+            this.metrics.successfulHeals++;
+        } else {
+            this.metrics.failedHeals++;
+        }
+        this.metrics.totalLatencyMs += latencyMs;
+        this.metrics.averageLatencyMs = this.metrics.totalLatencyMs / this.metrics.totalAttempts;
+        this.metrics.successRate =
+            this.metrics.totalAttempts > 0 ? this.metrics.successfulHeals / this.metrics.totalAttempts : 0;
+
+        // Log metrics if in debug mode
+        if (this.debug) {
+            logger.info(
+                `[Metrics] Healing ${success ? 'SUCCESS' : 'FAILED'}: ${selector} → ${healedSelector || 'N/A'} (${latencyMs}ms)`
+            );
+            logger.info(
+                `[Metrics] Success rate: ${(this.metrics.successRate * 100).toFixed(1)}% (${this.metrics.successfulHeals}/${this.metrics.totalAttempts})`
+            );
+        }
+    }
+
+    /**
+     * Get current performance metrics
+     * @returns HealingMetrics object with current statistics
+     */
+    public getMetrics(): HealingMetrics {
+        return { ...this.metrics };
+    }
+
+    /**
+     * Get all healing attempts history
+     * @returns Array of healing attempts
+     */
+    public getHealingHistory(): HealingAttempt[] {
+        return [...this.healingAttempts];
+    }
+
+    /**
+     * Reset metrics (useful for testing or new test sessions)
+     */
+    public resetMetrics(): void {
+        this.healingAttempts = [];
+        this.metrics = {
+            totalAttempts: 0,
+            successfulHeals: 0,
+            failedHeals: 0,
+            totalLatencyMs: 0,
+            averageLatencyMs: 0,
+            successRate: 0,
+            totalTokensUsed: 0,
+        };
+        if (this.debug) {
+            logger.info('[Metrics] Performance metrics reset');
+        }
+    }
+
+    /**
+     * Log current metrics summary
+     */
+    public logMetricsSummary(): void {
+        const m = this.metrics;
+        logger.info('=== AutoHealer Performance Metrics ===');
+        logger.info(`Total Healing Attempts: ${m.totalAttempts}`);
+        logger.info(`Successful Heals: ${m.successfulHeals}`);
+        logger.info(`Failed Heals: ${m.failedHeals}`);
+        logger.info(`Success Rate: ${(m.successRate * 100).toFixed(2)}%`);
+        logger.info(`Average Latency: ${m.averageLatencyMs.toFixed(2)}ms`);
+        logger.info(`Total Latency: ${m.totalLatencyMs}ms`);
+        logger.info(`AI Provider: ${this.provider}`);
+        logger.info(`Model: ${this.modelName}`);
+        logger.info('======================================');
     }
 }
