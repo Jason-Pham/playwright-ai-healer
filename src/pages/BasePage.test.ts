@@ -7,7 +7,7 @@ vi.mock('@playwright/test', () => {
     const expectMock = vi.fn((actual) => {
         if (typeof actual === 'function') {
             return {
-                toPass: vi.fn(async (options) => {
+                toPass: vi.fn(async (_options) => {
                     await actual();
                 })
             };
