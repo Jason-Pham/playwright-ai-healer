@@ -1,15 +1,20 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Logger } from './Logger.js';
 import winston from 'winston';
 
+// Hoist mock object so it's accessible in both mock factory and tests
+const { mockLogger } = vi.hoisted(() => {
+    return {
+        mockLogger: {
+            log: vi.fn(),
+            add: vi.fn(),
+            remove: vi.fn(),
+        }
+    };
+});
+
 // Mock Winston
 vi.mock('winston', () => {
-    const mockLogger = {
-        log: vi.fn(),
-        add: vi.fn(),
-        remove: vi.fn(),
-    };
     return {
         default: {
             createLogger: vi.fn(() => mockLogger),
@@ -43,20 +48,12 @@ describe('Logger', () => {
     });
 
     it('should log info messages', () => {
-        const winstonAny: any = winston as any;
         loggerInstance.info('test info');
-
-        expect(winstonAny.default.createLogger).toHaveBeenCalled();
-        const mockLogger = (winstonAny.default.createLogger as any).mock.results[0].value;
         expect(mockLogger.log).toHaveBeenCalledWith('info', 'test info');
     });
 
     it('should log error messages', () => {
-        const winstonAny: any = winston as any;
         loggerInstance.error('test error');
-
-        expect(winstonAny.default.createLogger).toHaveBeenCalled();
-        const mockLogger = (winstonAny.default.createLogger as any).mock.results[0].value;
         expect(mockLogger.log).toHaveBeenCalledWith('error', 'test error');
     });
 
