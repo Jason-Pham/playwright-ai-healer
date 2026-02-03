@@ -155,3 +155,72 @@ This project demonstrates:
 - **Enterprise Architecture**: Multi-environment, structured logging, centralized config
 - **Modern QA**: Moving beyond "record and playback" to intelligent, resilient automation
 - **Cross-Browser Testing**: Full coverage across desktop and mobile devices
+
+## 🎯 Best Practices
+
+### Type Safety
+
+The framework uses strict TypeScript with comprehensive type definitions:
+
+```typescript
+import { AutoHealer, type ClickOptions, type FillOptions } from './AutoHealer';
+
+// Fully typed interactions
+await healer.click('#button', { timeout: 3000 });
+await healer.fill('#input', 'value', { force: true });
+```
+
+### Code Quality
+
+Includes industry-standard tooling:
+
+- **ESLint**: Enforces code quality and best practices
+- **Prettier**: Ensures consistent formatting
+- **TypeScript**: Strict type checking with no implicit any
+- **Vitest**: Fast unit testing with coverage reports
+
+```bash
+# Run all quality checks
+npm run validate
+
+# Auto-fix issues
+npm run lint:fix
+npm run format
+```
+
+### Security
+
+- API keys managed through environment variables
+- No secrets in source code
+- Automatic key rotation support
+- CodeQL security scanning
+- See [SECURITY.md](SECURITY.md) for full guidelines
+
+### Testing
+
+Comprehensive test coverage with unit tests for all core functionality:
+
+```bash
+npm run test:unit          # Run tests
+npm run test:unit:watch    # Watch mode
+npm run test:coverage      # With coverage
+```
+
+### Documentation
+
+- JSDoc comments on all public APIs
+- Type definitions for IDE auto-completion
+- Usage examples in code
+- Comprehensive guides in [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## 🔒 Security
+
+For security concerns, please see [SECURITY.md](SECURITY.md).
+
+## 📄 License
+
+ISC
