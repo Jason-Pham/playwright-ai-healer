@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { test } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
@@ -14,17 +14,23 @@ export class ProductDetailPage extends BasePage {
         logger.debug('🔍 Verifying product details page loaded...');
 
         // Wait for page to fully load
-        await this.page.waitForLoadState('domcontentloaded');
+        await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
         // Verify product title is visible (combined check)
         const titleSelectors = ['h1', '[data-test*="title"]', '[class*="ProductTitle"]', '.product-title'];
-        await this.page.locator(titleSelectors.join(',')).first().waitFor({ state: 'visible', timeout: this.timeouts.productVisibility });
+        await this.page
+            .locator(titleSelectors.join(','))
+            .first()
+            .waitFor({ state: 'visible', timeout: this.timeouts.productVisibility });
 
         // Verify price is visible (combined check)
         const priceSelectors = ['[class*="price"]', '[data-test*="price"]', '[class*="Price"]', '.product-price'];
         try {
-            await this.page.locator(priceSelectors.join(',')).first().waitFor({ state: 'visible', timeout: this.timeouts.productVisibility });
-        } catch (e) {
+            await this.page
+                .locator(priceSelectors.join(','))
+                .first()
+                .waitFor({ state: 'visible', timeout: this.timeouts.productVisibility });
+        } catch {
             // Log warning but don't fail - some pages might load price dynamically
             // Log warning with browser context
             const project = test.info().project.name;
@@ -36,11 +42,11 @@ export class ProductDetailPage extends BasePage {
 
     async getProductTitle(): Promise<string> {
         const productTitle = this.page.locator('h1').first();
-        return await productTitle.textContent() || '';
+        return (await productTitle.textContent()) || '';
     }
 
     async getProductPrice(): Promise<string> {
         const priceElement = this.page.locator('[class*="price"], [data-test*="price"]').first();
-        return await priceElement.textContent() || '';
+        return (await priceElement.textContent()) || '';
     }
 }
