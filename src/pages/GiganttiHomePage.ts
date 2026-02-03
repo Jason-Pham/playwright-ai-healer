@@ -1,4 +1,3 @@
-import { expect } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
@@ -107,8 +106,8 @@ export class GiganttiHomePage extends BasePage {
             await this.page.keyboard.press('Enter');
         }
 
-        // Verify URL after navigation
-        const searchPattern = new RegExp(`search\\?q=${encodeURIComponent(term).replace(/%20/g, '\\+')}|search\\?q=${term.replace(/ /g, '\\+')}`);
+        // Wait for search results page to load
+        await this.page.waitForLoadState('domcontentloaded');
         logger.debug('✅ Search results page loaded.');
 
         return new CategoryPage(this.page, this.autoHealer);

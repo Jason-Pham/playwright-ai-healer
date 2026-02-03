@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { test } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
@@ -24,7 +24,7 @@ export class ProductDetailPage extends BasePage {
         const priceSelectors = ['[class*="price"]', '[data-test*="price"]', '[class*="Price"]', '.product-price'];
         try {
             await this.page.locator(priceSelectors.join(',')).first().waitFor({ state: 'visible', timeout: this.timeouts.productVisibility });
-        } catch (e) {
+        } catch {
             // Log warning but don't fail - some pages might load price dynamically
             // Log warning with browser context
             const project = test.info().project.name;

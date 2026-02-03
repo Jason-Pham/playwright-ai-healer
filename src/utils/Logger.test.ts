@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Logger } from './Logger.js';
-import winston from 'winston';
 
 // Hoist mock object so it's accessible in both mock factory and tests
 const { mockLogger } = vi.hoisted(() => {

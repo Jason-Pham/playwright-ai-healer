@@ -1,4 +1,3 @@
-import { expect } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
@@ -25,12 +24,11 @@ export class CategoryPage extends BasePage {
             'article a[href*="/tuote/"]',
         ];
 
-        const findProducts = async (timeout: number) => {
-            return this.findFirstElement(productSelectors, {
-                state: 'visible',
-                timeout: timeout
-            });
-        };
+        // Wait for products to be visible
+        await this.findFirstElement(productSelectors, {
+            state: 'visible',
+            timeout: config.test.timeouts.productVisibility,
+        });
 
         logger.debug('✅ Products are displayed on the page.');
     }

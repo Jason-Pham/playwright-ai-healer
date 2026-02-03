@@ -62,6 +62,9 @@ export const config = {
             cookie: 10000,
             urlVerify: 15000,
             productVisibility: 30000,
+            // Action timeouts
+            click: 5000,
+            fill: 5000,
         },
     },
     testData: {

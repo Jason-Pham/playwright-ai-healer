@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fs from 'fs';
-import * as path from 'path';
 
 // Mock fs module before importing LocatorManager
 vi.mock('fs', () => ({

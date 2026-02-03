@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+*.log
+package-lock.json
+.env*
+!.env.example
