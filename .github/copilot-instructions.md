@@ -75,7 +75,7 @@ npm run test:unit:watch        # Watch mode for development
 npm run test:coverage          # With coverage report
 ```
 
-- Expected: All 40 tests pass
+- Expected: All tests pass
 - Takes ~1 second to run
 - Must pass before committing
 
@@ -160,7 +160,6 @@ OPTIMIZATION_SUMMARY.md # Performance optimization notes
     - Exports `AutoHealer` class with methods: `click()`, `fill()`, `getLocator()`, `goto()`
     - Handles both OpenAI and Gemini providers
     - Implements retry logic and key rotation
-    - ~350 lines of code
 
 **Configuration:**
 
