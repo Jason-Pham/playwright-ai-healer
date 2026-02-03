@@ -1,8 +1,24 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Page, Locator } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { AutoHealer } from '../AutoHealer.js';
+
+vi.mock('@playwright/test', () => {
+    const expectMock = vi.fn((actual) => {
+        if (typeof actual === 'function') {
+            return {
+                toPass: vi.fn(async (options) => {
+                    await actual();
+                })
+            };
+        }
+        return {
+            toHaveValue: vi.fn(),
+            toHaveURL: vi.fn()
+        };
+    });
+    return { expect: expectMock };
+});
 
 // Concrete implementation for testing
 class TestPage extends BasePage {
@@ -44,6 +60,30 @@ describe('BasePage', () => {
         });
     });
 
+    describe('safeFill', () => {
+        it('should fill input with explicit focus/clear and verification', async () => {
+            const mockLocator = {
+                fill: vi.fn(),
+                focus: vi.fn().mockResolvedValue(undefined),
+                clear: vi.fn().mockResolvedValue(undefined),
+            };
+            // Mock cookie banner lookups (not present)
+            mockPage.locator.mockReturnValue({
+                first: () => ({
+                    isVisible: vi.fn().mockResolvedValue(false),
+                }),
+            });
+
+            await basePage.safeFill(mockLocator as any, 'test-value');
+
+            expect(mockLocator.focus).toHaveBeenCalled();
+            expect(mockLocator.clear).toHaveBeenCalled();
+            expect(mockLocator.fill).toHaveBeenCalledWith('test-value', expect.objectContaining({
+                force: true,
+            }));
+        });
+    });
+
     describe('safeClick', () => {
         it('should attempt to dismiss cookie banner then click', async () => {
             const mockLocator = {
@@ -55,8 +95,8 @@ describe('BasePage', () => {
             mockPage.locator.mockReturnValue({
                 first: () => ({
                     isVisible: vi.fn().mockResolvedValue(false),
-                    click: vi.fn()
-                })
+                    click: vi.fn(),
+                }),
             });
 
             await basePage.safeClick(mockLocator as any);
@@ -89,11 +129,11 @@ describe('BasePage', () => {
     describe('findFirstElement', () => {
         it('should construct a combined selector and wait', async () => {
             const mockCombinedLocator = {
-                waitFor: vi.fn()
+                waitFor: vi.fn(),
             };
 
             mockPage.locator.mockReturnValue({
-                first: () => mockCombinedLocator
+                first: () => mockCombinedLocator,
             });
 
             const selectors = ['.one', '#two'];
@@ -105,3 +145,4 @@ describe('BasePage', () => {
         });
     });
 });
+

@@ -21,10 +21,7 @@ export default defineConfig({
     fullyParallel: true,
 
     // Generate HTML report for CI artifacts
-    reporter: [
-        ['list'],
-        ['html', { outputFolder: 'playwright-report', open: 'never' }],
-    ],
+    reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
 
     use: {
         headless: process.env['HEADLESS'] !== 'false',
@@ -72,7 +69,7 @@ export default defineConfig({
             name: 'chrome',
             use: {
                 ...devices['Desktop Chrome'],
-                channel: 'chrome',  // Uses actual Google Chrome
+                channel: 'chrome', // Uses actual Google Chrome
             },
         },
         {
@@ -84,15 +81,15 @@ export default defineConfig({
             use: {
                 ...devices['Desktop Safari'],
                 launchOptions: {
-                    slowMo: 100
-                }
+                    slowMo: 100,
+                },
             },
         },
         {
             name: 'edge',
             use: {
                 ...devices['Desktop Edge'],
-                channel: 'msedge',  // Uses actual Microsoft Edge
+                channel: 'msedge', // Uses actual Microsoft Edge
             },
         },
 

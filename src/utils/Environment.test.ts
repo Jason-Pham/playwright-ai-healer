@@ -1,7 +1,5 @@
-
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
-import * as path from 'path';
 import { loadEnvironment, getEnvironment, isDev, isProd } from './Environment.js';
 
 // Mock fs and path
