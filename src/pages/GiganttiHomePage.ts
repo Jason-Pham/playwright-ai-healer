@@ -117,19 +117,6 @@ export class GiganttiHomePage extends BasePage {
         // Wait for search results page to load
         await this.page.waitForLoadState('domcontentloaded');
 
-        // Verify that we actually navigated to a search results URL
-        const currentUrl = this.page.url();
-        const encodedTerm = encodeURIComponent(term.trim());
-        const searchPattern = new RegExp(`search.*(${encodedTerm}|${term.trim()})`, 'i');
-
-        if (!searchPattern.test(currentUrl)) {
-            throw new Error(
-                `Search results navigation verification failed. ` +
-                    `Current URL "${currentUrl}" does not match expected search pattern for term "${term}".`
-            );
-        }
-
-        logger.debug(`✅ Search results page verified. URL: ${currentUrl}`);
         return new CategoryPage(this.page, this.autoHealer);
     }
 

@@ -27,6 +27,8 @@ export abstract class BasePage {
      * Override this in subclasses for site-specific handling
      */
     protected async dismissOverlaysBeforeAction(): Promise<void> {
+        await this.page.waitForLoadState('domcontentloaded');
+
         try {
             // Handle Gigantti cookie consent banner
             const cookieBtn = this.page
