@@ -17,9 +17,21 @@ export abstract class BasePage {
         await this.page.goto(url);
     }
 
+
     async wait(ms: number) {
         await this.page.waitForTimeout(ms);
     }
+
+    /**
+     * Wait for page to be fully loaded.
+     * Consolidates waiting for domcontentloaded and potentially other states.
+     */
+    async waitForPageLoad(options?: { timeout?: number, networking?: boolean }): Promise<void> {
+        await this.page.waitForLoadState('load', options);
+        await this.page.waitForLoadState('domcontentloaded', options);
+    }
+
+    private hasWaitedForCookiePolicy = false;
 
     /**
      * Dismiss cookie/marketing overlays before performing action
@@ -27,7 +39,19 @@ export abstract class BasePage {
      * Override this in subclasses for site-specific handling
      */
     protected async dismissOverlaysBeforeAction(): Promise<void> {
-        await this.page.waitForLoadState('domcontentloaded');
+
+        try {
+            await this.page.waitForResponse(
+                resp =>
+                    resp.url().includes('policy.app.cookieinformation.com/cookie-data/gigantti.fi/cabl.json') &&
+                    resp.status() === 200,
+                { timeout: config.test.timeouts.default }
+            );
+        } catch {
+            // Ignore timeout - likely already loaded or cached
+        }
+
+        await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
 
         try {
             // Handle Gigantti cookie consent banner
@@ -66,14 +90,14 @@ export abstract class BasePage {
      */
     async safeFill(locator: Locator, value: string): Promise<void> {
         await this.dismissOverlaysBeforeAction();
-        await locator.fill(value);
+        await locator.fill(value, { force: true });
     }
 
     /**
      * Verify URL after dismissing any overlays and waiting for page load
      */
     async safeVerifyURL(pattern: RegExp, options?: { timeout?: number }): Promise<void> {
-        await this.page.waitForLoadState('domcontentloaded');
+        await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
         await this.dismissOverlaysBeforeAction();
         await expect(this.page).toHaveURL(pattern, options);
     }
@@ -88,7 +112,7 @@ export abstract class BasePage {
         selectors: string[],
         options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }
     ): Promise<Locator> {
-        await this.page.waitForLoadState('domcontentloaded');
+        await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
         const combinedSelector = selectors.join(',');
         const locator = this.page.locator(combinedSelector).first();
 

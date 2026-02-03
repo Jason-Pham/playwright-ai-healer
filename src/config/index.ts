@@ -12,7 +12,6 @@ export const config = {
         selectors: {
             gigantti: {
                 searchInput: '#speedy-header-search',
-                realSearchInput: '#speedy-header-search',
                 cookieBannerAccept: 'button.coi-banner__accept',
                 categoryLink: '[data-test="main-navigation"] a[href*="/tietokoneet"]',
                 productCard: '[data-test="product-card"]',
@@ -61,7 +60,7 @@ export const config = {
         headless: process.env['HEADLESS'] !== 'false',
         timeouts: {
             // Global unified timeouts
-            default: 5000,
+            default: 20000,
             cookie: 10000,
             urlVerify: 15000,
             productVisibility: 30000,

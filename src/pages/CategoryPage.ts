@@ -14,14 +14,11 @@ export class CategoryPage extends BasePage {
         logger.debug('🔍 Verifying products are displayed...');
 
         // Wait for page to fully load
-        await this.page.waitForLoadState('domcontentloaded');
+        await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
         // Primary selector from actual Gigantti search page structure
         const productSelectors = [
-            '[data-testid="product-card"]',
-            '[data-testid="product-card"] a',
-            'a[href*="/product/"]',
-            'article a[href*="/tuote/"]',
+            '[data-testid="product-card"]'
         ];
 
         // Wait for products to be visible
@@ -37,11 +34,11 @@ export class CategoryPage extends BasePage {
         logger.debug('🖱️ Clicking on first product...');
 
         // Click on the first product card using correct Gigantti selector
-        const firstProduct = this.page.locator('[data-testid="product-card"] a, [data-testid="product-card"]').first();
+        const firstProduct = this.page.locator('[data-testid="product-card"]').first();
         await firstProduct.click({ force: true });
 
         // Wait for navigation to product detail page
-        await this.page.waitForLoadState('domcontentloaded');
+        await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
         logger.debug('✅ Navigated to product detail page.');
 
         // Dynamically import to avoid circular dependency

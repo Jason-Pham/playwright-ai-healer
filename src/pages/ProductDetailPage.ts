@@ -14,7 +14,7 @@ export class ProductDetailPage extends BasePage {
         logger.debug('🔍 Verifying product details page loaded...');
 
         // Wait for page to fully load
-        await this.page.waitForLoadState('domcontentloaded');
+        await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
         // Verify product title is visible (combined check)
         const titleSelectors = ['h1', '[data-test*="title"]', '[class*="ProductTitle"]', '.product-title'];

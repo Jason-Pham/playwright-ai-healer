@@ -11,6 +11,7 @@
         "test:chromium": "cross-env TEST_ENV=prod playwright test --project=chromium",
         "test:firefox": "cross-env TEST_ENV=prod playwright test --project=firefox",
         "test:webkit": "cross-env TEST_ENV=prod playwright test --project=webkit",
+        "test:debug": "cross-env TEST_ENV=prod LOG_LEVEL=debug playwright test --project=chromium --headed --workers=1",
         "test:all-browsers": "playwright test --project=default --project=firefox --project=webkit",
         "test:unit": "vitest run",
         "test:unit:watch": "vitest",
