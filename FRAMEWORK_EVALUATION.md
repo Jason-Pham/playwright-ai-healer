@@ -166,7 +166,10 @@ try {
     const newSelector = await this.heal(selector, error);
     if (newSelector) {
         await this.page.click(newSelector);
-        locatorManager.updateLocator(key, newSelector); // Persist for future runs
+        // Persist healed selector if a locator key was provided
+        if (locatorKey) {
+            locatorManager.updateLocator(locatorKey, newSelector);
+        }
     } else {
         throw error; // Re-throw if healing failed
     }
