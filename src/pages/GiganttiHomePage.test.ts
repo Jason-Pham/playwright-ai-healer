@@ -6,24 +6,24 @@ import { CategoryPage } from './CategoryPage.js';
 
 // Mock @playwright/test
 vi.mock('@playwright/test', () => ({
-    expect: vi.fn((actual) => {
+    expect: vi.fn(actual => {
         if (typeof actual === 'function') {
             return {
                 toPass: vi.fn(async () => {
                     await actual();
-                })
+                }),
             };
         }
         return {
             toHaveValue: vi.fn(),
-            toHaveURL: vi.fn()
+            toHaveURL: vi.fn(),
         };
     }),
     test: {
         info: vi.fn(() => ({
-            project: { name: 'chromium' }
-        }))
-    }
+            project: { name: 'chromium' },
+        })),
+    },
 }));
 
 describe('GiganttiHomePage', () => {

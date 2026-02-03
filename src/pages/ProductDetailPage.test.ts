@@ -7,9 +7,9 @@ import { AutoHealer } from '../AutoHealer.js';
 vi.mock('@playwright/test', () => ({
     test: {
         info: vi.fn(() => ({
-            project: { name: 'chromium' }
-        }))
-    }
+            project: { name: 'chromium' },
+        })),
+    },
 }));
 
 describe('ProductDetailPage', () => {
@@ -46,7 +46,7 @@ describe('ProductDetailPage', () => {
             expect(mockLocator.first).toHaveBeenCalled();
             expect(mockLocator.waitFor).toHaveBeenCalledWith({
                 state: 'visible',
-                timeout: expect.any(Number)
+                timeout: expect.any(Number),
             });
         });
 
@@ -57,7 +57,8 @@ describe('ProductDetailPage', () => {
         });
 
         it('should handle price element not visible gracefully', async () => {
-            mockLocator.waitFor = vi.fn()
+            mockLocator.waitFor = vi
+                .fn()
                 .mockResolvedValueOnce(undefined) // Title succeeds
                 .mockRejectedValueOnce(new Error('Timeout')); // Price fails
 

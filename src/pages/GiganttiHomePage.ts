@@ -2,7 +2,7 @@ import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
 import { CategoryPage } from './CategoryPage.js';
-import locators from '../config/locators.json' with { type: "json" };
+import locators from '../config/locators.json' with { type: 'json' };
 
 const { searchInput } = locators.gigantti;
 
@@ -36,9 +36,7 @@ export class GiganttiHomePage extends BasePage {
 
         await this.safeFill(this.page.locator(searchInput), term, { force: true });
 
-        const searchBtn = this.page
-            .locator('[data-testid="search-button"]')
-            .first();
+        const searchBtn = this.page.locator('[data-testid="search-button"]').first();
 
         await this.expectValue(this.page.locator(searchInput), term);
         await this.safeClick(searchBtn);

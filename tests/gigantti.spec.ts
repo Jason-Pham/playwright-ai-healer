@@ -4,14 +4,14 @@ import { config } from '../src/config/index.js';
 test.describe('Gigantti.fi E2E Tests', () => {
     test('should search for a product and verify results', async ({ giganttiPage, page }) => {
         await giganttiPage.open();
-        
+
         // Verify we're on the home page
         expect(page.url()).toContain('gigantti.fi');
-        
+
         const searchTerm = config.testData.getRandomSearchTerm();
         const searchResultsPage = await giganttiPage.searchFor(searchTerm);
         await searchResultsPage.verifyProductsDisplayed();
-        
+
         // Verify we have product cards visible
         const productCards = page.locator('[data-testid="product-card"]');
         await expect(productCards.first()).toBeVisible({ timeout: 30000 });
@@ -30,13 +30,10 @@ test.describe('Gigantti.fi E2E Tests', () => {
         await searchResultsPage.verifyProductsDisplayed();
         const productDetailPage = await searchResultsPage.clickFirstProduct();
         await productDetailPage.verifyProductDetailsLoaded();
-        
-        // Verify product title exists
+
+        // Verify product title exists and has content
         const productTitle = page.locator('h1').first();
         await expect(productTitle).toBeVisible({ timeout: 30000 });
-        
-        // Verify title has content
-        const titleText = await productTitle.textContent();
-        expect(titleText).toBeTruthy();
+        await expect(productTitle).toHaveText(/.+/, { timeout: 30000 });
     });
 });

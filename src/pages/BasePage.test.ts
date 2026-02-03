@@ -4,17 +4,17 @@ import { BasePage } from './BasePage.js';
 import { AutoHealer } from '../AutoHealer.js';
 
 vi.mock('@playwright/test', () => {
-    const expectMock = vi.fn((actual) => {
+    const expectMock = vi.fn(actual => {
         if (typeof actual === 'function') {
             return {
-                toPass: vi.fn(async (_options) => {
+                toPass: vi.fn(async _options => {
                     await actual();
-                })
+                }),
             };
         }
         return {
             toHaveValue: vi.fn(),
-            toHaveURL: vi.fn()
+            toHaveURL: vi.fn(),
         };
     });
     return { expect: expectMock };
@@ -78,9 +78,12 @@ describe('BasePage', () => {
 
             expect(mockLocator.focus).toHaveBeenCalled();
             expect(mockLocator.clear).toHaveBeenCalled();
-            expect(mockLocator.fill).toHaveBeenCalledWith('test-value', expect.objectContaining({
-                force: true,
-            }));
+            expect(mockLocator.fill).toHaveBeenCalledWith(
+                'test-value',
+                expect.objectContaining({
+                    force: true,
+                })
+            );
         });
     });
 
@@ -145,4 +148,3 @@ describe('BasePage', () => {
         });
     });
 });
-

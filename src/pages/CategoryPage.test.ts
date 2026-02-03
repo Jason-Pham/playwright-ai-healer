@@ -44,7 +44,7 @@ describe('CategoryPage', () => {
             expect(mockPage.waitForLoadState).toHaveBeenCalled();
             expect(mockLocator.waitFor).toHaveBeenCalledWith({
                 state: 'visible',
-                timeout: expect.any(Number)
+                timeout: expect.any(Number),
             });
         });
     });
