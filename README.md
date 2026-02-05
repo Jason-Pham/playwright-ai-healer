@@ -48,6 +48,25 @@ We've included a simulation that intentionally breaks the UI (uses a broken sele
 npx playwright test tests/gigantti.spec.ts
 ```
 
+## 🐳 Run with Docker
+
+You can run the tests in a containerized environment to ensure consistency.
+
+### 1. Build & Run
+```bash
+# Build the image
+docker-compose build
+
+# Run the tests
+docker-compose up
+```
+
+### 2. View Reports
+Start a local web server to view the report generated inside the container:
+```bash
+npx playwright show-report playwright-report
+```
+
 ## Technical Notes
 
 ### Module Resolution
