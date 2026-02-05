@@ -1,8 +1,11 @@
-import { expect } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
 import { CategoryPage } from './CategoryPage.js';
+import { expect } from '@playwright/test';
+import locators from '../config/locators.json' with { type: "json" };
+
+const { searchInput } = locators.gigantti;
 
 /**
  * Gigantti Home Page
@@ -11,58 +14,35 @@ import { CategoryPage } from './CategoryPage.js';
 export class GiganttiHomePage extends BasePage {
     private readonly url = config.app.baseUrl;
     private readonly timeouts = config.test.timeouts;
-
-    // Selectors - using locator keys for self-healing
-    private readonly searchInputSelector = 'gigantti.searchInput';
-    private readonly realSearchInputSelector = config.app.selectors.gigantti.realSearchInput;
+    private popupHandlerRegistered = false;
 
     async open() {
-        logger.info(`Navigating to ${this.url} ...`);
+        logger.debug(`Navigating to ${this.url} ...`);
         await this.goto(this.url);
-        await this.handleCookieConsent();
+        await this.setupPopupHandler();
     }
 
-    private async handleCookieConsent() {
-        try {
-            logger.debug('Checking for cookie banner...');
-
-            const acceptSelectors = [
-                'button.coi-banner__accept',
-                '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
-                'button:has-text("OK")',
-                'button:has-text("Hyväksy")',
-                '[id*="cookie"] button:has-text("OK")',
-            ];
-
-            for (const selector of acceptSelectors) {
-                const cookieBtn = this.page.locator(selector).first();
-                if (await cookieBtn.isVisible({ timeout: this.timeouts.cookieBanner }).catch(() => false)) {
-                    await cookieBtn.click({ force: true });
-                    logger.info('✅ Cookie banner accepted.');
-                    await this.page.waitForTimeout(this.timeouts.cookieBannerWait);
-                    return;
-                }
-            }
-
-            logger.debug('ℹ️ Cookie banner not found or already accepted.');
-        } catch (e) {
-            logger.debug(`ℹ️ Ignored cookie banner error: ${e}`);
-        }
+    /**
+     * Register popup handler once per page (only Dynamic Yield marketing popups)
+     */
+    private async setupPopupHandler() {
+        await this.dismissOverlaysBeforeAction();
     }
 
     /**
      * Search for a product and navigate to search results (CategoryPage)
      */
     async searchFor(term: string): Promise<CategoryPage> {
-        logger.info(`🔍 Searching for "${term}"...`);
+        logger.debug(`🔍 Searching for "${term}"...`);
 
-        await this.autoHealer.fill(this.searchInputSelector, term);
-        await expect(this.page.locator(this.realSearchInputSelector)).toHaveValue(term);
-        await this.page.keyboard.press('Enter');
+        await this.safeFill(this.page.locator(searchInput), term, { force: true });
 
-        // Wait for search results to load
-        await expect(this.page).toHaveURL(/search/);
-        logger.info('✅ Search results page loaded.');
+        const searchBtn = this.page
+            .locator('[data-testid="search-button"]')
+            .first();
+
+        await this.expectValue(this.page.locator(searchInput), term);
+        await this.safeClick(searchBtn);
 
         return new CategoryPage(this.page, this.autoHealer);
     }
@@ -71,46 +51,22 @@ export class GiganttiHomePage extends BasePage {
      * Navigate to a product category
      */
     async navigateToCategory(categoryName: string): Promise<CategoryPage> {
-        logger.info(`📂 Navigating to category: ${categoryName}...`);
-
-        await this.dismissOverlays();
+        logger.debug(`📂 Navigating to category: ${categoryName}...`);
 
         // Try multiple approaches to find the category
-        const navLink = this.page.locator(`nav a:has-text("${categoryName}"), header a:has-text("${categoryName}")`).first();
-        if (await navLink.isVisible({ timeout: this.timeouts.navigation }).catch(() => false)) {
-            await navLink.click({ force: true });
+        const navLink = this.page
+            .locator(`nav a:has-text("${categoryName}"), header a:has-text("${categoryName}")`)
+            .first();
+        if (await navLink.isVisible({ timeout: this.timeouts.default }).catch(() => false)) {
+            await this.safeClick(navLink, { force: true });
         } else {
             const categoryLink = this.page.getByRole('link', { name: new RegExp(categoryName, 'i') }).first();
-            await categoryLink.click({ force: true, timeout: this.timeouts.categoryFallback });
+            await this.safeClick(categoryLink, { force: true, timeout: this.timeouts.default });
         }
 
-        await this.page.waitForLoadState('networkidle');
-        logger.info(`✅ Navigated to ${categoryName} category.`);
+        await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
+        logger.debug(`✅ Navigated to ${categoryName} category.`);
 
         return new CategoryPage(this.page, this.autoHealer);
-    }
-
-    /**
-     * Dismiss any overlay modals (cookie banners, popups, etc.)
-     */
-    private async dismissOverlays() {
-        try {
-            const overlaySelectors = [
-                '#cookie-information-template-wrapper button:has-text("OK")',
-                '[id*="cookie"] button',
-                '.modal-close',
-                '[aria-label="Close"]',
-            ];
-
-            for (const selector of overlaySelectors) {
-                const overlay = this.page.locator(selector).first();
-                if (await overlay.isVisible({ timeout: this.timeouts.overlayCheck }).catch(() => false)) {
-                    await overlay.click({ force: true });
-                    await this.page.waitForTimeout(this.timeouts.overlayWait);
-                }
-            }
-        } catch {
-            // Ignore errors - overlays are optional
-        }
     }
 }

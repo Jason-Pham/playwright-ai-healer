@@ -9,18 +9,23 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+test_output.txt
 
 # OS
 .DS_Store
 
-# Environment variables
+# Environment variables (keep .env.example)
 .env
 .env.local
+.env.dev
+.env.staging
+.env.prod
 .env.development.local
 .env.test.local
 .env.production.local
 
 # Logs
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
