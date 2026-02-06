@@ -1,0 +1,15 @@
+services:
+  agent:
+    build: .
+    image: self-healing-agent
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - BASE_URL=${BASE_URL:-https://www.gigantti.fi/}
+    volumes:
+      - ./playwright-report:/app/playwright-report
+      - ./test-results:/app/test-results
+    ipc: host
+    network_mode: host
