@@ -2,7 +2,7 @@ import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
 import { CategoryPage } from './CategoryPage.js';
-import { expect } from '@playwright/test';
+
 import locators from '../config/locators.json' with { type: "json" };
 
 const { searchInput } = locators.gigantti;
