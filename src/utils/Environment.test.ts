@@ -67,7 +67,7 @@ describe('Environment', () => {
     describe('loadEnvironment', () => {
         it('should set ENV from TEST_ENV if provided', () => {
             process.env['TEST_ENV'] = 'prod';
-            (fs.existsSync as any).mockReturnValue(false); // No files
+            vi.mocked(fs.existsSync).mockReturnValue(false); // No files
 
             loadEnvironment();
             expect(process.env['ENV']).toBe('prod');
@@ -76,7 +76,7 @@ describe('Environment', () => {
         it('should default to dev if no env vars set', () => {
             delete process.env['TEST_ENV'];
             delete process.env['ENV'];
-            (fs.existsSync as any).mockReturnValue(false);
+            vi.mocked(fs.existsSync).mockReturnValue(false);
 
             const result = loadEnvironment();
             expect(result).toBe('dev');

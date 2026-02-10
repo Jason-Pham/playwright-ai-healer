@@ -8,9 +8,9 @@ const testEnv = process.env['TEST_ENV'] || 'dev';
 const envPath = path.resolve(`.env.${testEnv}`);
 
 if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath, quiet: true } as any);
+    dotenv.config({ path: envPath, override: true }); // override: true replaces quiet: true which is deprecated/removed in newer dotenv types
 } else {
-    dotenv.config({ quiet: true } as any);
+    dotenv.config({ override: true });
 }
 
 export default defineConfig({

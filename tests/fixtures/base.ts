@@ -27,7 +27,7 @@ export const test = base.extend<MyFixtures>({
             provider = 'openai';
             // Type assertion or minor adjustment needed if AutoHealer constructor expects string | string[]
             // We changed the constructor, so this is fine.
-            apiKey = ai.openai.apiKeys as any;
+            apiKey = ai.openai.apiKeys as unknown as string;
             model = ai.openai.modelName;
         } else {
             throw new Error('❌ API Key missing! Check src/config/index.ts or .env');
