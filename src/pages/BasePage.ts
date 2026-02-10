@@ -79,7 +79,6 @@ export abstract class BasePage {
      * Click an element after dismissing any overlays
      */
     async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
-        await this.dismissOverlaysBeforeAction();
         await locator.click(options);
     }
 
@@ -96,8 +95,8 @@ export abstract class BasePage {
         await expect(async () => {
             // Short timeouts for internal steps to allow faster retries
             // but ensure we give enough time for the action itself
-            await locator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
-            await locator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
+            await locator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
+            await locator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
 
             await locator.fill(value, {
                 force: true,
