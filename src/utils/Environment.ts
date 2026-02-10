@@ -16,7 +16,8 @@ export function loadEnvironment(): Environment {
     // 1. First, load the base .env file for secrets (API keys, etc.)
     const basePath = path.resolve(process.cwd(), '.env');
     if (fs.existsSync(basePath)) {
-        dotenv.config({ path: basePath, override: true });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        dotenv.config({ path: basePath, override: true, quiet: true } as any);
     }
 
     // 2. If env is specified, overlay the env-specific file (overrides non-secret config)
