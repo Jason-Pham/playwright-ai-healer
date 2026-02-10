@@ -9,12 +9,12 @@ vi.mock('@playwright/test', () => {
             return {
                 toPass: vi.fn(async () => {
                     await (actual as () => Promise<void>)();
-                })
+                }),
             };
         }
         return {
             toHaveValue: vi.fn(),
-            toHaveURL: vi.fn()
+            toHaveURL: vi.fn(),
         };
     });
     return { expect: expectMock };
@@ -100,9 +100,12 @@ describe('BasePage', () => {
 
             expect(mockLocatorObj.focus).toHaveBeenCalled();
             expect(mockLocatorObj.clear).toHaveBeenCalled();
-            expect(mockLocatorObj.fill).toHaveBeenCalledWith('test-value', expect.objectContaining({
-                force: true,
-            }));
+            expect(mockLocatorObj.fill).toHaveBeenCalledWith(
+                'test-value',
+                expect.objectContaining({
+                    force: true,
+                })
+            );
         });
     });
 
@@ -167,4 +170,3 @@ describe('BasePage', () => {
         });
     });
 });
-

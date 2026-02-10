@@ -17,9 +17,7 @@ export class CategoryPage extends BasePage {
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
         // Primary selector from actual Gigantti search page structure
-        const productSelectors = [
-            '[data-testid="product-card"]'
-        ];
+        const productSelectors = ['[data-testid="product-card"]'];
 
         // Wait for products to be visible
         await this.findFirstElement(productSelectors, {
