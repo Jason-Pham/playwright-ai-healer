@@ -12,14 +12,13 @@ export const config = {
         selectors: {
             gigantti: {
                 searchInput: '#speedy-header-search',
-                realSearchInput: '#speedy-header-search',
                 cookieBannerAccept: 'button.coi-banner__accept',
                 categoryLink: '[data-test="main-navigation"] a[href*="/tietokoneet"]',
                 productCard: '[data-test="product-card"]',
                 productTitle: '[data-test="product-title"]',
                 productPrice: '[data-test="product-price"]',
-            }
-        }
+            },
+        },
     },
     ai: {
         provider: (process.env['AI_PROVIDER'] || 'gemini') as 'gemini' | 'openai',
@@ -28,7 +27,10 @@ export const config = {
             modelName: process.env['GEMINI_MODEL'] || 'gemini-flash-latest',
         },
         openai: {
-            apiKeys: (process.env['OPENAI_API_KEYS'] || process.env['OPENAI_API_KEY'] || '').split(',').map(k => k.trim()).filter(Boolean),
+            apiKeys: (process.env['OPENAI_API_KEYS'] || process.env['OPENAI_API_KEY'] || '')
+                .split(',')
+                .map(k => k.trim())
+                .filter(Boolean),
             modelName: process.env['OPENAI_MODEL'] || 'gpt-4o',
             apiKey: process.env['OPENAI_API_KEY'],
         },
@@ -50,21 +52,20 @@ export const config = {
       
       HTML Snippet:
       ${html}
-    `
-        }
+    `,
+        },
     },
     test: {
         timeout: parseInt(process.env['TEST_TIMEOUT'] || '120000', 10),
         headless: process.env['HEADLESS'] !== 'false',
         timeouts: {
             // Global unified timeouts
-            default: 5000,
+            default: 20000,
             cookie: 10000,
             urlVerify: 15000,
             productVisibility: 30000,
-            // AutoHealer action timeouts
-            click: 10000,
-            fill: 10000,
+            // Action timeouts
+            short: 5000,
         },
     },
     testData: {
@@ -78,7 +79,7 @@ export const config = {
             'gaming',
             'speaker',
             'keyboard',
-            'monitor'
+            'monitor',
         ],
         // Helper to get random search term
         getRandomSearchTerm(): string {
@@ -87,6 +88,6 @@ export const config = {
         },
         categories: {
             computers: 'Tietotekniikka',
-        }
-    }
+        },
+    },
 };

@@ -9,7 +9,7 @@ export const mockOpenaiCreate = vi.fn();
 vi.mock('@google/generative-ai', () => {
     // Define a mock class that can be instantiated with 'new'
     class MockGoogleGenerativeAI {
-        constructor(_apiKey: string) { }
+        constructor(_apiKey: string) {}
         getGenerativeModel() {
             return {
                 generateContent: mockGeminiGenerateContent,
@@ -27,7 +27,7 @@ vi.mock('openai', () => {
                 create: mockOpenaiCreate,
             },
         };
-        constructor(_opts: any) { }
+        constructor(_opts: unknown) {}
     }
     return { default: MockOpenAI };
 });

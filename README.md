@@ -9,14 +9,14 @@
 
 ## ✨ Features
 
-| Feature | Description |
-|---------|-------------|
-| 🔧 **AI Self-Healing** | Automatically fixes broken selectors using OpenAI or Gemini |
-| 🌐 **Multi-Browser** | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices |
-| 🌍 **Multi-Environment** | Dev, Staging, Prod configs with `.env.{env}` files |
-| 📊 **Structured Logging** | Winston logger with console + file output |
-| 📄 **Page Object Model** | Clean POM architecture with proper page flows |
-| 🔄 **CI/CD Ready** | GitHub Actions with retries and HTML reports |
+| Feature                   | Description                                                 |
+| ------------------------- | ----------------------------------------------------------- |
+| 🔧 **AI Self-Healing**    | Automatically fixes broken selectors using OpenAI or Gemini |
+| 🌐 **Multi-Browser**      | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices    |
+| 🌍 **Multi-Environment**  | Dev, Staging, Prod configs with `.env.{env}` files          |
+| 📊 **Structured Logging** | Winston logger with console + file output                   |
+| 📄 **Page Object Model**  | Clean POM architecture with proper page flows               |
+| 🔄 **CI/CD Ready**        | GitHub Actions with retries and HTML reports                |
 
 ## 🚀 Quick Start
 
@@ -46,6 +46,7 @@ npm run test:prod
 ```
 
 **Environment files:**
+
 - `.env.dev` - Development configuration
 - `.env.staging` - Staging configuration
 - `.env.prod` - Production configuration
@@ -53,17 +54,17 @@ npm run test:prod
 
 ## 🌐 Cross-Browser Testing
 
-| Project | Browser/Device |
-|---------|----------------|
-| `prod` | Desktop Chrome |
-| `chromium` | Chromium |
-| `chrome` | Google Chrome |
-| `firefox` | Firefox |
-| `webkit` | Safari |
-| `edge` | Microsoft Edge |
-| `mobile-chrome` | Pixel 5 |
-| `mobile-safari` | iPhone 12 |
-| `tablet` | iPad (gen 7) |
+| Project         | Browser/Device |
+| --------------- | -------------- |
+| `prod`          | Desktop Chrome |
+| `chromium`      | Chromium       |
+| `chrome`        | Google Chrome  |
+| `firefox`       | Firefox        |
+| `webkit`        | Safari         |
+| `edge`          | Microsoft Edge |
+| `mobile-chrome` | Pixel 5        |
+| `mobile-safari` | iPhone 12      |
+| `tablet`        | iPad (gen 7)   |
 
 ```bash
 # Run on all browsers
@@ -98,7 +99,29 @@ TEST_TIMEOUT=120000
 HEADLESS=true
 ```
 
-## 🏗️ Architecture
+## 🐳 Run with Docker
+
+You can run the tests in a containerized environment to ensure consistency.
+
+### 1. Build & Run
+
+```bash
+# Build the image
+docker-compose build
+
+# Run the tests
+docker-compose up
+```
+
+### 2. View Reports
+
+Start a local web server to view the report generated inside the container:
+
+```bash
+npx playwright show-report playwright-report
+```
+
+## Technical Notes
 
 ```
 src/
@@ -149,7 +172,77 @@ async click(selector: string) {
 ## 📚 Portfolio Notes
 
 This project demonstrates:
+
 - **Agentic Workflows**: Combining LLMs with deterministic runtime logic
 - **Enterprise Architecture**: Multi-environment, structured logging, centralized config
 - **Modern QA**: Moving beyond "record and playback" to intelligent, resilient automation
 - **Cross-Browser Testing**: Full coverage across desktop and mobile devices
+
+## 🎯 Best Practices
+
+### Type Safety
+
+The framework uses strict TypeScript with comprehensive type definitions:
+
+```typescript
+import { AutoHealer, type ClickOptions, type FillOptions } from './AutoHealer';
+
+// Fully typed interactions
+await healer.click('#button', { timeout: 3000 });
+await healer.fill('#input', 'value', { force: true });
+```
+
+### Code Quality
+
+Includes industry-standard tooling:
+
+- **ESLint**: Enforces code quality and best practices
+- **Prettier**: Ensures consistent formatting
+- **TypeScript**: Strict type checking with no implicit any
+- **Vitest**: Fast unit testing with coverage reports
+
+```bash
+# Run all quality checks
+npm run validate
+
+# Auto-fix issues
+npm run lint:fix
+npm run format
+```
+
+### Security
+
+- API keys managed through environment variables
+- No secrets in source code
+- Automatic key rotation support
+- CodeQL security scanning
+- See [SECURITY.md](SECURITY.md) for full guidelines
+
+### Testing
+
+Comprehensive test coverage with unit tests for all core functionality:
+
+```bash
+npm run test:unit          # Run tests
+npm run test:unit:watch    # Watch mode
+npm run test:coverage      # With coverage
+```
+
+### Documentation
+
+- JSDoc comments on all public APIs
+- Type definitions for IDE auto-completion
+- Usage examples in code
+- Comprehensive guides in [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## 🔒 Security
+
+For security concerns, please see [SECURITY.md](SECURITY.md).
+
+## 📄 License
+
+ISC

@@ -1,18 +1,30 @@
-
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from './Logger.js';
-import type { LocatorMap } from '../types.js';
+import type { LocatorStore } from '../types.js';
 
 // Get current directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * LocatorManager - Manages persistent storage of element selectors
+ *
+ * Provides centralized storage for selectors that can be updated when
+ * the AutoHealer discovers new working selectors.
+ *
+ * @example
+ * ```typescript
+ * const manager = LocatorManager.getInstance();
+ * const selector = manager.getLocator('home.searchButton');
+ * manager.updateLocator('home.searchButton', '#new-search-btn');
+ * ```
+ */
 export class LocatorManager {
     private static instance: LocatorManager;
     private locatorsPath: string;
-    private locators: LocatorMap = {};
+    private locators: LocatorStore = {};
 
     private constructor() {
         // Resolve path relative to this file (src/utils -> src/config/locators.json)
@@ -20,6 +32,9 @@ export class LocatorManager {
         this.loadLocators();
     }
 
+    /**
+     * Get the singleton instance of LocatorManager
+     */
     public static getInstance(): LocatorManager {
         if (!LocatorManager.instance) {
             LocatorManager.instance = new LocatorManager();
@@ -31,17 +46,23 @@ export class LocatorManager {
         try {
             if (fs.existsSync(this.locatorsPath)) {
                 const fileContent = fs.readFileSync(this.locatorsPath, 'utf-8');
-                this.locators = JSON.parse(fileContent);
+                this.locators = JSON.parse(fileContent) as LocatorStore;
             } else {
                 this.locators = {};
                 logger.warn(`[LocatorManager] Locators file not found at ${this.locatorsPath}`);
             }
         } catch (error) {
-            logger.error(`[LocatorManager] Failed to load locators: ${error}`);
+            logger.error(`[LocatorManager] Failed to load locators: ${String(error)}`);
             this.locators = {};
         }
     }
 
+    /**
+     * Get a locator by its key path (e.g., 'home.searchButton')
+     *
+     * @param key - Dot-separated path to the locator
+     * @returns The selector string if found, null otherwise
+     */
     public getLocator(key: string): string | null {
         try {
             const parts = key.split('.');
@@ -49,20 +70,28 @@ export class LocatorManager {
 
             for (const part of parts) {
                 if (current === undefined || current === null || typeof current === 'string') return null;
-                current = current[part];
+                current = current[part] as string | LocatorStore;
             }
 
             return typeof current === 'string' ? current : null;
         } catch (error) {
-            logger.error(`[LocatorManager] Error retrieving locator for key '${key}': ${error}`);
+            logger.error(`[LocatorManager] Error retrieving locator for key '${key}': ${String(error)}`);
             return null;
         }
     }
 
+    /**
+     * Update a locator with a new selector value
+     *
+     * Creates nested paths if they don't exist and persists changes to disk.
+     *
+     * @param key - Dot-separated path to the locator
+     * @param newSelector - New CSS selector value
+     */
     public updateLocator(key: string, newSelector: string) {
         try {
             const parts = key.split('.');
-            let current: LocatorMap = this.locators;
+            let current: LocatorStore = this.locators;
 
             // Traverse to the second to last part
             for (let i = 0; i < parts.length - 1; i++) {
@@ -75,7 +104,11 @@ export class LocatorManager {
                 if (!current[part] || typeof current[part] === 'string') {
                     current[part] = {};
                 }
-                current = current[part] as LocatorMap;
+                const next = current[part];
+                if (typeof next === 'string') {
+                    throw new Error(`Cannot traverse through string value at '${part}'`);
+                }
+                current = next;
             }
 
             // Set the new value
@@ -88,7 +121,7 @@ export class LocatorManager {
             this.saveLocators();
             logger.info(`[LocatorManager] Updated locator '${key}' to '${newSelector}'`);
         } catch (error) {
-            logger.error(`[LocatorManager] Failed to update locator '${key}': ${error}`);
+            logger.error(`[LocatorManager] Failed to update locator '${key}': ${String(error)}`);
         }
     }
 
@@ -96,7 +129,7 @@ export class LocatorManager {
         try {
             fs.writeFileSync(this.locatorsPath, JSON.stringify(this.locators, null, 2), 'utf-8');
         } catch (error) {
-            logger.error(`[LocatorManager] Failed to save locators: ${error}`);
+            logger.error(`[LocatorManager] Failed to save locators: ${String(error)}`);
         }
     }
 }
