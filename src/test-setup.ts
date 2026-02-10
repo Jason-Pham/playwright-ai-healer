@@ -27,7 +27,7 @@ vi.mock('openai', () => {
                 create: mockOpenaiCreate,
             },
         };
-        constructor(_opts: any) {}
+        constructor(_opts: unknown) {}
     }
     return { default: MockOpenAI };
 });

@@ -16,7 +16,7 @@ export function loadEnvironment(): Environment {
     // 1. First, load the base .env file for secrets (API keys, etc.)
     const basePath = path.resolve(process.cwd(), '.env');
     if (fs.existsSync(basePath)) {
-        dotenv.config({ path: basePath, quiet: true } as any);
+        dotenv.config({ path: basePath, override: true });
     }
 
     // 2. If env is specified, overlay the env-specific file (overrides non-secret config)

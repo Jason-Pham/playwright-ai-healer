@@ -2,6 +2,7 @@ import winston from 'winston';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { type TestInfo } from '@playwright/test';
 
 // Get current directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -54,7 +55,7 @@ const winstonLogger = winston.createLogger({
  */
 export class Logger {
     private static instance: Logger;
-    private playwrightTestInfo: any = null;
+    private playwrightTestInfo: TestInfo | null = null;
 
     private constructor() {}
 
@@ -69,7 +70,7 @@ export class Logger {
      * Attach a Playwright test.info() object to enable report integration.
      * Call this at the start of a test: Logger.getInstance().setTestInfo(test.info());
      */
-    public setTestInfo(testInfo: any): void {
+    public setTestInfo(testInfo: TestInfo): void {
         this.playwrightTestInfo = testInfo;
     }
 

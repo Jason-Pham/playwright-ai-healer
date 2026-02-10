@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Logger } from './Logger.js';
+import { type TestInfo } from '@playwright/test';
 
 // Hoist mock object so it's accessible in both mock factory and tests
 const { mockLogger } = vi.hoisted(() => {
@@ -58,11 +59,11 @@ describe('Logger', () => {
 
     describe('Test Info Integration', () => {
         it('should attach annotations to test info if present', () => {
-            const mockTestInfo: any = {
+            const mockTestInfo = {
                 annotations: [],
-            };
+            } as unknown as TestInfo;
 
-            loggerInstance.setTestInfo(mockTestInfo);
+            loggerInstance.setTestInfo(mockTestInfo as TestInfo);
             loggerInstance.warn('test warning');
 
             expect(mockTestInfo.annotations).toHaveLength(1);
@@ -76,11 +77,11 @@ describe('Logger', () => {
         });
 
         it('should NOT attach annotations if test info is cleared', () => {
-            const mockTestInfo: any = {
+            const mockTestInfo = {
                 annotations: [],
-            };
+            } as unknown as TestInfo;
 
-            loggerInstance.setTestInfo(mockTestInfo);
+            loggerInstance.setTestInfo(mockTestInfo as TestInfo);
             loggerInstance.clearTestInfo();
             loggerInstance.info('test info');
 

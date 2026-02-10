@@ -37,6 +37,13 @@ export default tseslint.config(
         },
     },
     {
+        files: ['**/*.test.ts'],
+        rules: {
+            'playwright/expect-expect': 'off',
+            'playwright/no-skipped-test': 'off',
+        }
+    },
+    {
         ignores: ['node_modules/', 'dist/', '*.js', 'playwright-report/', 'test-results/', 'coverage/'],
     }
 );

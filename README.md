@@ -99,7 +99,29 @@ TEST_TIMEOUT=120000
 HEADLESS=true
 ```
 
-## 🏗️ Architecture
+## 🐳 Run with Docker
+
+You can run the tests in a containerized environment to ensure consistency.
+
+### 1. Build & Run
+
+```bash
+# Build the image
+docker-compose build
+
+# Run the tests
+docker-compose up
+```
+
+### 2. View Reports
+
+Start a local web server to view the report generated inside the container:
+
+```bash
+npx playwright show-report playwright-report
+```
+
+## Technical Notes
 
 ```
 src/

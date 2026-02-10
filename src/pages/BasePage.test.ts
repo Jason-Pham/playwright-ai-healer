@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Page } from '@playwright/test';
+import type { Page, Locator } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { AutoHealer } from '../AutoHealer.js';
 
 vi.mock('@playwright/test', () => {
-    const expectMock = vi.fn(actual => {
+    const expectMock = vi.fn((actual: unknown) => {
         if (typeof actual === 'function') {
             return {
-                toPass: vi.fn(async _options => {
-                    await actual();
+                toPass: vi.fn(async () => {
+                    await (actual as () => Promise<void>)();
                 }),
             };
         }
@@ -27,9 +27,29 @@ class TestPage extends BasePage {
     }
 }
 
+// Define mock types using Vitest's Mock type
+type MockPage = {
+    goto: ReturnType<typeof vi.fn>;
+    waitForTimeout: ReturnType<typeof vi.fn>;
+    locator: ReturnType<typeof vi.fn>;
+    waitForLoadState: ReturnType<typeof vi.fn>;
+    waitForFunction: ReturnType<typeof vi.fn>;
+    getByRole: ReturnType<typeof vi.fn>;
+};
+
+type MockLocator = {
+    click: ReturnType<typeof vi.fn>;
+    fill: ReturnType<typeof vi.fn>;
+    focus: ReturnType<typeof vi.fn>;
+    clear: ReturnType<typeof vi.fn>;
+    isVisible: ReturnType<typeof vi.fn>;
+    first: ReturnType<typeof vi.fn>;
+    waitFor: ReturnType<typeof vi.fn>;
+};
+
 describe('BasePage', () => {
-    let mockPage: any;
-    let mockAutoHealer: any;
+    let mockPage: MockPage;
+    let mockAutoHealer: AutoHealer; // We can use Partial if needed, or cast
     let basePage: TestPage;
 
     beforeEach(() => {
@@ -39,11 +59,12 @@ describe('BasePage', () => {
             locator: vi.fn(),
             waitForLoadState: vi.fn(),
             waitForFunction: vi.fn(),
+            getByRole: vi.fn(),
         };
 
-        mockAutoHealer = {};
+        mockAutoHealer = {} as AutoHealer;
 
-        basePage = new TestPage(mockPage, mockAutoHealer);
+        basePage = new TestPage(mockPage as unknown as Page, mockAutoHealer);
     });
 
     describe('goto', () => {
@@ -62,11 +83,12 @@ describe('BasePage', () => {
 
     describe('safeFill', () => {
         it('should fill input with explicit focus/clear and verification', async () => {
-            const mockLocator = {
+            const mockLocatorObj: Partial<MockLocator> = {
                 fill: vi.fn(),
                 focus: vi.fn().mockResolvedValue(undefined),
                 clear: vi.fn().mockResolvedValue(undefined),
             };
+
             // Mock cookie banner lookups (not present)
             mockPage.locator.mockReturnValue({
                 first: () => ({
@@ -74,11 +96,11 @@ describe('BasePage', () => {
                 }),
             });
 
-            await basePage.safeFill(mockLocator as any, 'test-value');
+            await basePage.safeFill(mockLocatorObj as unknown as Locator, 'test-value');
 
-            expect(mockLocator.focus).toHaveBeenCalled();
-            expect(mockLocator.clear).toHaveBeenCalled();
-            expect(mockLocator.fill).toHaveBeenCalledWith(
+            expect(mockLocatorObj.focus).toHaveBeenCalled();
+            expect(mockLocatorObj.clear).toHaveBeenCalled();
+            expect(mockLocatorObj.fill).toHaveBeenCalledWith(
                 'test-value',
                 expect.objectContaining({
                     force: true,
@@ -89,7 +111,7 @@ describe('BasePage', () => {
 
     describe('safeClick', () => {
         it('should attempt to dismiss cookie banner then click', async () => {
-            const mockLocator = {
+            const mockLocatorObj: Partial<MockLocator> = {
                 click: vi.fn(),
                 isVisible: vi.fn().mockResolvedValue(false), // Cookie banner not visible
             };
@@ -102,13 +124,13 @@ describe('BasePage', () => {
                 }),
             });
 
-            await basePage.safeClick(mockLocator as any);
+            await basePage.safeClick(mockLocatorObj as unknown as Locator);
 
-            expect(mockLocator.click).toHaveBeenCalled();
+            expect(mockLocatorObj.click).toHaveBeenCalled();
         });
 
         it('should handle cookie banner if present', async () => {
-            const mockLocator = { click: vi.fn() };
+            const mockLocatorObj = { click: vi.fn() };
             const mockCookieBtn = {
                 isVisible: vi.fn().mockResolvedValueOnce(true),
                 click: vi.fn().mockResolvedValue(undefined),
@@ -122,10 +144,10 @@ describe('BasePage', () => {
                 return { first: () => ({ isVisible: vi.fn() }) };
             });
 
-            await basePage.safeClick(mockLocator as any);
+            await basePage.safeClick(mockLocatorObj as unknown as Locator);
 
             expect(mockCookieBtn.click).toHaveBeenCalled();
-            expect(mockLocator.click).toHaveBeenCalled();
+            expect(mockLocatorObj.click).toHaveBeenCalled();
         });
     });
 

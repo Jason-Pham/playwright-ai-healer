@@ -4,14 +4,12 @@ import { mockGeminiGenerateContent } from './test-setup.js';
 import { AutoHealer } from './AutoHealer.js';
 
 // Mock page factory
-const createMockPage = (): Partial<Page> => ({
-    click: vi.fn(),
-    fill: vi.fn(),
-    evaluate: vi.fn().mockResolvedValue('<html><body><button id="btn">Click</button></body></html>'),
-    keyboard: {
-        press: vi.fn(),
-    } as any,
-});
+const createMockPage = (): Partial<Page> =>
+    ({
+        click: vi.fn(),
+        fill: vi.fn(),
+        evaluate: vi.fn().mockResolvedValue('<html><body><button id="btn">Click</button></body></html>'),
+    }) as unknown as Partial<Page>;
 
 describe('AutoHealer', () => {
     let mockPage: Partial<Page>;
@@ -148,7 +146,7 @@ describe('AutoHealer', () => {
             await healer.click('#broken');
 
             expect(mockGeminiGenerateContent).toHaveBeenCalled();
-            const callArg = mockGeminiGenerateContent.mock.calls[0]![0];
+            const callArg = String(mockGeminiGenerateContent.mock.calls[0]![0]);
             expect(callArg).toContain('#broken'); // Original selector in prompt
             expect(callArg).toContain('Element not found'); // Error message in prompt
         });

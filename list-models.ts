@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -27,6 +28,10 @@ async function run() {
         }
     }
     console.log('\n❌ All models failed.');
+    process.exit(1);
 }
 
-run();
+run().catch(error => {
+    console.error('Unhandled error:', error);
+    process.exit(1);
+});
