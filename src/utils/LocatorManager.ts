@@ -66,11 +66,10 @@ export class LocatorManager {
     public getLocator(key: string): string | null {
         try {
             const parts = key.split('.');
-            let current: string | LocatorStore = this.locators;
+            let current: string | LocatorMap | undefined = this.locators;
 
             for (const part of parts) {
-                if (current === undefined || current === null) return null;
-                if (typeof current === 'string') return null;
+                if (current === undefined || current === null || typeof current === 'string') return null;
                 current = current[part] as string | LocatorStore;
             }
 
@@ -102,7 +101,7 @@ export class LocatorManager {
                 if (current === null || typeof current !== 'object') {
                     throw new Error(`Cannot traverse path segment '${part}'`);
                 }
-                if (!current[part]) {
+                if (!current[part] || typeof current[part] === 'string') {
                     current[part] = {};
                 }
                 const next = current[part];

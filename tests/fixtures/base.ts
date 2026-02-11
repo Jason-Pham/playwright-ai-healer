@@ -14,14 +14,13 @@ export const test = base.extend<MyFixtures>({
         const { ai } = config;
 
         // Determine provider based on available keys using our config logic
-        // This logic is slightly duplicated from config but simplified here for flow
         let provider: 'openai' | 'gemini';
-        let apiKey: string;
+        let apiKeys: string | string[];
         let model: string;
 
         if (ai.gemini.apiKey) {
             provider = 'gemini';
-            apiKey = ai.gemini.apiKey;
+            apiKeys = ai.gemini.apiKey;
             model = ai.gemini.modelName;
         } else if (ai.openai.apiKeys && ai.openai.apiKeys.length > 0) {
             provider = 'openai';
@@ -33,7 +32,7 @@ export const test = base.extend<MyFixtures>({
             throw new Error('❌ API Key missing! Check src/config/index.ts or .env');
         }
 
-        const healer = new AutoHealer(page, apiKey, provider, model, true);
+        const healer = new AutoHealer(page, apiKeys, provider, model, true);
         await use(healer);
     },
 
