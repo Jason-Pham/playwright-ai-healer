@@ -38,6 +38,7 @@ const winstonLogger = winston.createLogger({
         // Console transport for local development
         new winston.transports.Console({
             format: consoleFormat,
+            level: process.env['CONSOLE_LOG_LEVEL'] || 'info',
         }),
         // File transport for persistent logs
         new winston.transports.File({

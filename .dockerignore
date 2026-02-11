@@ -5,3 +5,4 @@ playwright-report
 .env
 site
 coverage
+logs

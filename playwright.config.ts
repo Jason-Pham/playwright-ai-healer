@@ -8,9 +8,11 @@ const testEnv = process.env['TEST_ENV'] || 'dev';
 const envPath = path.resolve(`.env.${testEnv}`);
 
 if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath, quiet: true } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dotenv.config({ path: envPath, override: true, quiet: true } as any);
 } else {
-    dotenv.config({ quiet: true } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dotenv.config({ override: true, quiet: true } as any);
 }
 
 export default defineConfig({

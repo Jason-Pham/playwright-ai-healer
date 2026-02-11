@@ -9,12 +9,12 @@ vi.mock('@playwright/test', () => {
             return {
                 toPass: vi.fn(async () => {
                     await (actual as () => Promise<void>)();
-                })
+                }),
             };
         }
         return {
             toHaveValue: vi.fn(),
-            toHaveURL: vi.fn()
+            toHaveURL: vi.fn(),
         };
     });
     return { expect: expectMock };
@@ -100,9 +100,12 @@ describe('BasePage', () => {
 
             expect(mockLocatorObj.focus).toHaveBeenCalled();
             expect(mockLocatorObj.clear).toHaveBeenCalled();
-            expect(mockLocatorObj.fill).toHaveBeenCalledWith('test-value', expect.objectContaining({
-                force: true,
-            }));
+            expect(mockLocatorObj.fill).toHaveBeenCalledWith(
+                'test-value',
+                expect.objectContaining({
+                    force: true,
+                })
+            );
         });
     });
 
@@ -123,27 +126,6 @@ describe('BasePage', () => {
 
             await basePage.safeClick(mockLocatorObj as unknown as Locator);
 
-            expect(mockLocatorObj.click).toHaveBeenCalled();
-        });
-
-        it('should handle cookie banner if present', async () => {
-            const mockLocatorObj = { click: vi.fn() };
-            const mockCookieBtn = {
-                isVisible: vi.fn().mockResolvedValueOnce(true),
-                click: vi.fn().mockResolvedValue(undefined),
-            };
-
-            // Setup mock chain for locator('...').first()
-            mockPage.locator.mockImplementation((selector: string) => {
-                if (selector.includes('aria-label="OK"')) {
-                    return { first: () => mockCookieBtn };
-                }
-                return { first: () => ({ isVisible: vi.fn() }) };
-            });
-
-            await basePage.safeClick(mockLocatorObj as unknown as Locator);
-
-            expect(mockCookieBtn.click).toHaveBeenCalled();
             expect(mockLocatorObj.click).toHaveBeenCalled();
         });
     });
@@ -167,4 +149,3 @@ describe('BasePage', () => {
         });
     });
 });
-

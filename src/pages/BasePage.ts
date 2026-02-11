@@ -17,7 +17,6 @@ export abstract class BasePage {
         await this.page.goto(url);
     }
 
-
     async wait(ms: number) {
         await this.page.waitForTimeout(ms);
     }
@@ -26,7 +25,7 @@ export abstract class BasePage {
      * Wait for page to be fully loaded.
      * Consolidates waiting for domcontentloaded and potentially other states.
      */
-    async waitForPageLoad(options?: { timeout?: number, networking?: boolean }): Promise<void> {
+    async waitForPageLoad(options?: { timeout?: number; networking?: boolean }): Promise<void> {
         await this.page.waitForLoadState('load', options);
         await this.page.waitForLoadState('domcontentloaded', options);
     }
@@ -80,7 +79,6 @@ export abstract class BasePage {
      * Click an element after dismissing any overlays
      */
     async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
-        await this.dismissOverlaysBeforeAction();
         await locator.click(options);
     }
 
@@ -103,7 +101,7 @@ export abstract class BasePage {
             await locator.fill(value, {
                 force: true,
                 timeout: config.test.timeouts.short,
-                ...options
+                ...options,
             });
 
             await expect(locator).toHaveValue(value, { timeout: config.test.timeouts.short });

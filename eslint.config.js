@@ -34,10 +34,11 @@ export default tseslint.config(
         },
         rules: {
             ...playwright.configs.recommended.rules,
+            'playwright/expect-expect': ['warn', { assertFunctionNames: ['expect', 'verify*'] }],
         },
     },
     {
-        files: ['**/*.test.ts'],
+        files: ['**/*.test.ts', 'tests/**/*.spec.ts'],
         rules: {
             'playwright/expect-expect': 'off',
             'playwright/no-skipped-test': 'off',
