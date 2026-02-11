@@ -3,7 +3,7 @@
         "searchInput": "#speedy-header-search",
         "cookieBannerAccept": "button.coi-banner__accept",
         "categoryLink": "[data-test='main-navigation'] a[href*='/tietokoneet']",
-        "productCard": "[data-test='product-card']",
+        "productCard": "[data-testid='product-card']",
         "productTitle": [
             ".ProductPageHeader"
         ],

@@ -66,7 +66,7 @@ export class LocatorManager {
     public getLocator(key: string): string | null {
         try {
             const parts = key.split('.');
-            let current: string | LocatorMap | undefined = this.locators;
+            let current: string | LocatorStore | undefined = this.locators;
 
             for (const part of parts) {
                 if (current === undefined || current === null || typeof current === 'string') return null;
