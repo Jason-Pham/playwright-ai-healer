@@ -12,6 +12,14 @@ export class CategoryPage extends BasePage {
     private readonly timeouts = config.test.timeouts;
     private readonly locatorManager = LocatorManager.getInstance();
 
+    private getProductCardSelector(): string {
+        const selector = this.locatorManager.getLocator('gigantti.productCard');
+        if (!selector) {
+            throw new Error('Product card selector not found in locators.json');
+        }
+        return selector;
+    }
+
     async verifyProductsDisplayed() {
         logger.debug('🔍 Verifying products are displayed...');
 
@@ -19,12 +27,7 @@ export class CategoryPage extends BasePage {
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
         // Resolve selector dynamically from LocatorManager to pick up any healed values
-        const productCardSelector = this.locatorManager.getLocator('gigantti.productCard');
-
-        if (!productCardSelector) {
-            throw new Error('Product card selector not found in locators.json');
-        }
-
+        const productCardSelector = this.getProductCardSelector();
         const productSelectors = [productCardSelector];
 
         // Wait for products to be visible
@@ -40,11 +43,7 @@ export class CategoryPage extends BasePage {
         logger.debug('🖱️ Clicking on first product...');
 
         // Resolve selector dynamically from LocatorManager to pick up any healed values
-        const productCardSelector = this.locatorManager.getLocator('gigantti.productCard');
-
-        if (!productCardSelector) {
-            throw new Error('Product card selector not found in locators.json');
-        }
+        const productCardSelector = this.getProductCardSelector();
 
         // Click on the first product card using correct Gigantti selector
         const firstProduct = this.page.locator(productCardSelector).first();
