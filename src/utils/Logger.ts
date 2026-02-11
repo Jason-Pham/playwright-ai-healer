@@ -58,7 +58,7 @@ export class Logger {
     private static instance: Logger;
     private playwrightTestInfo: TestInfo | null = null;
 
-    private constructor() { }
+    private constructor() {}
 
     public static getInstance(): Logger {
         if (!Logger.instance) {

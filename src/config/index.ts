@@ -9,7 +9,6 @@ export const config = {
 
     app: {
         baseUrl: process.env['BASE_URL'] || 'https://www.gigantti.fi/',
-
     },
     ai: {
         provider: (process.env['AI_PROVIDER'] || 'gemini') as 'gemini' | 'openai',
