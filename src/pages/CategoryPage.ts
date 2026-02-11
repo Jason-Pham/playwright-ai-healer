@@ -10,6 +10,7 @@ import type { ProductDetailPage } from './ProductDetailPage.js';
  */
 export class CategoryPage extends BasePage {
     private readonly timeouts = config.test.timeouts;
+    private readonly locatorManager = LocatorManager.getInstance();
 
     async verifyProductsDisplayed() {
         logger.debug('🔍 Verifying products are displayed...');
@@ -18,8 +19,7 @@ export class CategoryPage extends BasePage {
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
         // Resolve selector dynamically from LocatorManager to pick up any healed values
-        const locatorManager = LocatorManager.getInstance();
-        const productCardSelector = locatorManager.getLocator('gigantti.productCard');
+        const productCardSelector = this.locatorManager.getLocator('gigantti.productCard');
 
         if (!productCardSelector) {
             throw new Error('Product card selector not found in locators.json');
@@ -40,8 +40,7 @@ export class CategoryPage extends BasePage {
         logger.debug('🖱️ Clicking on first product...');
 
         // Resolve selector dynamically from LocatorManager to pick up any healed values
-        const locatorManager = LocatorManager.getInstance();
-        const productCardSelector = locatorManager.getLocator('gigantti.productCard');
+        const productCardSelector = this.locatorManager.getLocator('gigantti.productCard');
 
         if (!productCardSelector) {
             throw new Error('Product card selector not found in locators.json');

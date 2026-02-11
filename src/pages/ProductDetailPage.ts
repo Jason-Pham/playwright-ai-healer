@@ -10,12 +10,12 @@ import { LocatorManager } from '../utils/LocatorManager.js';
  */
 export class ProductDetailPage extends BasePage {
     private readonly timeouts = config.test.timeouts;
+    private readonly locatorManager = LocatorManager.getInstance();
 
     async verifyProductDetailsLoaded() {
         // Resolve selectors dynamically from LocatorManager to pick up any healed values
-        const locatorManager = LocatorManager.getInstance();
-        const productTitle = locatorManager.getLocator('gigantti.productTitle');
-        const productPrice = locatorManager.getLocator('gigantti.productPrice');
+        const productTitle = this.locatorManager.getLocator('gigantti.productTitle');
+        const productPrice = this.locatorManager.getLocator('gigantti.productPrice');
 
         if (!productTitle) {
             throw new Error('Product title selector not found in locators.json');

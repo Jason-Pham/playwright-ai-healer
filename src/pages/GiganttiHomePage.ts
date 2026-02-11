@@ -7,6 +7,7 @@ import { CategoryPage } from './CategoryPage.js';
 export class GiganttiHomePage extends BasePage {
     private readonly url = config.app.baseUrl;
     private readonly timeouts = config.test.timeouts;
+    private readonly locatorManager = LocatorManager.getInstance();
     private popupHandlerRegistered = false;
 
     async open() {
@@ -19,8 +20,7 @@ export class GiganttiHomePage extends BasePage {
         logger.debug(`🔍 Searching for "${term}"...`);
 
         // Resolve selector dynamically from LocatorManager to pick up any healed values
-        const locatorManager = LocatorManager.getInstance();
-        const searchInputSelector = locatorManager.getLocator('gigantti.searchInput');
+        const searchInputSelector = this.locatorManager.getLocator('gigantti.searchInput');
 
         if (!searchInputSelector) {
             throw new Error('Search input selector not found in locators.json');
