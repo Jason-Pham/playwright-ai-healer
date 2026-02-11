@@ -4,11 +4,7 @@
         "cookieBannerAccept": "button.coi-banner__accept",
         "categoryLink": "[data-test='main-navigation'] a[href*='/tietokoneet']",
         "productCard": "[data-test='product-card']",
-        "productTitle": [
-            ".ProductPageHeader"
-        ],
-        "productPrice": [
-            "[data-cro=\"pdp-main-price-box\"]"
-        ]
+        "productTitle": ".ProductPageHeader",
+        "productPrice": "[data-cro=\"pdp-main-price-box\"]"
     }
 }

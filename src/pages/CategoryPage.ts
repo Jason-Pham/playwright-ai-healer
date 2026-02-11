@@ -1,10 +1,8 @@
 import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
+import { LocatorManager } from '../utils/LocatorManager.js';
 import type { ProductDetailPage } from './ProductDetailPage.js';
-
-
-import locators from '../config/locators.json' with { type: "json" };
 
 /**
  * Category/Product Listing Page
@@ -12,6 +10,15 @@ import locators from '../config/locators.json' with { type: "json" };
  */
 export class CategoryPage extends BasePage {
     private readonly timeouts = config.test.timeouts;
+    private readonly locatorManager = LocatorManager.getInstance();
+
+    private getProductCardSelector(): string {
+        const selector = this.locatorManager.getLocator('gigantti.productCard');
+        if (!selector) {
+            throw new Error('Product card selector not found in locators.json');
+        }
+        return selector;
+    }
 
     async verifyProductsDisplayed() {
         logger.debug('🔍 Verifying products are displayed...');
@@ -19,10 +26,9 @@ export class CategoryPage extends BasePage {
         // Wait for page to fully load
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
-        // Primary selector from actual Gigantti search page structure
-        const productSelectors = [
-            locators.gigantti.productCard
-        ];
+        // Resolve selector dynamically from LocatorManager to pick up any healed values
+        const productCardSelector = this.getProductCardSelector();
+        const productSelectors = [productCardSelector];
 
         // Wait for products to be visible
         await this.findFirstElement(productSelectors, {
@@ -36,8 +42,11 @@ export class CategoryPage extends BasePage {
     async clickFirstProduct(): Promise<ProductDetailPage> {
         logger.debug('🖱️ Clicking on first product...');
 
+        // Resolve selector dynamically from LocatorManager to pick up any healed values
+        const productCardSelector = this.getProductCardSelector();
+
         // Click on the first product card using correct Gigantti selector
-        const firstProduct = this.page.locator(locators.gigantti.productCard).first();
+        const firstProduct = this.page.locator(productCardSelector).first();
         await firstProduct.click();
 
         // Wait for navigation to product detail page

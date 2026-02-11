@@ -1,15 +1,13 @@
 import { BasePage } from './BasePage.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
+import { LocatorManager } from '../utils/LocatorManager.js';
 import { CategoryPage } from './CategoryPage.js';
-
-import locators from '../config/locators.json' with { type: 'json' };
-
-const { searchInput } = locators.gigantti;
 
 export class GiganttiHomePage extends BasePage {
     private readonly url = config.app.baseUrl;
     private readonly timeouts = config.test.timeouts;
+    private readonly locatorManager = LocatorManager.getInstance();
     private popupHandlerRegistered = false;
 
     async open() {
@@ -21,11 +19,18 @@ export class GiganttiHomePage extends BasePage {
     async searchFor(term: string): Promise<CategoryPage> {
         logger.debug(`🔍 Searching for "${term}"...`);
 
-        await this.safeFill(this.page.locator(searchInput), term, { force: true });
+        // Resolve selector dynamically from LocatorManager to pick up any healed values
+        const searchInputSelector = this.locatorManager.getLocator('gigantti.searchInput');
+
+        if (!searchInputSelector) {
+            throw new Error('Search input selector not found in locators.json');
+        }
+
+        await this.safeFill(this.page.locator(searchInputSelector), term, { force: true });
 
         const searchBtn = this.page.locator('[data-testid="search-button"]').first();
 
-        await this.expectValue(this.page.locator(searchInput), term);
+        await this.expectValue(this.page.locator(searchInputSelector), term);
         await this.safeClick(searchBtn);
 
         return new CategoryPage(this.page, this.autoHealer);
