@@ -28,6 +28,5 @@ export class ProductDetailPage extends BasePage {
             const project = test.info().project.name;
             logger.warn(`[${project}] ⚠️ Price element not immediately visible, but page loaded.`);
         }
-
     }
 }
