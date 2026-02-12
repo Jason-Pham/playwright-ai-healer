@@ -9,16 +9,7 @@ export const config = {
 
     app: {
         baseUrl: process.env['BASE_URL'] || 'https://www.gigantti.fi/',
-        selectors: {
-            gigantti: {
-                searchInput: '#speedy-header-search',
-                cookieBannerAccept: 'button.coi-banner__accept',
-                categoryLink: '[data-test="main-navigation"] a[href*="/tietokoneet"]',
-                productCard: '[data-test="product-card"]',
-                productTitle: '[data-test="product-title"]',
-                productPrice: '[data-test="product-price"]',
-            },
-        },
+
     },
     ai: {
         provider: (process.env['AI_PROVIDER'] || 'gemini') as 'gemini' | 'openai',

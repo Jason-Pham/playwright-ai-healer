@@ -3,6 +3,9 @@ import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
 import type { ProductDetailPage } from './ProductDetailPage.js';
 
+
+import locators from '../config/locators.json' with { type: "json" };
+
 /**
  * Category/Product Listing Page
  * Represents pages showing a list of products (category pages, search results, etc.)
@@ -17,7 +20,9 @@ export class CategoryPage extends BasePage {
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
         // Primary selector from actual Gigantti search page structure
-        const productSelectors = ['[data-testid="product-card"]'];
+        const productSelectors = [
+            locators.gigantti.productCard
+        ];
 
         // Wait for products to be visible
         await this.findFirstElement(productSelectors, {
@@ -32,8 +37,8 @@ export class CategoryPage extends BasePage {
         logger.debug('🖱️ Clicking on first product...');
 
         // Click on the first product card using correct Gigantti selector
-        const firstProduct = this.page.locator('[data-testid="product-card"]').first();
-        await firstProduct.click({ force: true });
+        const firstProduct = this.page.locator(locators.gigantti.productCard).first();
+        await firstProduct.click();
 
         // Wait for navigation to product detail page
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
