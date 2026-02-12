@@ -95,8 +95,8 @@ export abstract class BasePage {
         await expect(async () => {
             // Short timeouts for internal steps to allow faster retries
             // but ensure we give enough time for the action itself
-            await locator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
-            await locator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
+            await locator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
+            await locator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
 
             await locator.fill(value, {
                 force: true,
