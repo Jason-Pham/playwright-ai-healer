@@ -49,6 +49,7 @@ export abstract class BasePage {
      * Click an element after dismissing any overlays
      */
     async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
+        await this.dismissOverlaysBeforeAction();
         await locator.click(options);
     }
 
