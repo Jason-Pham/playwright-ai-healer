@@ -34,7 +34,7 @@ export class CategoryPage extends BasePage {
         logger.debug('🖱️ Clicking on first product...');
 
         // Click on the first product card using AutoHealer for self-healing capability
-        await this.autoHealer.click('gigantti.productCard');
+        await this.autoHealer.click('gigantti.productCard', { timeout: this.timeouts.productVisibility });
 
         // Wait for navigation to product detail page
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
