@@ -3,14 +3,17 @@ import { expect } from '@playwright/test';
 import { AutoHealer } from '../AutoHealer.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
+import { type SiteHandler, GiganttiHandler } from '../utils/SiteHandler.js';
 
 export abstract class BasePage {
     protected page: Page;
     protected autoHealer: AutoHealer;
+    protected siteHandler: SiteHandler;
 
-    constructor(page: Page, autoHealer: AutoHealer) {
+    constructor(page: Page, autoHealer: AutoHealer, siteHandler: SiteHandler = new GiganttiHandler()) {
         this.page = page;
         this.autoHealer = autoHealer;
+        this.siteHandler = siteHandler;
     }
 
     async goto(url: string) {
@@ -39,40 +42,7 @@ export abstract class BasePage {
      */
     protected async dismissOverlaysBeforeAction(): Promise<void> {
         await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
-
-        try {
-            await this.page.waitForResponse(
-                resp =>
-                    resp.url().includes('policy.app.cookieinformation.com/cookie-data/gigantti.fi/cabl.json') &&
-                    resp.status() === 200,
-                { timeout: config.test.timeouts.default }
-            );
-        } catch {
-            // Ignore timeout - likely already loaded or cached
-        }
-
-        try {
-            // Handle Gigantti cookie consent banner
-            const cookieBtn = this.page
-                .locator('button[aria-label="OK"], .coi-banner__accept, #coiPage-1 .coi-banner__accept')
-                .first();
-
-            if (await cookieBtn.isVisible({ timeout: config.test.timeouts.default }).catch(() => false)) {
-                logger.debug('Dismissing cookie banner before action...');
-                await cookieBtn.click({ force: true });
-
-                // Wait for body.noScroll to be removed
-                try {
-                    await this.page.waitForFunction(() => !document.body.classList.contains('noScroll'), {
-                        timeout: config.test.timeouts.default,
-                    });
-                } catch {
-                    // Ignore - not all pages have noScroll
-                }
-            }
-        } catch {
-            // Ignore - overlays may not be present
-        }
+        await this.siteHandler.dismissOverlays(this.page);
     }
 
     /**
@@ -95,8 +65,8 @@ export abstract class BasePage {
         await expect(async () => {
             // Short timeouts for internal steps to allow faster retries
             // but ensure we give enough time for the action itself
-            await locator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
-            await locator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
+            await locator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
+            await locator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
 
             await locator.fill(value, {
                 force: true,

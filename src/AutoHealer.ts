@@ -249,21 +249,53 @@ export class AutoHealer {
      */
     private async getSimplifiedDOM(): Promise<string> {
         return await this.page.evaluate(() => {
-            // Create a verify generic logic to strip non-visual elements
+            // Create a clone to strip non-visual elements
             const clone = document.documentElement.cloneNode(true) as HTMLElement;
 
-            const removeTags = ['script', 'style', 'svg', 'path', 'link', 'meta', 'noscript'];
+            // 1. Remove non-visual/noisy tags
+            const removeTags = [
+                'script', 'style', 'svg', 'path', 'link', 'meta', 'noscript',
+                'iframe', 'video', 'audio', 'object', 'embed'
+            ];
             removeTags.forEach(tag => {
                 const elements = clone.querySelectorAll(tag);
                 elements.forEach(el => el.remove());
             });
 
-            // Remove comments
+            // 2. Remove comments
             const iterator = document.createNodeIterator(clone, NodeFilter.SHOW_COMMENT);
             let currentNode;
-
             while ((currentNode = iterator.nextNode())) {
                 currentNode.parentNode?.removeChild(currentNode);
+            }
+
+            // 3. Clean attributes and truncate text
+            const walk = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+            while (walk.nextNode()) {
+                const node = walk.currentNode;
+
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    const el = node as HTMLElement;
+
+                    // Remove mostly useless attributes for AI selection
+                    const keepAttrs = ['id', 'name', 'class', 'type', 'placeholder', 'aria-label', 'role', 'href', 'value', 'title', 'alt'];
+                    // Also keep data-test attributes
+                    Array.from(el.attributes).forEach(attr => {
+                        const isDataTest = attr.name.startsWith('data-test');
+                        if (!keepAttrs.includes(attr.name) && !isDataTest) {
+                            el.removeAttribute(attr.name);
+                        }
+                    });
+
+                    // Remove style attributes (noise)
+                    el.removeAttribute('style');
+
+                } else if (node.nodeType === Node.TEXT_NODE) {
+                    // Truncate very long text nodes (e.g. legal text, huge paragraphs)
+                    if (node.nodeValue && node.nodeValue.length > 200) {
+                        node.nodeValue = node.nodeValue.substring(0, 200) + '...';
+                    }
+                }
             }
 
             return clone.outerHTML;
