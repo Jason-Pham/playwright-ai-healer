@@ -49,7 +49,6 @@ export abstract class BasePage {
      * Click an element after dismissing any overlays
      */
     async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
-        await this.dismissOverlaysBeforeAction();
         await locator.click(options);
     }
 
@@ -60,7 +59,6 @@ export abstract class BasePage {
      * 3. Retry on failure
      */
     async safeFill(locator: Locator, value: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
-        await this.dismissOverlaysBeforeAction();
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
         await expect(async () => {

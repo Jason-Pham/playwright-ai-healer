@@ -61,10 +61,24 @@ describe('BasePage', () => {
 
             await basePage.safeFill(mockLocatorObj as unknown as Locator, 'test-value');
 
-            expect(mockSiteHandler.dismissOverlays).toHaveBeenCalled();
             expect(mockLocatorObj.focus).toHaveBeenCalled();
             expect(mockLocatorObj.clear).toHaveBeenCalled();
             expect(mockLocatorObj.fill).toHaveBeenCalledWith('test-value', expect.objectContaining({ force: true }));
+        });
+
+        it('should suppress errors during focus and clear', async () => {
+            const mockLocatorObj = {
+                fill: vi.fn(),
+                focus: vi.fn().mockRejectedValue(new Error('Focus failed')),
+                clear: vi.fn().mockRejectedValue(new Error('Clear failed')),
+                click: vi.fn(),
+            };
+
+            await basePage.safeFill(mockLocatorObj as unknown as Locator, 'test-value');
+
+            expect(mockLocatorObj.focus).toHaveBeenCalled();
+            expect(mockLocatorObj.clear).toHaveBeenCalled();
+            expect(mockLocatorObj.fill).toHaveBeenCalled();
         });
     });
 
@@ -76,7 +90,6 @@ describe('BasePage', () => {
 
             await basePage.safeClick(mockLocatorObj as unknown as Locator);
 
-            expect(mockSiteHandler.dismissOverlays).toHaveBeenCalled();
             expect(mockLocatorObj.click).toHaveBeenCalled();
         });
     });
@@ -109,6 +122,32 @@ describe('BasePage', () => {
             // Should join with comma
             expect(mockPage.locator).toHaveBeenCalledWith('.one,#two');
             expect(mockCombinedLocator.waitFor).toHaveBeenCalledWith({ state: 'visible' });
+        });
+
+        it('should return locator without waiting if no options provided', async () => {
+            const mockCombinedLocator = {
+                waitFor: vi.fn(),
+            };
+
+            (mockPage.locator as any).mockReturnValue({
+                first: () => mockCombinedLocator,
+            });
+
+            const selectors = ['.one', '#two'];
+            await basePage.findFirstElement(selectors);
+
+            expect(mockPage.locator).toHaveBeenCalledWith('.one,#two');
+            expect(mockCombinedLocator.waitFor).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('expectValue', () => {
+        it('should verify input value', async () => {
+            const mockLocatorObj = {};
+            await basePage.expectValue(mockLocatorObj as unknown as Locator, 'test-val');
+
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', expect.anything());
+            // expect() is mocked globally in test-setup.ts
         });
     });
 });
