@@ -59,6 +59,7 @@ export const config = {
             productVisibility: 30000,
             // Action timeouts
             short: 5000,
+            stabilization: 200,
         },
     },
     logging: {
