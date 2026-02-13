@@ -1,7 +1,7 @@
 {
   "gigantti": {
     "searchInput": "#speedy-header-search",
-    "cookieBannerAccept": "button.coi-banner__accept",
+    "cookieBannerAccept": "button[aria-label=\"OK\"], .coi-banner__accept, #coiPage-1 .coi-banner__accept",
     "categoryLink": "[data-test='main-navigation'] a[href*='/tietokoneet']",
     "productCard": "[data-testid='product-card']",
     "searchButton": "[data-testid='search-button']",

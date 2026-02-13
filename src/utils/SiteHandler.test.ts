@@ -1,3 +1,5 @@
+import locators from '../config/locators.json' with { type: 'json' };
+
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Page, Locator } from '@playwright/test';
 import { GiganttiHandler, NoOpHandler } from './SiteHandler.js';
@@ -31,7 +33,7 @@ describe('SiteHandler', () => {
 
             await handler.dismissOverlays(mockPage as Page);
 
-            expect(mockPage.locator).toHaveBeenCalledWith(expect.stringContaining('aria-label="OK"'));
+            expect(mockPage.locator).toHaveBeenCalledWith(locators.gigantti.cookieBannerAccept);
             // First call: waitFor visible, second call: waitFor hidden
             expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(
                 expect.objectContaining({ state: 'visible' })
@@ -78,8 +80,7 @@ describe('SiteHandler', () => {
             await handler.dismissOverlays(mockPage as Page);
 
             const selectorArg = (mockPage.locator as any).mock.calls[0][0];
-            expect(selectorArg).toContain('aria-label="OK"');
-            expect(selectorArg).toContain('.coi-banner__accept');
+            expect(selectorArg).toBe(locators.gigantti.cookieBannerAccept);
         });
 
         it('should call first() on locator to get first matching button', async () => {

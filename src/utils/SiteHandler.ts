@@ -2,6 +2,8 @@ import type { Page, Locator } from '@playwright/test';
 import { config } from '../config/index.js';
 import { logger } from './Logger.js';
 
+import locators from '../config/locators.json' with { type: 'json' };
+
 export interface SiteHandler {
     dismissOverlays(page: Page): Promise<void>;
 }
@@ -12,7 +14,7 @@ export class GiganttiHandler implements SiteHandler {
         // The cookie button renders BEFORE its JS handlers are attached, so we
         // wait for the SDK to be ready, then use its API to dismiss the banner.
         const cookieBtn = page
-            .locator('button[aria-label="OK"], .coi-banner__accept, #coiPage-1 .coi-banner__accept')
+            .locator(locators.gigantti.cookieBannerAccept)
             .first();
 
         try {
