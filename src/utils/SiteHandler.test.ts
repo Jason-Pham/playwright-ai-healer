@@ -39,7 +39,10 @@ describe('SiteHandler', () => {
                 expect.objectContaining({ state: 'visible' })
             );
             expect(mockPage.waitForFunction).toHaveBeenCalled(); // SDK ready check
-            expect(mockPage.evaluate).toHaveBeenCalled();        // JS click
+
+            // Verify evaluate was called with the correct locator
+            expect(mockPage.evaluate).toHaveBeenCalledWith(expect.any(Function), locators.gigantti.cookieBannerAccept);
+
             expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(
                 expect.objectContaining({ state: 'hidden' })
             );

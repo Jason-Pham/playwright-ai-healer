@@ -41,17 +41,24 @@ export class GiganttiHandler implements SiteHandler {
             logger.debug('Dismissing Gigantti cookie banner...');
 
             // Use SDK API to accept all cookies; fall back to direct click
-            await page.evaluate(() => {
+            // Use SDK API to accept all cookies; fall back to direct click
+            await page.evaluate((selector) => {
                 const ci = (window as any).CookieInformation;
                 if (typeof ci?.submitAllCategories === 'function') {
                     ci.submitAllCategories();
                 } else {
-                    const btn =
-                        document.querySelector<HTMLElement>('button[aria-label="OK"]') ??
-                        document.querySelector<HTMLElement>('.coi-banner__accept');
+                    // Try to find the button using the provided comma-separated selectors
+                    const selectors = selector.split(',').map(s => s.trim());
+                    let btn: HTMLElement | null = null;
+
+                    for (const s of selectors) {
+                        btn = document.querySelector<HTMLElement>(s);
+                        if (btn) break;
+                    }
+
                     btn?.click();
                 }
-            });
+            }, locators.gigantti.cookieBannerAccept);
 
             // Wait for the banner to disappear
             await cookieBtn.waitFor({ state: 'hidden', timeout: config.test.timeouts.cookie }).catch(() => {
