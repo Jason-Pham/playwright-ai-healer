@@ -11,11 +11,8 @@ export interface SiteHandler {
 export class GiganttiHandler implements SiteHandler {
     async dismissOverlays(page: Page): Promise<void> {
         // Handle Gigantti cookie consent banner using CookieInformation SDK API.
-        // The cookie button renders BEFORE its JS handlers are attached, so we
-        // wait for the SDK to be ready, then use its API to dismiss the banner.
-        const cookieBtn = page
-            .locator(locators.gigantti.cookieBannerAccept)
-            .first();
+        const cookieBtnSelector = locators.gigantti.cookieBannerAccept;
+        const cookieBtn = page.locator(cookieBtnSelector).first();
 
         try {
             // Wait for cookie banner to appear (it renders asynchronously after page load).
@@ -41,7 +38,6 @@ export class GiganttiHandler implements SiteHandler {
             logger.debug('Dismissing Gigantti cookie banner...');
 
             // Use SDK API to accept all cookies; fall back to direct click
-            // Use SDK API to accept all cookies; fall back to direct click
             await page.evaluate((selector) => {
                 const ci = (window as any).CookieInformation;
                 if (typeof ci?.submitAllCategories === 'function') {
@@ -58,14 +54,52 @@ export class GiganttiHandler implements SiteHandler {
 
                     btn?.click();
                 }
-            }, locators.gigantti.cookieBannerAccept);
+            }, cookieBtnSelector);
 
             // Wait for the banner to disappear
-            await cookieBtn.waitFor({ state: 'hidden', timeout: config.test.timeouts.cookie }).catch(() => {
-                // Ignore
+            await cookieBtn.waitFor({ state: 'hidden', timeout: config.test.timeouts.cookie }).catch(async () => {
+                logger.warn('Cookie banner failed to dismiss normally. Attempting to force hide.');
+                // Fallback: Force hide the banner if it's still visible
+                await page.evaluate((selector) => {
+                    const selectors = selector.split(',').map(s => s.trim());
+                    // 1. Try hiding based on the button's ancestors
+                    for (const s of selectors) {
+                        const elements = document.querySelectorAll(s);
+                        elements.forEach(el => {
+                            // Walk up to find the container
+                            const container = el.closest('#coiPage-1') || el.closest('.coi-banner__wrapper') || el.closest('[role="dialog"]') || el;
+                            if (container instanceof HTMLElement) {
+                                container.style.display = 'none';
+                                container.style.visibility = 'hidden';
+                                container.style.setProperty('display', 'none', 'important');
+                            }
+                        });
+                    }
+                    // 2. Try hiding known container IDs directly
+                    const knownIds = ['coiPage-1', 'coiPage-2', 'coiPage-3', 'coiOverlay', 'coi-banner-wrapper'];
+                    for (const id of knownIds) {
+                        const el = document.getElementById(id);
+                        if (el) {
+                            el.style.display = 'none';
+                            el.style.visibility = 'hidden';
+                            el.style.setProperty('display', 'none', 'important');
+                        }
+                    }
+                    // 3. Try hiding by common classes
+                    const knownClasses = ['.coi-banner__wrapper', '.coi-banner__container'];
+                    for (const cls of knownClasses) {
+                        document.querySelectorAll(cls).forEach(el => {
+                            if (el instanceof HTMLElement) {
+                                el.style.display = 'none';
+                                el.style.visibility = 'hidden';
+                                el.style.setProperty('display', 'none', 'important');
+                            }
+                        });
+                    }
+                }, cookieBtnSelector);
             });
-        } catch {
-            // Ignore
+        } catch (error) {
+            logger.warn(`Error dismissing cookie banner: ${error}`);
         }
     }
 }
