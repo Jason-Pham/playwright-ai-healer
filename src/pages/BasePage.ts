@@ -18,10 +18,8 @@ export abstract class BasePage {
         this.siteHandler = siteHandler;
 
         // Monitor for Vercel security challenge failures
-        console.log('Setting up response listener');
         this.page.on('response', (response) => {
-            console.log('Response received:', response.url());
-            if (response.url().includes('.well-known/vercel/security/request-challenge')) {
+            if (config.ai.security?.vercelChallengePath && response.url().includes(config.ai.security.vercelChallengePath)) {
                 const status = response.status();
                 if (status >= 400) {
                     logger.warn(`Vercel security challenge failed with status ${status}`);

@@ -3,6 +3,7 @@ import type { Page, Locator } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { AutoHealer } from '../AutoHealer.js';
 import type { SiteHandler } from '../utils/SiteHandler.js';
+import { config } from '../config/index.js';
 
 // Concrete implementation for testing
 class TestPage extends BasePage {
@@ -50,7 +51,7 @@ describe('BasePage', () => {
 
             // Simulate failed security challenge response
             const mockResponse = {
-                url: () => 'https://www.gigantti.fi/.well-known/vercel/security/request-challenge',
+                url: () => `https://www.gigantti.fi/${config.ai.security?.vercelChallengePath}`,
                 status: () => 403
             };
 

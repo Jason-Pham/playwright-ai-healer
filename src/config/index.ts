@@ -28,6 +28,9 @@ export const config = {
             maxRetries: 3,
             retryDelay: 5000,
         },
+        security: {
+            vercelChallengePath: '.well-known/vercel/security/request-challenge',
+        },
         prompts: {
             healingPrompt: (selector: string, error: string, html: string) => `
       You are a Test Automation AI. A Playwright test failed to find an element.
