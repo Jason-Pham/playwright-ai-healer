@@ -1,4 +1,5 @@
 import { BasePage } from './BasePage.js';
+import { expect } from '@playwright/test';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
 import { CategoryPage } from './CategoryPage.js';
@@ -21,11 +22,17 @@ export class GiganttiHomePage extends BasePage {
     async searchFor(term: string): Promise<CategoryPage> {
         logger.debug(`🔍 Searching for "${term}"...`);
 
-        await this.safeFill(this.page.locator(searchInput), term, { force: true });
+        const inputLocator = this.page.locator(searchInput);
+
+        // Retry logic to handle race conditions where input might be cleared by site hydration
+        await expect(async () => {
+            await this.safeFill(inputLocator, term, { force: true });
+            // Small wait to ensure value persists (catch hydration clearing)
+            await this.page.waitForTimeout(200);
+            await expect(inputLocator).toHaveValue(term, { timeout: 1000 });
+        }).toPass({ timeout: this.timeouts.default });
 
         const searchBtn = this.page.locator(searchButton).first();
-
-        await this.expectValue(this.page.locator(searchInput), term);
         await this.safeClick(searchBtn);
 
         return new CategoryPage(this.page, this.autoHealer);
