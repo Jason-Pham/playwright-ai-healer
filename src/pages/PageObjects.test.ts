@@ -50,6 +50,7 @@ describe('Page Objects', () => {
             waitForLoadState: vi.fn(),
             waitForTimeout: vi.fn(),
             waitForResponse: vi.fn().mockResolvedValue(undefined as any),
+            on: vi.fn(),
         };
 
         mockAutoHealer = {

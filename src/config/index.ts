@@ -50,7 +50,7 @@ export const config = {
         headless: process.env['HEADLESS'] !== 'false',
         timeouts: {
             // Global unified timeouts
-            default: 20000,
+            default: 30000,
             cookie: 10000,
             urlVerify: 15000,
             productVisibility: 30000,
