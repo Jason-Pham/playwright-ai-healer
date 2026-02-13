@@ -46,7 +46,7 @@ export abstract class BasePage {
         await this.page.waitForLoadState('domcontentloaded', options);
     }
 
-    private hasWaitedForCookiePolicy = false;
+    private overlaysDismissed = false;
 
     protected skipTest(reason: string): void {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -73,13 +73,25 @@ export abstract class BasePage {
         this.checkSecurityChallenge();
         await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
         await this.siteHandler.dismissOverlays(this.page);
+        this.overlaysDismissed = true;
+    }
+
+    /**
+     * Ensures overlays are dismissed once per page instance.
+     * No-op after the first successful call — fast for subsequent interactions.
+     */
+    private async ensureOverlaysDismissed(): Promise<void> {
+        if (!this.overlaysDismissed) {
+            await this.dismissOverlaysBeforeAction();
+            this.overlaysDismissed = true;
+        }
     }
 
     /**
      * Click an element after dismissing any overlays
      */
     async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
-        this.checkSecurityChallenge();
+        await this.ensureOverlaysDismissed();
         await locator.click(options);
     }
 
@@ -90,7 +102,7 @@ export abstract class BasePage {
      * 3. Retry on failure
      */
     async safeFill(locator: Locator, value: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
-        this.checkSecurityChallenge();
+        await this.ensureOverlaysDismissed();
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
         await expect(async () => {
@@ -113,7 +125,7 @@ export abstract class BasePage {
      * Verify URL after dismissing any overlays and waiting for page load
      */
     async safeVerifyURL(pattern: RegExp, options?: { timeout?: number }): Promise<void> {
-        await this.dismissOverlaysBeforeAction();
+        await this.ensureOverlaysDismissed();
         await expect(this.page).toHaveURL(pattern, options);
     }
 

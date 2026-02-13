@@ -5,12 +5,15 @@ import { CategoryPage } from './CategoryPage.js';
 import { ProductDetailPage } from './ProductDetailPage.js';
 import { AutoHealer } from '../AutoHealer.js';
 import { GiganttiHandler } from '../utils/SiteHandler.js';
+import { config } from '../config/index.js';
 
 // Mock dependencies
 vi.mock('../config/locators.json', () => ({
     default: {
         gigantti: {
             searchInput: '#search',
+            searchButton: '[data-testid="search-button"]',
+            navLink: 'nav a:has-text("{}")',
             productCard: '.product',
             productTitle: ['.title'],
             productPrice: ['.price']
@@ -74,7 +77,8 @@ describe('Page Objects', () => {
         });
 
         it('should search for a term', async () => {
-            await homePage.searchFor('laptop');
+            const term = config.testData.searchTerms[0] || 'laptop';
+            await homePage.searchFor(term);
             // Should fill search input
             expect(mockPage.locator).toHaveBeenCalledWith('#search');
             // Should click search button
@@ -82,12 +86,14 @@ describe('Page Objects', () => {
         });
 
         it('should navigate to category via link', async () => {
-            await homePage.navigateToCategory('Gaming');
-            expect(mockPage.locator).toHaveBeenCalledWith(expect.stringContaining('Gaming'));
+            const category = 'Gaming'; // Keeping hardcoded here as it needs to match mock expectations or config needs update
+            await homePage.navigateToCategory(category);
+            expect(mockPage.locator).toHaveBeenCalledWith(expect.stringContaining(category));
             expect(mockLocator.click).toHaveBeenCalled();
         });
 
         it('should fall back to getByRole if locator fails', async () => {
+            const category = 'Gaming';
             // First locator fails isVisible check
             const failLocator = { ...mockLocator, isVisible: vi.fn().mockResolvedValue(false) };
             const successLocator = { ...mockLocator, isVisible: vi.fn().mockResolvedValue(true) };
@@ -95,9 +101,9 @@ describe('Page Objects', () => {
             mockPage.locator = vi.fn().mockReturnValue(failLocator);
             mockPage.getByRole = vi.fn().mockReturnValue(successLocator);
 
-            await homePage.navigateToCategory('Gaming');
+            await homePage.navigateToCategory(category);
 
-            expect(mockPage.getByRole).toHaveBeenCalledWith('link', expect.objectContaining({ name: /Gaming/i }));
+            expect(mockPage.getByRole).toHaveBeenCalledWith('link', expect.objectContaining({ name: new RegExp(category, 'i') }));
             expect(successLocator.click).toHaveBeenCalled();
         });
     });

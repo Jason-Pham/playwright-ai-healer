@@ -11,12 +11,14 @@ describe('SiteHandler', () => {
             isVisible: vi.fn(),
             click: vi.fn(),
             first: vi.fn().mockReturnThis(),
+            waitFor: vi.fn().mockResolvedValue(undefined),
         };
 
         mockPage = {
             waitForResponse: vi.fn(),
             locator: vi.fn().mockReturnValue(mockCookieBtn),
-            waitForFunction: vi.fn(),
+            waitForFunction: vi.fn().mockResolvedValue(undefined),
+            evaluate: vi.fn().mockResolvedValue(undefined),
         };
     });
 
@@ -24,70 +26,68 @@ describe('SiteHandler', () => {
         const handler = new GiganttiHandler();
 
         it('should dismiss cookie banner when visible', async () => {
-            // Setup
-            (mockPage.waitForResponse as any).mockResolvedValue(undefined); // Response found
-            (mockCookieBtn.isVisible as any).mockResolvedValue(true);      // Button visible
-            (mockPage.waitForFunction as any).mockResolvedValue(undefined); // Scroll cleared
+            // waitFor resolves (banner is visible)
+            (mockCookieBtn.waitFor as any).mockResolvedValue(undefined);
 
             await handler.dismissOverlays(mockPage as Page);
 
-            // Verify
-            expect(mockPage.waitForResponse).toHaveBeenCalled();
             expect(mockPage.locator).toHaveBeenCalledWith(expect.stringContaining('aria-label="OK"'));
-            expect(mockCookieBtn.click).toHaveBeenCalled();
-            expect(mockPage.waitForFunction).toHaveBeenCalled();
+            // First call: waitFor visible, second call: waitFor hidden
+            expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(
+                expect.objectContaining({ state: 'visible' })
+            );
+            expect(mockPage.waitForFunction).toHaveBeenCalled(); // SDK ready check
+            expect(mockPage.evaluate).toHaveBeenCalled();        // JS click
+            expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(
+                expect.objectContaining({ state: 'hidden' })
+            );
         });
 
-        it('should gracefully handle missing network response', async () => {
-            // Setup
-            (mockPage.waitForResponse as any).mockRejectedValue(new Error('Timeout'));
-            (mockCookieBtn.isVisible as any).mockResolvedValue(false); // No button either
+        it('should skip entirely when banner does not appear', async () => {
+            // First waitFor (visible) rejects — banner didn't appear
+            (mockCookieBtn.waitFor as any).mockRejectedValueOnce(new Error('Timeout'));
 
             await handler.dismissOverlays(mockPage as Page);
 
-            // Verify we proceeded to check button despite network error
-            expect(mockPage.waitForResponse).toHaveBeenCalled();
-            expect(mockPage.locator).toHaveBeenCalled();
-            expect(mockCookieBtn.click).not.toHaveBeenCalled();
+            expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(
+                expect.objectContaining({ state: 'visible' })
+            );
+            expect(mockPage.evaluate).not.toHaveBeenCalled();
         });
 
-        it('should not click if button is hidden', async () => {
-            (mockPage.waitForResponse as any).mockResolvedValue(undefined);
-            (mockCookieBtn.isVisible as any).mockResolvedValue(false);
-
-            await handler.dismissOverlays(mockPage as Page);
-
-            expect(mockCookieBtn.click).not.toHaveBeenCalled();
-        });
-
-        it('should ignore scroll wait timeout', async () => {
-            (mockPage.waitForResponse as any).mockResolvedValue(undefined);
-            (mockCookieBtn.isVisible as any).mockResolvedValue(true);
-            (mockPage.waitForFunction as any).mockRejectedValue(new Error('Timeout waiting for noScroll'));
+        it('should handle evaluate failure gracefully', async () => {
+            (mockCookieBtn.waitFor as any).mockResolvedValue(undefined);
+            (mockPage.evaluate as any).mockRejectedValue(new Error('Evaluate failed'));
 
             await expect(handler.dismissOverlays(mockPage as Page)).resolves.not.toThrow();
-
-            expect(mockCookieBtn.click).toHaveBeenCalled();
         });
 
-        it('should match the correct cookie policy URL', async () => {
-            let capturedPredicate: (resp: any) => boolean = () => false;
-            (mockPage.waitForResponse as any).mockImplementation((predicate: any) => {
-                capturedPredicate = predicate;
-                return Promise.resolve();
-            });
-            (mockCookieBtn.isVisible as any).mockResolvedValue(false);
+        it('should proceed even if SDK waitForFunction times out', async () => {
+            (mockCookieBtn.waitFor as any).mockResolvedValue(undefined);
+            (mockPage.waitForFunction as any).mockRejectedValue(new Error('Timeout'));
 
             await handler.dismissOverlays(mockPage as Page);
 
-            // Test the predicate logic
-            const matchingResp = { url: () => 'https://policy.app.cookieinformation.com/cookie-data/gigantti.fi/cabl.json', status: () => 200 };
-            const wrongUrlResp = { url: () => 'https://example.com', status: () => 200 };
-            const wrongStatusResp = { url: () => 'https://policy.app.cookieinformation.com/cookie-data/gigantti.fi/cabl.json', status: () => 404 };
+            // Should still try to click even if SDK check times out
+            expect(mockPage.evaluate).toHaveBeenCalled();
+        });
 
-            expect(capturedPredicate(matchingResp)).toBe(true);
-            expect(capturedPredicate(wrongUrlResp)).toBe(false);
-            expect(capturedPredicate(wrongStatusResp)).toBe(false);
+        it('should use proper selectors for cookie button', async () => {
+            (mockCookieBtn.waitFor as any).mockResolvedValue(undefined);
+
+            await handler.dismissOverlays(mockPage as Page);
+
+            const selectorArg = (mockPage.locator as any).mock.calls[0][0];
+            expect(selectorArg).toContain('aria-label="OK"');
+            expect(selectorArg).toContain('.coi-banner__accept');
+        });
+
+        it('should call first() on locator to get first matching button', async () => {
+            (mockCookieBtn.waitFor as any).mockResolvedValue(undefined);
+
+            await handler.dismissOverlays(mockPage as Page);
+
+            expect(mockCookieBtn.first).toHaveBeenCalled();
         });
     });
 

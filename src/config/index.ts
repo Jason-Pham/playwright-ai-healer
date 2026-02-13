@@ -61,6 +61,10 @@ export const config = {
             short: 5000,
         },
     },
+    logging: {
+        level: process.env['LOG_LEVEL'] || 'info',
+        consoleLevel: process.env['CONSOLE_LOG_LEVEL'] || 'info',
+    },
     testData: {
         searchTerms: [
             'laptop',

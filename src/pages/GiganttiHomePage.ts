@@ -5,7 +5,7 @@ import { CategoryPage } from './CategoryPage.js';
 
 import locators from '../config/locators.json' with { type: 'json' };
 
-const { searchInput } = locators.gigantti;
+const { searchInput, searchButton, navLink } = locators.gigantti;
 
 export class GiganttiHomePage extends BasePage {
     private readonly url = config.app.baseUrl;
@@ -23,7 +23,7 @@ export class GiganttiHomePage extends BasePage {
 
         await this.safeFill(this.page.locator(searchInput), term, { force: true });
 
-        const searchBtn = this.page.locator('[data-testid="search-button"]').first();
+        const searchBtn = this.page.locator(searchButton).first();
 
         await this.expectValue(this.page.locator(searchInput), term);
         await this.safeClick(searchBtn);
@@ -35,11 +35,11 @@ export class GiganttiHomePage extends BasePage {
         logger.debug(`📂 Navigating to category: ${categoryName}...`);
 
         // Try multiple approaches to find the category
-        const navLink = this.page
-            .locator(`nav a:has-text("${categoryName}"), header a:has-text("${categoryName}")`)
-            .first();
-        if (await navLink.isVisible({ timeout: this.timeouts.default }).catch(() => false)) {
-            await this.safeClick(navLink, { force: true });
+        const linkSelector = navLink.replace(/{}/g, categoryName);
+        const navigationLink = this.page.locator(linkSelector).first();
+
+        if (await navigationLink.isVisible({ timeout: this.timeouts.default }).catch(() => false)) {
+            await this.safeClick(navigationLink, { force: true });
         } else {
             const categoryLink = this.page.getByRole('link', { name: new RegExp(categoryName, 'i') }).first();
             await this.safeClick(categoryLink, { force: true, timeout: this.timeouts.default });
