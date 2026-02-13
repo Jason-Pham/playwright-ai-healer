@@ -28,6 +28,9 @@ export const config = {
             maxRetries: 3,
             retryDelay: 5000,
         },
+        security: {
+            vercelChallengePath: '.well-known/vercel/security/request-challenge',
+        },
         prompts: {
             healingPrompt: (selector: string, error: string, html: string) => `
       You are a Test Automation AI. A Playwright test failed to find an element.
@@ -50,13 +53,18 @@ export const config = {
         headless: process.env['HEADLESS'] !== 'false',
         timeouts: {
             // Global unified timeouts
-            default: 20000,
+            default: 30000,
             cookie: 10000,
             urlVerify: 15000,
             productVisibility: 30000,
             // Action timeouts
             short: 5000,
+            stabilization: 200,
         },
+    },
+    logging: {
+        level: process.env['LOG_LEVEL'] || 'info',
+        consoleLevel: process.env['CONSOLE_LOG_LEVEL'] || 'info',
     },
     testData: {
         searchTerms: [

@@ -3,6 +3,7 @@ import type { Page, Locator } from '@playwright/test';
 import { BasePage } from './BasePage.js';
 import { AutoHealer } from '../AutoHealer.js';
 import type { SiteHandler } from '../utils/SiteHandler.js';
+import { config } from '../config/index.js';
 
 // Concrete implementation for testing
 class TestPage extends BasePage {
@@ -25,6 +26,7 @@ describe('BasePage', () => {
             waitForLoadState: vi.fn(),
             waitForFunction: vi.fn(),
             getByRole: vi.fn(),
+            on: vi.fn().mockReturnThis(), // Returns itself for chaining
         };
 
         mockAutoHealer = {} as AutoHealer;
@@ -34,6 +36,36 @@ describe('BasePage', () => {
         };
 
         basePage = new TestPage(mockPage as unknown as Page, mockAutoHealer, mockSiteHandler);
+    });
+
+    describe('Security Challenge Handling', () => {
+        it('should skip test when security challenge fails', async () => {
+            // Verify listener was attached
+            expect(mockPage.on).toHaveBeenCalledWith('response', expect.any(Function));
+
+            // Extract the listener from the mock calls
+            const onCalls = (mockPage.on as any).mock.calls;
+            const responseCall = onCalls.find((call: any[]) => call[0] === 'response');
+            expect(responseCall).toBeDefined();
+            const listener = responseCall[1];
+
+            // Simulate failed security challenge response
+            const mockResponse = {
+                url: () => `https://www.gigantti.fi/${config.ai.security?.vercelChallengePath}`,
+                status: () => 403
+            };
+
+            // Trigger the listener
+            listener(mockResponse);
+
+            // Spy on the protected skipTest method
+            // @ts-ignore - testing protected method
+            const skipSpy = vi.spyOn(basePage, 'skipTest').mockImplementation(() => { });
+
+            await basePage.safeClick({ click: vi.fn() } as any);
+
+            expect(skipSpy).toHaveBeenCalledWith(expect.stringContaining('Aborting test'));
+        });
     });
 
     describe('goto', () => {
@@ -101,8 +133,6 @@ describe('BasePage', () => {
 
             expect(mockSiteHandler.dismissOverlays).toHaveBeenCalled();
             expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', expect.anything());
-            // expect has been mocked to return an object with toHaveURL
-            // We need to verify that expectation was set on page
         });
     });
 

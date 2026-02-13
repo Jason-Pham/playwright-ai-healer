@@ -80,12 +80,7 @@ export default defineConfig({
         },
         {
             name: 'webkit',
-            use: {
-                ...devices['Desktop Safari'],
-                launchOptions: {
-                    slowMo: 100,
-                },
-            },
+            use: { ...devices['Desktop Safari'] },
         },
         {
             name: 'edge',

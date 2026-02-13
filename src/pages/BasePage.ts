@@ -10,10 +10,23 @@ export abstract class BasePage {
     protected autoHealer: AutoHealer;
     protected siteHandler: SiteHandler;
 
+    private securityChallengeFailed = false;
+
     constructor(page: Page, autoHealer: AutoHealer, siteHandler: SiteHandler = new GiganttiHandler()) {
         this.page = page;
         this.autoHealer = autoHealer;
         this.siteHandler = siteHandler;
+
+        // Monitor for Vercel security challenge failures
+        this.page.on('response', (response) => {
+            if (config.ai.security?.vercelChallengePath && response.url().includes(config.ai.security.vercelChallengePath)) {
+                const status = response.status();
+                if (status >= 400) {
+                    logger.warn(`Vercel security challenge failed with status ${status}`);
+                    this.securityChallengeFailed = true;
+                }
+            }
+        });
     }
 
     async goto(url: string) {
@@ -33,7 +46,23 @@ export abstract class BasePage {
         await this.page.waitForLoadState('domcontentloaded', options);
     }
 
-    private hasWaitedForCookiePolicy = false;
+    private overlaysDismissed = false;
+
+    protected skipTest(reason: string): void {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { test } = require('@playwright/test');
+        test.skip(true, reason);
+    }
+
+    /**
+     * Check if a security challenge has failed and skip the test if so
+     */
+    protected checkSecurityChallenge(): void {
+        if (this.securityChallengeFailed) {
+            logger.warn('Skipping test due to failed security challenge.');
+            this.skipTest('Aborting test due to Vercel security challenge failure');
+        }
+    }
 
     /**
      * Dismiss cookie/marketing overlays before performing action
@@ -41,14 +70,28 @@ export abstract class BasePage {
      * Override this in subclasses for site-specific handling
      */
     protected async dismissOverlaysBeforeAction(): Promise<void> {
+        this.checkSecurityChallenge();
         await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
         await this.siteHandler.dismissOverlays(this.page);
+        this.overlaysDismissed = true;
+    }
+
+    /**
+     * Ensures overlays are dismissed once per page instance.
+     * No-op after the first successful call — fast for subsequent interactions.
+     */
+    private async ensureOverlaysDismissed(): Promise<void> {
+        if (!this.overlaysDismissed) {
+            await this.dismissOverlaysBeforeAction();
+            this.overlaysDismissed = true;
+        }
     }
 
     /**
      * Click an element after dismissing any overlays
      */
     async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
+        await this.ensureOverlaysDismissed();
         await locator.click(options);
     }
 
@@ -59,6 +102,7 @@ export abstract class BasePage {
      * 3. Retry on failure
      */
     async safeFill(locator: Locator, value: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
+        await this.ensureOverlaysDismissed();
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
         await expect(async () => {
@@ -81,7 +125,7 @@ export abstract class BasePage {
      * Verify URL after dismissing any overlays and waiting for page load
      */
     async safeVerifyURL(pattern: RegExp, options?: { timeout?: number }): Promise<void> {
-        await this.dismissOverlaysBeforeAction();
+        await this.ensureOverlaysDismissed();
         await expect(this.page).toHaveURL(pattern, options);
     }
 
