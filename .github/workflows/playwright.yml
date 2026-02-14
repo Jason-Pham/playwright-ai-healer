@@ -38,7 +38,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install chrome msedge
+        run: npx playwright install chrome msedge firefox webkit
 
       - name: Run Unit Tests
         run: npm run test:unit
