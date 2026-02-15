@@ -53,3 +53,19 @@ vi.mock('@playwright/test', () => ({
         }
     })),
 }));
+
+/**
+ * Helper to create a standard structured healing JSON response for tests
+ */
+export function mockHealingResponse(
+    selector: string,
+    confidence = 0.9,
+    reasoning = 'Found matching element',
+    strategy = 'css'
+): { response: { text: () => string } } {
+    return {
+        response: {
+            text: () => JSON.stringify({ selector, confidence, reasoning, strategy }),
+        },
+    };
+}
