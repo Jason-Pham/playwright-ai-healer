@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { Page } from '@playwright/test';
-import { mockGeminiGenerateContent } from './test-setup.js';
+import { mockGeminiGenerateContent, mockHealingResponse } from './test-setup.js';
 import { AutoHealer } from './AutoHealer.js';
-import { LocatorManager } from './utils/LocatorManager.js';
 
 const { mockLocatorManager } = vi.hoisted(() => {
     return {
@@ -21,6 +20,19 @@ vi.mock('./utils/LocatorManager.js', () => ({
     }
 }));
 
+// Mock HealingReporter
+vi.mock('./utils/HealingReporter.js', () => {
+    class MockHealingReporter {
+        record = vi.fn();
+        getEvents = vi.fn().mockReturnValue([]);
+        hasEvents = vi.fn().mockReturnValue(false);
+        getSummary = vi.fn().mockReturnValue({ total: 0, healed: 0, failed: 0 });
+        attach = vi.fn();
+        clear = vi.fn();
+    }
+    return { HealingReporter: MockHealingReporter };
+});
+
 // Mock page factory
 const createMockPage = (): Partial<Page> =>
     ({
@@ -36,10 +48,10 @@ describe('AutoHealer', () => {
         vi.clearAllMocks();
         mockPage = createMockPage();
 
-        // Default mock response for Gemini
-        mockGeminiGenerateContent.mockResolvedValue({
-            response: { text: () => '#healed-selector' },
-        });
+        // Default mock: structured JSON response
+        mockGeminiGenerateContent.mockResolvedValue(
+            mockHealingResponse('#healed-selector', 0.9, 'Found matching button', 'css')
+        );
     });
 
     describe('Constructor', () => {
@@ -88,10 +100,10 @@ describe('AutoHealer', () => {
             expect(mockGeminiGenerateContent).toHaveBeenCalled();
         });
 
-        it('should re-throw error when healing returns FAIL', async () => {
+        it('should re-throw error when healing returns empty selector', async () => {
             (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Element not found'));
             mockGeminiGenerateContent.mockResolvedValue({
-                response: { text: () => 'FAIL' },
+                response: { text: () => JSON.stringify({ selector: '', confidence: 0, reasoning: 'Not found', strategy: 'css' }) },
             });
 
             const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
@@ -99,21 +111,32 @@ describe('AutoHealer', () => {
             await expect(healer.click('#nonexistent')).rejects.toThrow('Element not found');
         });
 
-        it('should clean markdown code blocks from AI response', async () => {
+        it('should reject healing when confidence is below threshold', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Element not found'));
+            mockGeminiGenerateContent.mockResolvedValue(
+                mockHealingResponse('#low-confidence', 0.2, 'Uncertain match', 'css')
+            );
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+
+            await expect(healer.click('#broken')).rejects.toThrow('Element not found');
+        });
+
+        it('should handle non-JSON AI response with backwards compatibility', async () => {
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('TimeoutError'))
                 .mockResolvedValueOnce(undefined);
 
-            // AI returns selector wrapped in markdown
+            // AI returns a raw selector string (not JSON)
             mockGeminiGenerateContent.mockResolvedValue({
-                response: { text: () => '```\n#clean-selector\n```' },
+                response: { text: () => '#fallback-selector' },
             });
 
             const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
             await healer.click('#broken');
 
-            // Second call should use cleaned selector
-            expect(mockPage.click).toHaveBeenLastCalledWith('#clean-selector', undefined);
+            // Should use the fallback-parsed selector
+            expect(mockPage.click).toHaveBeenLastCalledWith('#fallback-selector', undefined);
         });
     });
 
@@ -170,8 +193,6 @@ describe('AutoHealer', () => {
             // Check if evaluate was called
             expect(mockPage.evaluate).toHaveBeenCalled();
 
-            // We can't easily check the *return value* of evaluate here because it's internal to heal(),
-            // but we can verify that the AI was called with the CLEANED DOM.
             const aiCallArgs = String(mockGeminiGenerateContent.mock.calls[0]![0]);
 
             // Assertions on the prompt sent to AI
@@ -211,6 +232,7 @@ describe('AutoHealer', () => {
             const callArg = String(mockGeminiGenerateContent.mock.calls[0]![0]);
             expect(callArg).toContain('#broken'); // Original selector in prompt
             expect(callArg).toContain('Element not found'); // Error message in prompt
+            expect(callArg).toContain('JSON'); // Should request JSON output
         });
     });
 
@@ -227,8 +249,22 @@ describe('AutoHealer', () => {
 
             const { LocatorManager } = await import('./utils/LocatorManager.js');
             const manager = LocatorManager.getInstance();
-            // Verify updateLocator was called with correct args
             expect(manager.updateLocator).toHaveBeenCalledWith('app.btn', '#healed-selector');
+        });
+    });
+
+    describe('Healing Reporter', () => {
+        it('should expose healing events', () => {
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const events = healer.getHealingEvents();
+            expect(events).toBeDefined();
+            expect(Array.isArray(events)).toBe(true);
+        });
+
+        it('should expose healing reporter instance', () => {
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const reporter = healer.getHealingReporter();
+            expect(reporter).toBeDefined();
         });
     });
 
@@ -239,7 +275,9 @@ describe('AutoHealer', () => {
             // First call fails with 401
             mockGeminiGenerateContent.mockRejectedValueOnce({ status: 401, message: 'Unauthorized' });
             // Second call succeeds
-            mockGeminiGenerateContent.mockResolvedValueOnce({ response: { text: () => '#healed-selector' } });
+            mockGeminiGenerateContent.mockResolvedValueOnce(
+                mockHealingResponse('#healed-selector', 0.9, 'Found it', 'css')
+            );
 
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout')) // Initial click fails
