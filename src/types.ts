@@ -29,7 +29,7 @@ export interface HealingEvent {
     timestamp: string;
     originalSelector: string;
     result: HealingResult | null;
-    error: string;
+    error?: string;
     success: boolean;
     provider: AIProvider;
     durationMs: number;
