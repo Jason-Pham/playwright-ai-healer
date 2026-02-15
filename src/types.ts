@@ -2,24 +2,42 @@
  * Core types for the Self-Healing Playwright Agent framework
  */
 
-export interface HealingResult {
-    originalSelector: string;
-    newSelector: string;
-    confidence: number;
-    reasoning: string;
-}
-
-export interface HealContext {
-    pageUrl: string;
-    htmlSnapshot: string;
-    errorMessage: string;
-}
-
 /**
- * AI Provider types
+ * Supported AI providers
  */
 export type AIProvider = 'openai' | 'gemini';
 
+/**
+ * Selector strategy used by the AI during healing
+ */
+export type SelectorStrategy = 'id' | 'css' | 'xpath' | 'text' | 'role' | 'data-testid';
+
+/**
+ * Structured result from an AI healing attempt
+ */
+export interface HealingResult {
+    selector: string;
+    confidence: number;
+    reasoning: string;
+    strategy: SelectorStrategy;
+}
+
+/**
+ * A recorded healing event for reporting
+ */
+export interface HealingEvent {
+    timestamp: string;
+    originalSelector: string;
+    result: HealingResult | null;
+    error: string;
+    success: boolean;
+    provider: AIProvider;
+    durationMs: number;
+}
+
+/**
+ * AI error with optional status code
+ */
 export interface AIError extends Error {
     status?: number;
     code?: string;
@@ -33,6 +51,7 @@ export interface ClickOptions {
     force?: boolean;
     noWaitAfter?: boolean;
     trial?: boolean;
+    position?: { x: number; y: number };
 }
 
 /**
@@ -70,6 +89,7 @@ export interface AIConfig {
     healing: {
         maxRetries: number;
         retryDelay: number;
+        confidenceThreshold: number;
     };
     prompts: {
         healingPrompt: (selector: string, error: string, html: string) => string;
@@ -88,42 +108,4 @@ export interface LocatorStore {
  */
 export interface LocatorMap {
     [key: string]: string | LocatorMap;
-}
-
-/**
- * Playwright TestInfo annotation structure
- */
-export interface TestAnnotation {
-    type: string;
-    description: string;
-}
-
-/**
- * Subset of Playwright's TestInfo used for logging integration
- */
-export interface PlaywrightTestInfo {
-    annotations: TestAnnotation[];
-    title?: string;
-    titlePath?: string[];
-}
-
-
-
-/**
- * Click options for AutoHealer
- */
-export interface AutoHealerClickOptions {
-    timeout?: number;
-    force?: boolean;
-    noWaitAfter?: boolean;
-    position?: { x: number; y: number };
-}
-
-/**
- * Fill options for AutoHealer
- */
-export interface AutoHealerFillOptions {
-    timeout?: number;
-    force?: boolean;
-    noWaitAfter?: boolean;
 }
