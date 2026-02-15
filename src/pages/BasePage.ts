@@ -1,5 +1,5 @@
 import type { Page, Locator } from '@playwright/test';
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { AutoHealer } from '../AutoHealer.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
@@ -49,8 +49,6 @@ export abstract class BasePage {
     private overlaysDismissed = false;
 
     protected skipTest(reason: string): void {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { test } = require('@playwright/test');
         test.skip(true, reason);
     }
 

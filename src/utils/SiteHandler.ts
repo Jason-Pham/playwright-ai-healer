@@ -1,4 +1,4 @@
-import type { Page, Locator } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { config } from '../config/index.js';
 import { logger } from './Logger.js';
 
@@ -105,7 +105,7 @@ export class GiganttiHandler implements SiteHandler {
 }
 
 export class NoOpHandler implements SiteHandler {
-    async dismissOverlays(page: Page): Promise<void> {
+    async dismissOverlays(_page: Page): Promise<void> {
         // Do nothing
     }
 }
