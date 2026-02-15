@@ -10,10 +10,10 @@ type MyFixtures = {
 };
 
 export const test = base.extend<MyFixtures>({
-    autoHealer: async ({ page }, use) => {
+    autoHealer: async ({ page }, use, testInfo) => {
         const { ai } = config;
 
-        // Determine provider based on available keys using our config logic
+        // Determine provider based on available keys
         let provider: 'openai' | 'gemini';
         let apiKeys: string | string[];
         let model: string;
@@ -23,19 +23,18 @@ export const test = base.extend<MyFixtures>({
             apiKeys = ai.gemini.apiKey;
             model = ai.gemini.modelName;
         } else if (ai.openai.apiKeys && ai.openai.apiKeys.length > 0) {
-            console.log('DEBUG: Checking openai keys. Length:', ai.openai.apiKeys.length);
             provider = 'openai';
-            // Type assertion or minor adjustment needed if AutoHealer constructor expects string | string[]
-            // We changed the constructor, so this is fine.
             apiKeys = ai.openai.apiKeys;
             model = ai.openai.modelName;
         } else {
-            console.log('DEBUG: No API keys found for Gemini or OpenAI');
             throw new Error('❌ API Key missing! Check src/config/index.ts or .env');
         }
 
         const healer = new AutoHealer(page, apiKeys, provider, model, true);
         await use(healer);
+
+        // After test: attach healing report to Playwright HTML report
+        await healer.getHealingReporter().attach(testInfo);
     },
 
     giganttiPage: async ({ page, autoHealer }, use) => {
