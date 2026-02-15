@@ -27,25 +27,40 @@ export const config = {
         healing: {
             maxRetries: 3,
             retryDelay: 5000,
+            confidenceThreshold: 0.5,
         },
         security: {
             vercelChallengePath: '.well-known/vercel/security/request-challenge',
         },
         prompts: {
             healingPrompt: (selector: string, error: string, html: string) => `
-      You are a Test Automation AI. A Playwright test failed to find an element.
-      
-      Original Selector: "${selector}"
-      Error: "${error}"
-      
-      Below is the current HTML of the page (simplified). 
-      Analyze it to find the MOST LIKELY new selector for the element the user intended to interact with.
-      
-      Return ONLY the new selector as a plain string. If you cannot find it, return "FAIL".
-      
-      HTML Snippet:
-      ${html}
-    `,
+You are a Test Automation AI. A Playwright test failed to find an element.
+
+Original Selector: "${selector}"
+Error: "${error}"
+
+Below is the current HTML of the page (simplified).
+Analyze it to find the MOST LIKELY new selector for the element the user intended to interact with.
+
+You MUST respond with valid JSON matching this exact schema:
+{
+  "selector": "<new CSS or XPath selector>",
+  "confidence": <number between 0 and 1>,
+  "reasoning": "<brief explanation of why this selector was chosen>",
+  "strategy": "<one of: id, css, xpath, text, role, data-testid>"
+}
+
+If you cannot find the element, respond with:
+{
+  "selector": "",
+  "confidence": 0,
+  "reasoning": "<explanation of why the element could not be found>",
+  "strategy": "css"
+}
+
+HTML Snippet:
+${html}
+`,
         },
     },
     test: {
