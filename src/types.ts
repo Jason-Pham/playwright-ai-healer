@@ -89,6 +89,7 @@ export interface AIConfig {
     healing: {
         maxRetries: number;
         retryDelay: number;
+        confidenceThreshold: number;
     };
     prompts: {
         healingPrompt: (selector: string, error: string, html: string) => string;
