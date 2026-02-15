@@ -15,6 +15,7 @@
         "test:debug:webkit": "cross-env TEST_ENV=prod LOG_LEVEL=debug playwright test --project=webkit --headed --workers=1",
         "test:debug": "cross-env TEST_ENV=prod LOG_LEVEL=debug playwright test --project=chromium --headed --workers=1",
         "test:all-browsers": "playwright test --project=default --project=firefox --project=webkit",
+        "test:healing-demo": "cross-env TEST_ENV=prod playwright test tests/healing-demo.spec.ts --project=chromium --workers=1",
         "test:unit": "vitest run",
         "test:unit:watch": "vitest",
         "test:coverage": "vitest run --coverage",
@@ -36,16 +37,14 @@
     "type": "module",
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
-        "@types/node": "^25.0.10",
         "dotenv": "^17.2.3",
         "openai": "^6.16.0",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.9.3",
         "winston": "^3.19.0"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.2",
         "@playwright/test": "^1.58.2",
+        "@types/node": "^25.0.10",
         "@typescript-eslint/eslint-plugin": "^8.54.0",
         "@typescript-eslint/parser": "^8.54.0",
         "@vitest/coverage-v8": "^4.0.18",
@@ -56,6 +55,8 @@
         "jsdom": "^28.0.0",
         "playwright": "^1.58.2",
         "prettier": "^3.8.1",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.9.3",
         "typescript-eslint": "^8.54.0",
         "vitest": "^4.0.18"
     }
