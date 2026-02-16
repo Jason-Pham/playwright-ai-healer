@@ -136,10 +136,10 @@ export class AutoHealer {
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
 
         try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
+            if (this.debug) logger.debug(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             await actionFn(selector);
         } catch (error) {
-            logger.warn(`[AutoHealer] ${actionName} failed. Initiating healing protocol (${this.provider})...`);
+            logger.warn(`[AutoHealer] ${actionName} failed on: ${selector}. Initiating healing protocol (${this.provider})...`);
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
