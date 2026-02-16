@@ -17,6 +17,7 @@ if (fs.existsSync(envPath)) {
 
 export default defineConfig({
     testDir: './tests',
+    testIgnore: 'tests/unit/**',
     timeout: parseInt(process.env['TEST_TIMEOUT'] || '120000', 10),
     retries: process.env['CI'] ? 2 : 0,
     workers: process.env['CI'] ? 2 : 4,
