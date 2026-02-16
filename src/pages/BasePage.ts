@@ -6,8 +6,8 @@ import { config } from '../config/index.js';
 import { type SiteHandler, GiganttiHandler } from '../utils/SiteHandler.js';
 
 export abstract class BasePage {
-    protected page: Page;
-    protected autoHealer: AutoHealer;
+    public page: Page;
+    public autoHealer: AutoHealer;
     protected siteHandler: SiteHandler;
 
     private securityChallengeFailed = false;
@@ -88,11 +88,16 @@ export abstract class BasePage {
     }
 
     /**
-     * Click an element after dismissing any overlays
+     * Click an element after dismissing any overlays.
+     * Supports both Playwright Locators and string selectors/keys (with self-healing).
      */
-    async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
+    async safeClick(selectorOrLocator: string | Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
         await this.ensureOverlaysDismissed();
-        await locator.click(options);
+        if (typeof selectorOrLocator === 'string') {
+            await this.autoHealer.click(selectorOrLocator, options);
+        } else {
+            await selectorOrLocator.click(options);
+        }
     }
 
     /**
@@ -100,24 +105,31 @@ export abstract class BasePage {
      * 1. Dismiss overlays
      * 2. Attempt: Focus -> Clear -> Fill -> Verify Value
      * 3. Retry on failure
+     * Supports both Playwright Locators and string selectors/keys (with self-healing).
      */
-    async safeFill(locator: Locator, value: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
+    async safeFill(selectorOrLocator: string | Locator, value: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
         await this.ensureOverlaysDismissed();
+
+        if (typeof selectorOrLocator === 'string') {
+            await this.autoHealer.fill(selectorOrLocator, value, options);
+            return;
+        }
+
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
         await expect(async () => {
             // Short timeouts for internal steps to allow faster retries
             // but ensure we give enough time for the action itself
-            await locator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
-            await locator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
+            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
+            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
 
-            await locator.fill(value, {
+            await selectorOrLocator.fill(value, {
                 force: true,
                 timeout: config.test.timeouts.short,
                 ...options,
             });
 
-            await expect(locator).toHaveValue(value, { timeout: config.test.timeouts.short });
+            await expect(selectorOrLocator).toHaveValue(value, { timeout: config.test.timeouts.short });
         }).toPass({ timeout });
     }
 

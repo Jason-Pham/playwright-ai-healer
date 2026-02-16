@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
-import type { AIProvider, ClickOptions, FillOptions, AIError } from './types.js';
+import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
 
 /**
  * AutoHealer - Self-healing test automation agent
@@ -26,6 +26,7 @@ export class AutoHealer {
     private debug: boolean;
     private provider: AIProvider;
     private modelName: string;
+    private healingEvents: HealingEvent[] = [];
 
     private apiKeys: string[];
     private currentKeyIndex = 0;
@@ -97,15 +98,15 @@ export class AutoHealer {
             await this.page.click(selector, { timeout: config.test.timeouts.short, ...options });
         } catch (error) {
             logger.warn(`[AutoHealer] Click failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.click(newSelector, options);
+            const result = await this.heal(selector, error as Error);
+            if (result) {
+                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                await this.page.click(result.selector, options);
 
                 // Update locator if we have a key
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
+                    locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error; // Re-throw if healing failed
@@ -134,20 +135,27 @@ export class AutoHealer {
             await this.page.fill(selector, value, { timeout: config.test.timeouts.short, ...options });
         } catch (error) {
             logger.warn(`[AutoHealer] Fill failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.fill(newSelector, value, options);
+            const result = await this.heal(selector, error as Error);
+            if (result) {
+                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                await this.page.fill(result.selector, value, options);
 
                 // Update locator if we have a key
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
+                    locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
             }
         }
+    }
+
+    /**
+     * Get all healing events recorded during the current session
+     */
+    getHealingEvents(): readonly HealingEvent[] {
+        return this.healingEvents;
     }
 
     /**
@@ -158,7 +166,8 @@ export class AutoHealer {
      * @returns New selector if healing succeeds, null otherwise
      * @private
      */
-    private async heal(originalSelector: string, error: Error): Promise<string | null> {
+    private async heal(originalSelector: string, error: Error): Promise<HealingResult | null> {
+        const startTime = Date.now();
         // 1. Capture simplified DOM
         const htmlSnapshot = await this.getSimplifiedDOM();
 
@@ -168,6 +177,9 @@ export class AutoHealer {
             error.message,
             htmlSnapshot.substring(0, 2000)
         );
+
+        let healingSuccess = false;
+        let healingResult: HealingResult | null = null;
 
         try {
             let result: string | undefined;
@@ -191,33 +203,37 @@ export class AutoHealer {
                     // If success, break loop
                     break;
                 } catch (reqError) {
-                    const error = reqError as AIError;
-                    const isRateLimit = error.message?.includes('429') || error.status === 429;
-                    const isAuthError = error.message?.includes('401') || error.status === 401;
+                    const reqErrorTyped = reqError as AIError;
+                    const errorMessage = reqErrorTyped.message?.toLowerCase() || '';
+                    const isRateLimit = reqErrorTyped.status === 429 ||
+                        errorMessage.includes('429') ||
+                        errorMessage.includes('rate limit') ||
+                        errorMessage.includes('resource exhausted') ||
+                        errorMessage.includes('insufficient quota');
 
                     if (isRateLimit) {
-                        logger.warn(`[AutoHealer] Rate limit (429) detected. Skipping test to avoid timeout.`);
+                        logger.warn(`[AutoHealer] Rate limit detected. Skipping test.`);
                         test.info().annotations.push({
                             type: 'warning',
-                            description: 'Test skipped due to AI Rate Limit (429)',
+                            description: 'Test skipped due to AI Rate Limit',
                         });
-                        test.skip(true, 'Test skipped due to AI Rate Limit (429)');
-                        return null; // Should not be reached effectively, but satisfies types
+                        test.skip(true, 'Test skipped due to AI Rate Limit');
+                        return null;
                     }
 
-                    if (isAuthError) {
+                    if (reqErrorTyped.status === 401 || errorMessage.includes('401')) {
                         logger.warn(
-                            `[AutoHealer] Auth Error (${error.status || 'Unknown'}). Attempting key rotation...`
+                            `[AutoHealer] Auth Error. Attempting key rotation...`
                         );
                         const rotated = this.rotateKey();
                         if (rotated) {
                             continue; // Try next key
                         } else {
                             logger.error('[AutoHealer] No more API keys to try.');
-                            throw error;
+                            throw reqErrorTyped;
                         }
                     }
-                    throw error;
+                    throw reqErrorTyped;
                 }
             }
 
@@ -227,18 +243,35 @@ export class AutoHealer {
             }
 
             if (result && result !== 'FAIL') {
-                return result;
+                healingSuccess = true;
+                healingResult = {
+                    selector: result,
+                    confidence: 1.0,
+                    reasoning: 'AI found replacement selector.',
+                    strategy: 'css'
+                };
             }
         } catch (aiError) {
-            const error = aiError as Error;
+            const aiErrorTyped = aiError as Error;
             // If it's a skip error, re-throw it so Playwright skips the test
-            if (error.message?.includes('Test skipped')) {
-                throw error;
+            if (aiErrorTyped.message?.includes('Test skipped') || aiErrorTyped.message?.includes('Test is skipped')) {
+                throw aiErrorTyped;
             }
-            logger.error(`[AutoHealer] AI Healing failed (${this.provider}): ${error.message || String(error)}`);
+            logger.error(`[AutoHealer] AI Healing failed (${this.provider}): ${aiErrorTyped.message || String(aiErrorTyped)}`);
+        } finally {
+            // Record the healing event
+            this.healingEvents.push({
+                timestamp: new Date().toISOString(),
+                originalSelector,
+                result: healingResult,
+                error: healingSuccess ? '' : error.message,
+                success: healingSuccess,
+                provider: this.provider,
+                durationMs: Date.now() - startTime,
+            });
         }
 
-        return null;
+        return healingResult;
     }
 
     /**

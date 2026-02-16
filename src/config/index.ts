@@ -27,6 +27,7 @@ export const config = {
         healing: {
             maxRetries: 3,
             retryDelay: 5000,
+            confidenceThreshold: 0.7,
         },
         security: {
             vercelChallengePath: '.well-known/vercel/security/request-challenge',
