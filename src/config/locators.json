@@ -4,10 +4,20 @@
   },
   "gigantti": {
     "cookieBannerAccept": "#coiPage-1 .coi-banner__accept",
-    "searchInput": "#search-input",
-    "searchButton": ".search-button",
-    "productCard": ".product-card",
+    "searchInput": "input[type='search']",
+    "searchButton": "button[type='submit']",
+    "productCard": "[data-testid='product-card']",
     "addToCart": ".add-to-cart",
-    "checkout": "#checkout-btn"
+    "checkout": "#checkout-btn",
+    "navLink": "//a[contains(text(), '{}')]",
+    "productTitle": [
+      "h1",
+      ".product-title"
+    ],
+    "productPrice": [
+      ".price-main",
+      ".product-price",
+      ".price"
+    ]
   }
 }

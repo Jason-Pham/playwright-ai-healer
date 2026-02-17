@@ -101,16 +101,16 @@ export const config = {
     },
     testData: {
         searchTerms: [
-            'laptop',
-            'smartphone',
-            'television',
-            'headphones',
-            'tablet',
-            'camera',
-            'gaming',
-            'speaker',
-            'keyboard',
-            'monitor',
+            'kannettava',
+            'puhelin',
+            'televisio',
+            'kuulokkeet',
+            'tabletti',
+            'kamera',
+            'peli',
+            'kaiutin',
+            'näppäimistö',
+            'näyttö',
         ],
         // Helper to get random search term
         getRandomSearchTerm(): string {
