@@ -16,6 +16,7 @@ vi.mock('../../src/utils/Logger.js', () => ({
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
+        debug: vi.fn(),
     },
 }));
 
@@ -67,7 +68,7 @@ describe('AutoHealer Core Logic', () => {
 
     beforeEach(() => {
         // Mock setTimeout to resolve immediately
-        vi.stubGlobal('setTimeout', (fn: Function) => {
+        vi.stubGlobal('setTimeout', (fn: () => void) => {
             fn();
             return 1;
         });
