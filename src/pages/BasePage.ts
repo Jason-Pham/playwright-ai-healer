@@ -18,8 +18,11 @@ export abstract class BasePage {
         this.siteHandler = siteHandler;
 
         // Monitor for Vercel security challenge failures
-        this.page.on('response', (response) => {
-            if (config.ai.security?.vercelChallengePath && response.url().includes(config.ai.security.vercelChallengePath)) {
+        this.page.on('response', response => {
+            if (
+                config.ai.security?.vercelChallengePath &&
+                response.url().includes(config.ai.security.vercelChallengePath)
+            ) {
                 const status = response.status();
                 if (status >= 400) {
                     logger.warn(`Vercel security challenge failed with status ${status}`);
@@ -69,7 +72,10 @@ export abstract class BasePage {
         }
     }
 
-    async safeClick(selectorOrLocator: string | Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
+    async safeClick(
+        selectorOrLocator: string | Locator,
+        options?: { force?: boolean; timeout?: number }
+    ): Promise<void> {
         await this.ensureOverlaysDismissed();
         if (typeof selectorOrLocator === 'string') {
             if (this.autoHealer) {
@@ -82,7 +88,11 @@ export abstract class BasePage {
         }
     }
 
-    async safeFill(selectorOrLocator: string | Locator, value: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
+    async safeFill(
+        selectorOrLocator: string | Locator,
+        value: string,
+        options?: { force?: boolean; timeout?: number }
+    ): Promise<void> {
         await this.ensureOverlaysDismissed();
 
         if (typeof selectorOrLocator === 'string') {
@@ -98,8 +108,8 @@ export abstract class BasePage {
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
         await expect(async () => {
-            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
-            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
+            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
+            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
 
             await selectorOrLocator.fill(value, {
                 force: true,

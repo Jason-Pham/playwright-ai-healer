@@ -8,27 +8,31 @@ import { LocatorManager } from './utils/LocatorManager.js';
 const { mockLocatorManager } = vi.hoisted(() => {
     return {
         mockLocatorManager: {
-            getLocator: vi.fn((key: string) => key === 'app.btn' ? '#old-selector' : null),
+            getLocator: vi.fn((key: string) => (key === 'app.btn' ? '#old-selector' : null)),
             updateLocator: vi.fn(),
-        }
+        },
     };
 });
 
 // Mock LocatorManager
 vi.mock('./utils/LocatorManager.js', () => ({
     LocatorManager: {
-        getInstance: vi.fn(() => mockLocatorManager)
-    }
+        getInstance: vi.fn(() => mockLocatorManager),
+    },
 }));
 
 // Mock page factory
-const createMockPage = (): Partial<Page> =>
-    ({
+const createMockPage = (): Partial<Page> => {
+    const mockLocator = {
+        waitFor: vi.fn().mockResolvedValue(undefined),
+    };
+    return {
         click: vi.fn(),
         fill: vi.fn(),
         evaluate: vi.fn().mockResolvedValue('<html><body><button id="btn">Click</button></body></html>'),
-        locator: vi.fn().mockReturnValue({ waitFor: vi.fn() }),
-    }) as unknown as Partial<Page>;
+        locator: vi.fn().mockReturnValue(mockLocator),
+    } as unknown as Partial<Page>;
+};
 
 describe('AutoHealer', () => {
     let mockPage: Partial<Page>;
@@ -188,7 +192,9 @@ describe('AutoHealer', () => {
             document.body.innerHTML = `<div>${longText}</div>`;
 
             (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
-            (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Timeout')).mockResolvedValueOnce(undefined);
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Timeout'))
+                .mockResolvedValueOnce(undefined);
 
             const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
             await healer.click('#target');
