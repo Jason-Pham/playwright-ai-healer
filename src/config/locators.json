@@ -1,5 +1,13 @@
 {
   "test": {
     "concurrentString": "value-0"
+  },
+  "gigantti": {
+    "cookieBannerAccept": "#coiPage-1 .coi-banner__accept",
+    "searchInput": "#search-input",
+    "searchButton": ".search-button",
+    "productCard": ".product-card",
+    "addToCart": ".add-to-cart",
+    "checkout": "#checkout-btn"
   }
 }

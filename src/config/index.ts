@@ -7,7 +7,12 @@ loadEnvironment();
 // Define the schema for environment variables
 const envSchema = z.object({
     ENV: z.enum(['dev', 'staging', 'prod']).default('dev'),
-    BASE_URL: z.string().url().default('https://www.gigantti.fi/'),
+    BASE_URL: z.string().optional()
+        .transform(val => {
+            if (!val || val === '/' || val === '') return 'https://www.gigantti.fi/';
+            return val;
+        })
+        .pipe(z.string().url()),
     AI_PROVIDER: z.enum(['gemini', 'openai']).default('gemini'),
     GEMINI_API_KEY: z.string().optional(),
     GEMINI_MODEL: z.string().default('gemini-flash-latest'),
@@ -20,7 +25,6 @@ const envSchema = z.object({
     CONSOLE_LOG_LEVEL: z.string().default('info'),
 });
 
-// Parse and validate environment variables
 const env = envSchema.parse(process.env);
 
 // Validate that the selected provider has a key
