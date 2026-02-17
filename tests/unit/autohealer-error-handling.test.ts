@@ -16,6 +16,7 @@ vi.mock('../../src/utils/Logger.js', () => ({
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
+        debug: vi.fn(),
     },
 }));
 
@@ -31,6 +32,15 @@ vi.mock('../../src/config/index.js', () => ({
                 short: 1000,
             },
         },
+    },
+}));
+
+vi.mock('../../src/utils/LocatorManager.js', () => ({
+    LocatorManager: {
+        getInstance: vi.fn(() => ({
+            getLocator: vi.fn(),
+            updateLocator: vi.fn(),
+        })),
     },
 }));
 
