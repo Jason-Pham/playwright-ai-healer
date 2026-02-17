@@ -92,10 +92,10 @@ export class AutoHealer {
         await this.executeAction(
             selectorOrKey,
             'click',
-            async (selector) => {
+            async selector => {
                 await this.page.click(selector, { timeout: config.test.timeouts.short, ...options });
             },
-            async (selector) => {
+            async selector => {
                 await this.page.click(selector, options);
             }
         );
@@ -116,10 +116,10 @@ export class AutoHealer {
         await this.executeAction(
             selectorOrKey,
             'fill',
-            async (selector) => {
+            async selector => {
                 await this.page.fill(selector, value, { timeout: config.test.timeouts.short, ...options });
             },
-            async (selector) => {
+            async selector => {
                 await this.page.fill(selector, value, options);
             }
         );
@@ -136,11 +136,13 @@ export class AutoHealer {
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
 
         try {
-            if (this.debug) logger.debug(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
+            if (this.debug)
+                logger.debug(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             await actionFn(selector);
         } catch (error) {
-            logger.warn(`[AutoHealer] ${actionName} failed on: ${selector}. Initiating healing protocol (${this.provider})...`);
+            logger.warn(
+                `[AutoHealer] ${actionName} failed on: ${selector}. Initiating healing protocol (${this.provider})...`
+            );
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
@@ -217,7 +219,8 @@ export class AutoHealer {
                         const errorMessage = reqErrorTyped.message?.toLowerCase() || '';
 
                         // Handle 503 Service Unavailable / 5xx Server Errors
-                        const isServiceUnavailable = reqErrorTyped.status === 503 ||
+                        const isServiceUnavailable =
+                            reqErrorTyped.status === 503 ||
                             errorMessage.includes('503') ||
                             errorMessage.includes('service unavailable') ||
                             errorMessage.includes('overloaded');
@@ -226,7 +229,9 @@ export class AutoHealer {
                             if (retryCount < maxRetries) {
                                 retryCount++;
                                 const delay = Math.pow(2, retryCount) * 1000;
-                                logger.warn(`[AutoHealer] AI Service Unavailable (503). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${maxRetries})`);
+                                logger.warn(
+                                    `[AutoHealer] AI Service Unavailable (503). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${maxRetries})`
+                                );
                                 await new Promise(resolve => setTimeout(resolve, delay));
                                 continue;
                             } else {
@@ -234,7 +239,8 @@ export class AutoHealer {
                             }
                         }
 
-                        const isRateLimit = reqErrorTyped.status === 429 ||
+                        const isRateLimit =
+                            reqErrorTyped.status === 429 ||
                             errorMessage.includes('429') ||
                             errorMessage.includes('rate limit') ||
                             errorMessage.includes('resource exhausted') ||
@@ -253,9 +259,7 @@ export class AutoHealer {
                         }
 
                         if (reqErrorTyped.status === 401 || errorMessage.includes('401')) {
-                            logger.warn(
-                                `[AutoHealer] Auth Error. Attempting key rotation...`
-                            );
+                            logger.warn(`[AutoHealer] Auth Error. Attempting key rotation...`);
                             const rotated = this.rotateKey();
                             if (rotated) {
                                 continue keyLoop; // Try next key
@@ -280,17 +284,23 @@ export class AutoHealer {
                     selector: result,
                     confidence: 1.0,
                     reasoning: 'AI found replacement selector.',
-                    strategy: 'css'
+                    strategy: 'css',
                 };
             }
         } catch (aiError) {
             const aiErrorTyped = aiError as Error;
             // If it's a skip error, re-throw it so Playwright skips the test
             // If it's a skip error, re-throw it so Playwright skips the test
-            if (String(aiErrorTyped).includes('Test skipped') || aiErrorTyped.message?.includes('Test skipped') || aiErrorTyped.message?.includes('Test is skipped')) {
+            if (
+                String(aiErrorTyped).includes('Test skipped') ||
+                aiErrorTyped.message?.includes('Test skipped') ||
+                aiErrorTyped.message?.includes('Test is skipped')
+            ) {
                 throw aiErrorTyped;
             }
-            logger.error(`[AutoHealer] AI Healing failed (${this.provider}): ${aiErrorTyped.message || String(aiErrorTyped)}`);
+            logger.error(
+                `[AutoHealer] AI Healing failed (${this.provider}): ${aiErrorTyped.message || String(aiErrorTyped)}`
+            );
         } finally {
             // Record the healing event
             this.healingEvents.push({
@@ -320,8 +330,18 @@ export class AutoHealer {
 
             // 1. Remove non-visual/noisy tags
             const removeTags = [
-                'script', 'style', 'svg', 'path', 'link', 'meta', 'noscript',
-                'iframe', 'video', 'audio', 'object', 'embed'
+                'script',
+                'style',
+                'svg',
+                'path',
+                'link',
+                'meta',
+                'noscript',
+                'iframe',
+                'video',
+                'audio',
+                'object',
+                'embed',
             ];
             removeTags.forEach(tag => {
                 const elements = clone.querySelectorAll(tag);
@@ -344,7 +364,19 @@ export class AutoHealer {
                     const el = node as HTMLElement;
 
                     // Remove mostly useless attributes for AI selection
-                    const keepAttrs = ['id', 'name', 'class', 'type', 'placeholder', 'aria-label', 'role', 'href', 'value', 'title', 'alt'];
+                    const keepAttrs = [
+                        'id',
+                        'name',
+                        'class',
+                        'type',
+                        'placeholder',
+                        'aria-label',
+                        'role',
+                        'href',
+                        'value',
+                        'title',
+                        'alt',
+                    ];
                     // Also keep data-test attributes
                     Array.from(el.attributes).forEach(attr => {
                         const isDataTest = attr.name.startsWith('data-test');
@@ -355,7 +387,6 @@ export class AutoHealer {
 
                     // Remove style attributes (noise)
                     el.removeAttribute('style');
-
                 } else if (node.nodeType === Node.TEXT_NODE) {
                     // Truncate very long text nodes (e.g. legal text, huge paragraphs)
                     if (node.nodeValue && node.nodeValue.length > 200) {

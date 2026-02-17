@@ -35,17 +35,13 @@ describe('SiteHandler', () => {
 
             expect(mockPage.locator).toHaveBeenCalledWith(locators.gigantti.cookieBannerAccept);
             // First call: waitFor visible, second call: waitFor hidden
-            expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(
-                expect.objectContaining({ state: 'visible' })
-            );
+            expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(expect.objectContaining({ state: 'visible' }));
             expect(mockPage.waitForFunction).toHaveBeenCalled(); // SDK ready check
 
             // Verify evaluate was called with the correct locator
             expect(mockPage.evaluate).toHaveBeenCalledWith(expect.any(Function), locators.gigantti.cookieBannerAccept);
 
-            expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(
-                expect.objectContaining({ state: 'hidden' })
-            );
+            expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(expect.objectContaining({ state: 'hidden' }));
         });
 
         it('should skip entirely when banner does not appear', async () => {
@@ -54,9 +50,7 @@ describe('SiteHandler', () => {
 
             await handler.dismissOverlays(mockPage as Page);
 
-            expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(
-                expect.objectContaining({ state: 'visible' })
-            );
+            expect(mockCookieBtn.waitFor).toHaveBeenCalledWith(expect.objectContaining({ state: 'visible' }));
             expect(mockPage.evaluate).not.toHaveBeenCalled();
         });
 

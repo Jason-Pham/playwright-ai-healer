@@ -28,17 +28,18 @@ export class GiganttiHandler implements SiteHandler {
             // This replaces the old waitForResponse(cabl.json) which had a race
             // condition: if the response arrived before the listener was set up,
             // it would needlessly wait for the full timeout duration.
-            await page.waitForFunction(
-                () => (window as any).isCookieInformationAPIReady === true,
-                { timeout: config.test.timeouts.cookie }
-            ).catch(() => {
-                // SDK not ready in time — proceed to fallback click
-            });
+            await page
+                .waitForFunction(() => (window as any).isCookieInformationAPIReady === true, {
+                    timeout: config.test.timeouts.cookie,
+                })
+                .catch(() => {
+                    // SDK not ready in time — proceed to fallback click
+                });
 
             logger.debug('Dismissing Gigantti cookie banner...');
 
             // Use SDK API to accept all cookies; fall back to direct click
-            await page.evaluate((selector) => {
+            await page.evaluate(selector => {
                 const ci = (window as any).CookieInformation;
                 if (typeof ci?.submitAllCategories === 'function') {
                     ci.submitAllCategories();
@@ -60,14 +61,18 @@ export class GiganttiHandler implements SiteHandler {
             await cookieBtn.waitFor({ state: 'hidden', timeout: config.test.timeouts.cookie }).catch(async () => {
                 logger.warn('Cookie banner failed to dismiss normally. Attempting to force hide.');
                 // Fallback: Force hide the banner if it's still visible
-                await page.evaluate((selector) => {
+                await page.evaluate(selector => {
                     const selectors = selector.split(',').map(s => s.trim());
                     // 1. Try hiding based on the button's ancestors
                     for (const s of selectors) {
                         const elements = document.querySelectorAll(s);
                         elements.forEach(el => {
                             // Walk up to find the container
-                            const container = el.closest('#coiPage-1') || el.closest('.coi-banner__wrapper') || el.closest('[role="dialog"]') || el;
+                            const container =
+                                el.closest('#coiPage-1') ||
+                                el.closest('.coi-banner__wrapper') ||
+                                el.closest('[role="dialog"]') ||
+                                el;
                             if (container instanceof HTMLElement) {
                                 container.style.display = 'none';
                                 container.style.visibility = 'hidden';

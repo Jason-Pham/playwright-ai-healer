@@ -8,17 +8,17 @@ import { LocatorManager } from './utils/LocatorManager.js';
 const { mockLocatorManager } = vi.hoisted(() => {
     return {
         mockLocatorManager: {
-            getLocator: vi.fn((key: string) => key === 'app.btn' ? '#old-selector' : null),
+            getLocator: vi.fn((key: string) => (key === 'app.btn' ? '#old-selector' : null)),
             updateLocator: vi.fn(),
-        }
+        },
     };
 });
 
 // Mock LocatorManager
 vi.mock('./utils/LocatorManager.js', () => ({
     LocatorManager: {
-        getInstance: vi.fn(() => mockLocatorManager)
-    }
+        getInstance: vi.fn(() => mockLocatorManager),
+    },
 }));
 
 // Mock page factory
@@ -187,7 +187,9 @@ describe('AutoHealer', () => {
             document.body.innerHTML = `<div>${longText}</div>`;
 
             (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
-            (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Timeout')).mockResolvedValueOnce(undefined);
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Timeout'))
+                .mockResolvedValueOnce(undefined);
 
             const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
             await healer.click('#target');

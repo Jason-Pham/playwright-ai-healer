@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AutoHealer } from '../../src/AutoHealer.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -30,8 +29,8 @@ vi.mock('../../src/config/index.js', () => ({
         test: {
             timeouts: {
                 short: 1000,
-            }
-        }
+            },
+        },
     },
 }));
 
@@ -140,7 +139,7 @@ describe('AutoHealer Error Handling', () => {
             try {
                 await (autoHealer as any).heal('broken-selector', new Error('Element not found'));
             } catch (e) {
-                // heal re-throws if test.skip triggers logic that might throw in mock, 
+                // heal re-throws if test.skip triggers logic that might throw in mock,
                 // but checking side effects is key
             }
 
@@ -157,13 +156,11 @@ describe('AutoHealer Error Handling', () => {
             (error401 as any).status = 401;
 
             // Fail first key with 401, succeed with second key
-            mockGenerateContent
-                .mockRejectedValueOnce(error401)
-                .mockResolvedValueOnce({
-                    response: {
-                        text: () => 'corrected-selector-key2',
-                    },
-                });
+            mockGenerateContent.mockRejectedValueOnce(error401).mockResolvedValueOnce({
+                response: {
+                    text: () => 'corrected-selector-key2',
+                },
+            });
 
             const result = await (autoHealer as any).heal('broken-selector', new Error('Element not found'));
 

@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AutoHealer } from '../../src/AutoHealer.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -30,8 +29,8 @@ vi.mock('../../src/config/index.js', () => ({
         test: {
             timeouts: {
                 short: 1000,
-            }
-        }
+            },
+        },
     },
 }));
 
@@ -110,9 +109,7 @@ describe('AutoHealer Core Logic', () => {
             const healedSelector = '#fixed-btn';
 
             // Mock page.click to fail once, then succeed
-            mockPage.click
-                .mockRejectedValueOnce(new Error('Element not found'))
-                .mockResolvedValueOnce(undefined);
+            mockPage.click.mockRejectedValueOnce(new Error('Element not found')).mockResolvedValueOnce(undefined);
 
             // Mock AI to return a healed selector
             mockGenerateContent.mockResolvedValue({
@@ -147,11 +144,9 @@ describe('AutoHealer Core Logic', () => {
             (LocatorManager.getInstance() as any).getLocator.mockReturnValue(brokenSelector);
 
             // Mock page failure and AI success
-            mockPage.click
-                .mockRejectedValueOnce(new Error('Element not found'))
-                .mockResolvedValueOnce(undefined);
+            mockPage.click.mockRejectedValueOnce(new Error('Element not found')).mockResolvedValueOnce(undefined);
             mockGenerateContent.mockResolvedValue({
-                response: { text: () => healedSelector }
+                response: { text: () => healedSelector },
             });
 
             await autoHealer.click(key);
@@ -167,7 +162,7 @@ describe('AutoHealer Core Logic', () => {
 
             // Mock AI to return FAIL or throw
             mockGenerateContent.mockResolvedValue({
-                response: { text: () => 'FAIL' }
+                response: { text: () => 'FAIL' },
             });
 
             await expect(autoHealer.click(brokenSelector)).rejects.toThrow('Element not found');
@@ -184,13 +179,11 @@ describe('AutoHealer Core Logic', () => {
             const value = 'test value';
 
             // Mock page.fill to fail once, then succeed
-            mockPage.fill
-                .mockRejectedValueOnce(new Error('Element not found'))
-                .mockResolvedValueOnce(undefined);
+            mockPage.fill.mockRejectedValueOnce(new Error('Element not found')).mockResolvedValueOnce(undefined);
 
             // Mock AI
             mockGenerateContent.mockResolvedValue({
-                response: { text: () => healedSelector }
+                response: { text: () => healedSelector },
             });
 
             await autoHealer.fill(brokenSelector, value);
