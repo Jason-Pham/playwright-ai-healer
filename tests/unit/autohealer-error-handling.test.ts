@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AutoHealer } from '../../src/AutoHealer.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { test } from '@playwright/test';
@@ -64,12 +64,10 @@ describe('AutoHealer Error Handling', () => {
     let autoHealer: AutoHealer;
     let mockPage: any;
     let mockGenerateContent: any;
-    let mockTestSkip: any;
-    let mockTestInfo: any;
 
     beforeEach(() => {
         // Mock setTimeout to resolve immediately
-        vi.stubGlobal('setTimeout', (fn: Function) => {
+        vi.stubGlobal('setTimeout', (fn: () => void) => {
             fn();
             return 1;
         });
@@ -148,7 +146,7 @@ describe('AutoHealer Error Handling', () => {
 
             try {
                 await (autoHealer as any).heal('broken-selector', new Error('Element not found'));
-            } catch (e) {
+            } catch {
                 // heal re-throws if test.skip triggers logic that might throw in mock,
                 // but checking side effects is key
             }

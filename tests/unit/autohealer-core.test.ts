@@ -68,7 +68,7 @@ describe('AutoHealer Core Logic', () => {
 
     beforeEach(() => {
         // Mock setTimeout to resolve immediately
-        vi.stubGlobal('setTimeout', (fn: Function) => {
+        vi.stubGlobal('setTimeout', (fn: () => void) => {
             fn();
             return 1;
         });
