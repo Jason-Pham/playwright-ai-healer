@@ -1,5 +1,16 @@
 {
-  "test": {
-    "concurrentString": "value-0"
+  "gigantti": {
+    "searchInput": "input#search",
+    "searchButton": "button.search-btn",
+    "navLink": "a.nav-link:has-text('{}')",
+    "productCard": ".product-card",
+    "productTitle": [
+      ".product-title",
+      "h1"
+    ],
+    "productPrice": [
+      ".product-price",
+      ".price"
+    ]
   }
 }

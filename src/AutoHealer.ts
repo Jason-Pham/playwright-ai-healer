@@ -335,66 +335,13 @@ export class AutoHealer {
                 return text.replace(emailRegex, '[EMAIL]').replace(phoneRegex, '[PHONE]');
             };
 
-            // Use TreeWalker to traverse the DOM efficiently without cloning the entire tree first
-            // This reduces memory overhead significantly on large pages
-            const walk = document.createTreeWalker(
-                document.body,
-                NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT
-            );
 
-            let output = '';
 
             // Allow-list for attributes to keep token count low and focus on structural attributes
             const validAttrs = new Set([
                 'id', 'name', 'class', 'type', 'placeholder',
                 'aria-label', 'role', 'href', 'title', 'alt'
             ]);
-
-            while (walk.nextNode()) {
-                const node = walk.currentNode;
-
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    const el = node as HTMLElement;
-                    const tagName = el.tagName.toLowerCase();
-
-                    // Skip non-visual or noisy tags
-                    if (['script', 'style', 'svg', 'path', 'link', 'meta', 'noscript', 'iframe', 'video', 'audio'].includes(tagName)) {
-                        continue;
-                    }
-
-                    output += `<${tagName}`;
-
-                    Array.from(el.attributes).forEach(attr => {
-                        // Data-test attributes are high value for automation
-                        if (validAttrs.has(attr.name) || attr.name.startsWith('data-test')) {
-                            let value = attr.value;
-                            // Mask value attribute for inputs to avoid leaking passwords/user data
-                            if (attr.name === 'value' && tagName === 'input') {
-                                value = '[REDACTED]';
-                            }
-                            output += ` ${attr.name}="${value}"`;
-                        }
-                    });
-
-                    output += '>';
-                } else if (node.nodeType === Node.TEXT_NODE) {
-                    const text = node.nodeValue?.trim();
-                    if (text) {
-                        // Scrub PII from visible text and truncate
-                        const scrubbed = scrubPII(text);
-                        output += scrubbed.length > 100 ? scrubbed.substring(0, 100) + '...' : scrubbed;
-                    }
-                }
-
-                // Close tags logic would require a recursive approach or a more complex stack management 
-                // for a purely streaming DOM serializer. 
-                // For 'simplified' DOM context for LLM, a flat stream or simple hierarchy is often enough.
-                // However, to keep it valid HTML-ish for the LLM to understand structure:
-
-                // NOTE: A full serializer re-implementation is complex. 
-                // Reverting to Clone methodology but with PII scrubbing and stricter filtering 
-                // is safer for correctness while still optimizing.
-            }
 
             // Optimization: Clone is safer for structural integrity than custom serializer
             // We apply PII scrubbing on the clone.
@@ -404,7 +351,14 @@ export class AutoHealer {
             const removeTags = ['script', 'style', 'svg', 'noscript', 'iframe', 'video', 'audio'];
             removeTags.forEach(tag => clone.querySelectorAll(tag).forEach(el => el.remove()));
 
-            // 2. Walk and Clean
+            // 2. Remove comments
+            const iterator = document.createNodeIterator(clone, NodeFilter.SHOW_COMMENT);
+            let currentNode;
+            while ((currentNode = iterator.nextNode())) {
+                currentNode.parentNode?.removeChild(currentNode);
+            }
+
+            // 3. Walk and Clean attributes
             const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
             while (walker.nextNode()) {
                 const node = walker.currentNode;

@@ -2,11 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fs from 'fs';
 
 // Mock fs module before importing LocatorManager
-vi.mock('fs', () => ({
-    existsSync: vi.fn(),
-    readFileSync: vi.fn(),
-    writeFileSync: vi.fn(),
-    mkdirSync: vi.fn(),
+vi.mock('fs');
+vi.mock('proper-lockfile', () => ({
+    lock: vi.fn().mockResolvedValue(() => Promise.resolve()), // Return release function
 }));
 
 // We need to reset modules to get a fresh singleton each time
@@ -88,12 +86,12 @@ describe('LocatorManager', () => {
             const mockLocators = { gigantti: { searchInput: '#old-selector' } };
             vi.mocked(fs.existsSync).mockReturnValue(true);
             vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockLocators));
-            vi.mocked(fs.writeFileSync).mockImplementation(() => {});
+            vi.mocked(fs.writeFileSync).mockImplementation(() => { });
 
             const LocatorManager = await getLocatorManager();
             const manager = LocatorManager.getInstance();
 
-            manager.updateLocator('gigantti.searchInput', '#new-selector');
+            await manager.updateLocator('gigantti.searchInput', '#new-selector');
 
             expect(fs.writeFileSync).toHaveBeenCalled();
             // Verify the new value is accessible
@@ -104,12 +102,12 @@ describe('LocatorManager', () => {
             const mockLocators = {};
             vi.mocked(fs.existsSync).mockReturnValue(true);
             vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockLocators));
-            vi.mocked(fs.writeFileSync).mockImplementation(() => {});
+            vi.mocked(fs.writeFileSync).mockImplementation(() => { });
 
             const LocatorManager = await getLocatorManager();
             const manager = LocatorManager.getInstance();
 
-            manager.updateLocator('new.nested.path', '#new-selector');
+            await manager.updateLocator('new.nested.path', '#new-selector');
 
             expect(fs.writeFileSync).toHaveBeenCalled();
         });
@@ -118,7 +116,7 @@ describe('LocatorManager', () => {
     describe('File Handling', () => {
         it('should handle missing locators file gracefully', async () => {
             vi.mocked(fs.existsSync).mockReturnValue(false);
-            const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
 
             const LocatorManager = await getLocatorManager();
             const manager = LocatorManager.getInstance();
@@ -130,7 +128,7 @@ describe('LocatorManager', () => {
         it('should handle invalid JSON gracefully', async () => {
             vi.mocked(fs.existsSync).mockReturnValue(true);
             vi.mocked(fs.readFileSync).mockReturnValue('{ invalid json }');
-            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
             const LocatorManager = await getLocatorManager();
             const manager = LocatorManager.getInstance();
