@@ -5,7 +5,7 @@ import { config } from '../../src/config/index.js';
 
 // Define custom fixtures
 type MyFixtures = {
-    autoHealer: AutoHealer;
+    autoHealer: AutoHealer | undefined;
     giganttiPage: GiganttiHomePage;
 };
 

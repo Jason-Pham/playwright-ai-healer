@@ -6,13 +6,13 @@ import { config } from '../config/index.js';
 import { type SiteHandler, GiganttiHandler } from '../utils/SiteHandler.js';
 
 export abstract class BasePage {
-    protected page: Page;
-    protected autoHealer: AutoHealer;
+    public page: Page;
+    public autoHealer: AutoHealer | undefined;
     protected siteHandler: SiteHandler;
 
     private securityChallengeFailed = false;
 
-    constructor(page: Page, autoHealer: AutoHealer, siteHandler: SiteHandler = new GiganttiHandler()) {
+    constructor(page: Page, autoHealer?: AutoHealer, siteHandler: SiteHandler = new GiganttiHandler()) {
         this.page = page;
         this.autoHealer = autoHealer;
         this.siteHandler = siteHandler;
@@ -37,10 +37,6 @@ export abstract class BasePage {
         await this.page.waitForTimeout(ms);
     }
 
-    /**
-     * Wait for page to be fully loaded.
-     * Consolidates waiting for domcontentloaded and potentially other states.
-     */
     async waitForPageLoad(options?: { timeout?: number; networking?: boolean }): Promise<void> {
         await this.page.waitForLoadState('load', options);
         await this.page.waitForLoadState('domcontentloaded', options);
@@ -52,9 +48,6 @@ export abstract class BasePage {
         test.skip(true, reason);
     }
 
-    /**
-     * Check if a security challenge has failed and skip the test if so
-     */
     protected checkSecurityChallenge(): void {
         if (this.securityChallengeFailed) {
             logger.warn('Skipping test due to failed security challenge.');
@@ -62,11 +55,6 @@ export abstract class BasePage {
         }
     }
 
-    /**
-     * Dismiss cookie/marketing overlays before performing action
-     * Default implementation handles Gigantti cookie banners
-     * Override this in subclasses for site-specific handling
-     */
     protected async dismissOverlaysBeforeAction(): Promise<void> {
         this.checkSecurityChallenge();
         await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
@@ -74,10 +62,6 @@ export abstract class BasePage {
         this.overlaysDismissed = true;
     }
 
-    /**
-     * Ensures overlays are dismissed once per page instance.
-     * No-op after the first successful call — fast for subsequent interactions.
-     */
     private async ensureOverlaysDismissed(): Promise<void> {
         if (!this.overlaysDismissed) {
             await this.dismissOverlaysBeforeAction();
@@ -85,37 +69,45 @@ export abstract class BasePage {
         }
     }
 
-    /**
-     * Click an element after dismissing any overlays
-     */
-    async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
+    async safeClick(selectorOrLocator: string | Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
         await this.ensureOverlaysDismissed();
-        await locator.click(options);
+        if (typeof selectorOrLocator === 'string') {
+            if (this.autoHealer) {
+                await this.autoHealer.click(selectorOrLocator, options);
+            } else {
+                await this.page.click(selectorOrLocator, options);
+            }
+        } else {
+            await selectorOrLocator.click(options);
+        }
     }
 
-    /**
-     * Fill an input with reliable retry logic:
-     * 1. Dismiss overlays
-     * 2. Attempt: Focus -> Clear -> Fill -> Verify Value
-     * 3. Retry on failure
-     */
-    async safeFill(locator: Locator, value: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
+    async safeFill(selectorOrLocator: string | Locator, value: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
         await this.ensureOverlaysDismissed();
+
+        if (typeof selectorOrLocator === 'string') {
+            if (this.autoHealer) {
+                await this.autoHealer.fill(selectorOrLocator, value, options);
+                return;
+            } else {
+                await this.page.fill(selectorOrLocator, value, options);
+                return;
+            }
+        }
+
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
         await expect(async () => {
-            // Short timeouts for internal steps to allow faster retries
-            // but ensure we give enough time for the action itself
-            await locator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
-            await locator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
+            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
+            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
 
-            await locator.fill(value, {
+            await selectorOrLocator.fill(value, {
                 force: true,
                 timeout: config.test.timeouts.short,
                 ...options,
             });
 
-            await expect(locator).toHaveValue(value, { timeout: config.test.timeouts.short });
+            await expect(selectorOrLocator).toHaveValue(value, { timeout: config.test.timeouts.short });
         }).toPass({ timeout });
     }
 

@@ -124,7 +124,7 @@ describe('Page Objects', () => {
 
         it('should click first product using AutoHealer', async () => {
             await categoryPage.clickFirstProduct();
-            expect(mockAutoHealer.click).toHaveBeenCalledWith('gigantti.productCard', expect.any(Object));
+            expect(mockAutoHealer.click).toHaveBeenCalledWith('.product', expect.any(Object));
         });
     });
 

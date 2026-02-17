@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
-import type { AIProvider, ClickOptions, FillOptions, AIError } from './types.js';
+import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
 
 /**
  * AutoHealer - Self-healing test automation agent
@@ -26,6 +26,7 @@ export class AutoHealer {
     private debug: boolean;
     private provider: AIProvider;
     private modelName: string;
+    private healingEvents: HealingEvent[] = [];
 
     private apiKeys: string[];
     private currentKeyIndex = 0;
@@ -88,29 +89,16 @@ export class AutoHealer {
      * @throws Error if healing fails or element still cannot be found
      */
     async click(selectorOrKey: string, options?: ClickOptions) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting click on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.click(selector, { timeout: config.test.timeouts.short, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Click failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.click(newSelector, options);
-
-                // Update locator if we have a key
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
-                }
-            } else {
-                throw error; // Re-throw if healing failed
+        await this.executeAction(
+            selectorOrKey,
+            'click',
+            async (selector) => {
+                await this.page.click(selector, { timeout: config.test.timeouts.short, ...options });
+            },
+            async (selector) => {
+                await this.page.click(selector, options);
             }
-        }
+        );
     }
 
     /**
@@ -125,29 +113,55 @@ export class AutoHealer {
      * @throws Error if healing fails or element still cannot be found
      */
     async fill(selectorOrKey: string, value: string, options?: FillOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'fill',
+            async (selector) => {
+                await this.page.fill(selector, value, { timeout: config.test.timeouts.short, ...options });
+            },
+            async (selector) => {
+                await this.page.fill(selector, value, options);
+            }
+        );
+    }
+
+    private async executeAction(
+        selectorOrKey: string,
+        actionName: string,
+        actionFn: (selector: string) => Promise<void>,
+        retryFn: (selector: string) => Promise<void>
+    ) {
         const locatorManager = LocatorManager.getInstance();
         const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
 
         try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting fill on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.fill(selector, value, { timeout: config.test.timeouts.short, ...options });
+            if (this.debug) logger.debug(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
+            await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
+            await actionFn(selector);
         } catch (error) {
-            logger.warn(`[AutoHealer] Fill failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.fill(newSelector, value, options);
+            logger.warn(`[AutoHealer] ${actionName} failed on: ${selector}. Initiating healing protocol (${this.provider})...`);
+            const result = await this.heal(selector, error as Error);
+            if (result) {
+                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                await retryFn(result.selector);
 
                 // Update locator if we have a key
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
+                    locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
             }
         }
+    }
+
+    /**
+     * Get all healing events recorded during the current session
+     */
+    getHealingEvents(): readonly HealingEvent[] {
+        return this.healingEvents;
     }
 
     /**
@@ -158,7 +172,8 @@ export class AutoHealer {
      * @returns New selector if healing succeeds, null otherwise
      * @private
      */
-    private async heal(originalSelector: string, error: Error): Promise<string | null> {
+    private async heal(originalSelector: string, error: Error): Promise<HealingResult | null> {
+        const startTime = Date.now();
         // 1. Capture simplified DOM
         const htmlSnapshot = await this.getSimplifiedDOM();
 
@@ -169,55 +184,88 @@ export class AutoHealer {
             htmlSnapshot.substring(0, 2000)
         );
 
+        let healingSuccess = false;
+        let healingResult: HealingResult | null = null;
+
         try {
             let result: string | undefined;
 
             const maxKeyRotations = this.apiKeys.length;
 
             // Outer loop for key rotation
-            for (let k = 0; k < maxKeyRotations; k++) {
-                try {
-                    if (this.provider === 'openai' && this.openai) {
-                        const completion = await this.openai.chat.completions.create({
-                            messages: [{ role: 'user', content: promptText }],
-                            model: this.modelName,
-                        });
-                        result = completion.choices[0]?.message.content?.trim();
-                    } else if (this.provider === 'gemini' && this.gemini) {
-                        const model = this.gemini.getGenerativeModel({ model: this.modelName });
-                        const resultResult = await model.generateContent(promptText);
-                        result = resultResult.response.text().trim();
-                    }
-                    // If success, break loop
-                    break;
-                } catch (reqError) {
-                    const error = reqError as AIError;
-                    const isRateLimit = error.message?.includes('429') || error.status === 429;
-                    const isAuthError = error.message?.includes('401') || error.status === 401;
+            keyLoop: for (let k = 0; k < maxKeyRotations; k++) {
+                let retryCount = 0;
+                const maxRetries = 3;
 
-                    if (isRateLimit) {
-                        logger.warn(`[AutoHealer] Rate limit (429) detected. Skipping test to avoid timeout.`);
-                        test.info().annotations.push({
-                            type: 'warning',
-                            description: 'Test skipped due to AI Rate Limit (429)',
-                        });
-                        test.skip(true, 'Test skipped due to AI Rate Limit (429)');
-                        return null; // Should not be reached effectively, but satisfies types
-                    }
-
-                    if (isAuthError) {
-                        logger.warn(
-                            `[AutoHealer] Auth Error (${error.status || 'Unknown'}). Attempting key rotation...`
-                        );
-                        const rotated = this.rotateKey();
-                        if (rotated) {
-                            continue; // Try next key
-                        } else {
-                            logger.error('[AutoHealer] No more API keys to try.');
-                            throw error;
+                while (retryCount <= maxRetries) {
+                    try {
+                        if (this.provider === 'openai' && this.openai) {
+                            const completion = await this.openai.chat.completions.create({
+                                messages: [{ role: 'user', content: promptText }],
+                                model: this.modelName,
+                            });
+                            result = completion.choices[0]?.message.content?.trim();
+                        } else if (this.provider === 'gemini' && this.gemini) {
+                            const model = this.gemini.getGenerativeModel({ model: this.modelName });
+                            const resultResult = await model.generateContent(promptText);
+                            result = resultResult.response.text().trim();
                         }
+                        // If success, break loop
+                        break keyLoop;
+                    } catch (reqError) {
+                        const reqErrorTyped = reqError as AIError;
+                        const errorMessage = reqErrorTyped.message?.toLowerCase() || '';
+
+                        // Handle 503 Service Unavailable / 5xx Server Errors
+                        const isServiceUnavailable = reqErrorTyped.status === 503 ||
+                            errorMessage.includes('503') ||
+                            errorMessage.includes('service unavailable') ||
+                            errorMessage.includes('overloaded');
+
+                        if (isServiceUnavailable) {
+                            if (retryCount < maxRetries) {
+                                retryCount++;
+                                const delay = Math.pow(2, retryCount) * 1000;
+                                logger.warn(`[AutoHealer] AI Service Unavailable (503). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${maxRetries})`);
+                                await new Promise(resolve => setTimeout(resolve, delay));
+                                continue;
+                            } else {
+                                logger.error(`[AutoHealer] AI Service Unavailable after ${maxRetries} retries.`);
+                            }
+                        }
+
+                        const isRateLimit = reqErrorTyped.status === 429 ||
+                            errorMessage.includes('429') ||
+                            errorMessage.includes('rate limit') ||
+                            errorMessage.includes('resource exhausted') ||
+                            errorMessage.includes('insufficient quota');
+
+                        if (isRateLimit) {
+                            logger.warn(`[AutoHealer] Rate limit detected. Skipping test.`);
+                            test.info().annotations.push({
+                                type: 'warning',
+                                description: 'Test skipped due to AI Rate Limit',
+                            });
+                            // This throws an error to stop the test
+                            test.skip(true, 'Test skipped due to AI Rate Limit');
+                            // This part is unreachable if test.skip throws as expected
+                            return null;
+                        }
+
+                        if (reqErrorTyped.status === 401 || errorMessage.includes('401')) {
+                            logger.warn(
+                                `[AutoHealer] Auth Error. Attempting key rotation...`
+                            );
+                            const rotated = this.rotateKey();
+                            if (rotated) {
+                                continue keyLoop; // Try next key
+                            } else {
+                                logger.error('[AutoHealer] No more API keys to try.');
+                                throw reqErrorTyped;
+                            }
+                        }
+                        throw reqErrorTyped;
                     }
-                    throw error;
                 }
             }
 
@@ -227,18 +275,36 @@ export class AutoHealer {
             }
 
             if (result && result !== 'FAIL') {
-                return result;
+                healingSuccess = true;
+                healingResult = {
+                    selector: result,
+                    confidence: 1.0,
+                    reasoning: 'AI found replacement selector.',
+                    strategy: 'css'
+                };
             }
         } catch (aiError) {
-            const error = aiError as Error;
+            const aiErrorTyped = aiError as Error;
             // If it's a skip error, re-throw it so Playwright skips the test
-            if (error.message?.includes('Test skipped')) {
-                throw error;
+            // If it's a skip error, re-throw it so Playwright skips the test
+            if (String(aiErrorTyped).includes('Test skipped') || aiErrorTyped.message?.includes('Test skipped') || aiErrorTyped.message?.includes('Test is skipped')) {
+                throw aiErrorTyped;
             }
-            logger.error(`[AutoHealer] AI Healing failed (${this.provider}): ${error.message || String(error)}`);
+            logger.error(`[AutoHealer] AI Healing failed (${this.provider}): ${aiErrorTyped.message || String(aiErrorTyped)}`);
+        } finally {
+            // Record the healing event
+            this.healingEvents.push({
+                timestamp: new Date().toISOString(),
+                originalSelector,
+                result: healingResult,
+                error: healingSuccess ? '' : error.message,
+                success: healingSuccess,
+                provider: this.provider,
+                durationMs: Date.now() - startTime,
+            });
         }
 
-        return null;
+        return healingResult;
     }
 
     /**
