@@ -48,19 +48,19 @@ export abstract class BasePage {
 
     private overlaysDismissed = false;
 
-    protected skipTest(reason: string): void {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { test } = require('@playwright/test');
+    protected async skipTest(reason: string): Promise<void> {
+        // Use dynamic import to avoid circular dependency
+        const { test } = await import('@playwright/test');
         test.skip(true, reason);
     }
 
     /**
      * Check if a security challenge has failed and skip the test if so
      */
-    protected checkSecurityChallenge(): void {
+    protected async checkSecurityChallenge(): Promise<void> {
         if (this.securityChallengeFailed) {
             logger.warn('Skipping test due to failed security challenge.');
-            this.skipTest('Aborting test due to Vercel security challenge failure');
+            await this.skipTest('Aborting test due to Vercel security challenge failure');
         }
     }
 
@@ -70,7 +70,7 @@ export abstract class BasePage {
      * Override this in subclasses for site-specific handling
      */
     protected async dismissOverlaysBeforeAction(): Promise<void> {
-        this.checkSecurityChallenge();
+        await this.checkSecurityChallenge();
         await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
         await this.siteHandler.dismissOverlays(this.page);
         this.overlaysDismissed = true;
