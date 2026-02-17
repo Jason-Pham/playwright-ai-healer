@@ -138,8 +138,6 @@ export class AutoHealer {
         try {
             if (this.debug)
                 logger.debug(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            // Wait for element visibility with default timeout, but don't fail the test if it times out.
-            // This allows the action itself (click/fill) to attempt interaction and trigger healing if needed.
             try {
                 await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
             } catch (e) {
