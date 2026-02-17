@@ -138,6 +138,7 @@ export class LocatorManager {
             this.saveLocators();
             logger.info(`[LocatorManager] Updated locator '${key}' to '${newSelector}'`);
         } catch (error) {
+            console.error('[LocatorManager] updateLocator failed:', error);
             logger.error(`[LocatorManager] Failed to update locator '${key}': ${String(error)}`);
         } finally {
             if (release) {
