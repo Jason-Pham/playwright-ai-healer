@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as lockfile from 'proper-lockfile';
