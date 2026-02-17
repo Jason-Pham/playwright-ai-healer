@@ -16,9 +16,9 @@ vi.mock('../config/locators.json', () => ({
             navLink: 'nav a:has-text("{}")',
             productCard: '.product',
             productTitle: ['.title'],
-            productPrice: ['.price']
-        }
-    }
+            productPrice: ['.price'],
+        },
+    },
 }));
 
 // Mock logger to avoid clutter
@@ -27,7 +27,7 @@ vi.mock('../utils/Logger.js', () => ({
         debug: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
-    }
+    },
 }));
 
 describe('Page Objects', () => {
@@ -103,7 +103,10 @@ describe('Page Objects', () => {
 
             await homePage.navigateToCategory(category);
 
-            expect(mockPage.getByRole).toHaveBeenCalledWith('link', expect.objectContaining({ name: new RegExp(category, 'i') }));
+            expect(mockPage.getByRole).toHaveBeenCalledWith(
+                'link',
+                expect.objectContaining({ name: new RegExp(category, 'i') })
+            );
             expect(successLocator.click).toHaveBeenCalled();
         });
     });
@@ -149,9 +152,7 @@ describe('Page Objects', () => {
         it('should handle missing price gracefully', async () => {
             // Mock price waitFor to fail (second call)
             // First call (title) should succeed
-            mockLocator.waitFor
-                .mockResolvedValueOnce(undefined)
-                .mockRejectedValueOnce(new Error('Timeout'));
+            mockLocator.waitFor.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Timeout'));
 
             await detailPage.verifyProductDetailsLoaded();
 

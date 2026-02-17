@@ -52,7 +52,7 @@ describe('BasePage', () => {
             // Simulate failed security challenge response
             const mockResponse = {
                 url: () => `https://www.gigantti.fi/${config.ai.security?.vercelChallengePath}`,
-                status: () => 403
+                status: () => 403,
             };
 
             // Trigger the listener
@@ -60,7 +60,7 @@ describe('BasePage', () => {
 
             // Spy on the protected skipTest method
             // @ts-ignore - testing protected method
-            const skipSpy = vi.spyOn(basePage, 'skipTest').mockImplementation(() => { });
+            const skipSpy = vi.spyOn(basePage, 'skipTest').mockImplementation(() => {});
 
             await basePage.safeClick({ click: vi.fn() } as any);
 

@@ -9,7 +9,7 @@ export const mockOpenaiCreate = vi.fn();
 vi.mock('@google/generative-ai', () => {
     // Define a mock class that can be instantiated with 'new'
     class MockGoogleGenerativeAI {
-        constructor(_apiKey: string) { }
+        constructor(_apiKey: string) {}
         getGenerativeModel() {
             return {
                 generateContent: mockGeminiGenerateContent,
@@ -27,7 +27,7 @@ vi.mock('openai', () => {
                 create: mockOpenaiCreate,
             },
         };
-        constructor(_opts: unknown) { }
+        constructor(_opts: unknown) {}
     }
     return { default: MockOpenAI };
 });
@@ -38,7 +38,7 @@ vi.mock('@playwright/test', () => ({
         info: vi.fn().mockReturnValue({ annotations: [], project: { name: 'unit-test' } }),
         skip: vi.fn(),
     },
-    expect: vi.fn().mockImplementation((actual) => ({
+    expect: vi.fn().mockImplementation(actual => ({
         toPass: vi.fn().mockImplementation(async () => {
             if (typeof actual === 'function') {
                 await actual();
@@ -50,6 +50,6 @@ vi.mock('@playwright/test', () => ({
         toContainText: vi.fn(),
         not: {
             toBeVisible: vi.fn(),
-        }
+        },
     })),
 }));

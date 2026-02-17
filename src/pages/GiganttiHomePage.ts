@@ -35,7 +35,7 @@ export class GiganttiHomePage extends BasePage {
         const searchBtn = this.page.locator(searchButton).first();
         await this.safeClick(searchBtn);
 
-        return new CategoryPage(this.page, this.autoHealer);
+        return new CategoryPage(this.page, this.autoHealer, this.siteHandler);
     }
 
     async navigateToCategory(categoryName: string): Promise<CategoryPage> {
@@ -55,6 +55,6 @@ export class GiganttiHomePage extends BasePage {
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
         logger.debug(`✅ Navigated to ${categoryName} category.`);
 
-        return new CategoryPage(this.page, this.autoHealer);
+        return new CategoryPage(this.page, this.autoHealer, this.siteHandler);
     }
 }

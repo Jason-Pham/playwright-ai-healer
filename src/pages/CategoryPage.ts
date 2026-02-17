@@ -41,6 +41,6 @@ export class CategoryPage extends BasePage {
 
         // Dynamically import to avoid circular dependency
         const { ProductDetailPage: ProductDetailPageClass } = await import('./ProductDetailPage.js');
-        return new ProductDetailPageClass(this.page, undefined, this.siteHandler);
+        return new ProductDetailPageClass(this.page, this.autoHealer, this.siteHandler);
     }
 }
