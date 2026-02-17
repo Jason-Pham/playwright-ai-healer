@@ -13,6 +13,24 @@ test.describe('Self-Healing Demo', () => {
         // Ensure autoHealer is available
         expect(autoHealer).toBeDefined();
         if (!autoHealer) throw new Error('AutoHealer not initialized');
+
+        // MOCK AI RESPONSE to avoid rate limits and ensure test stability
+        // We are testing the AutoHealer logic, not the AI provider's uptime.
+        if (config.ai.provider === 'gemini') {
+            const mockGenerateContent = async () => ({
+                response: {
+                    text: () => 'button[type="submit"]', // return the correct selector
+                },
+            });
+            const mockGetGenerativeModel = () => ({
+                generateContent: mockGenerateContent,
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (autoHealer as any).gemini = {
+                getGenerativeModel: mockGetGenerativeModel,
+            };
+        }
+
         // Use POM to open the page
         await giganttiPage.open();
 
