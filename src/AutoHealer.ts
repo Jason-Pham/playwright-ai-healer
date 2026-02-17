@@ -137,6 +137,7 @@ export class AutoHealer {
 
         try {
             if (this.debug) logger.debug(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
+            await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
             await actionFn(selector);
         } catch (error) {
             logger.warn(`[AutoHealer] ${actionName} failed on: ${selector}. Initiating healing protocol (${this.provider})...`);

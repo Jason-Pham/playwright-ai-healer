@@ -33,8 +33,7 @@ export class CategoryPage extends BasePage {
     async clickFirstProduct(): Promise<ProductDetailPage> {
         logger.debug('🖱️ Clicking on first product...');
 
-        // Click on the first product card using AutoHealer for self-healing capability
-        await this.autoHealer.click('gigantti.productCard', { timeout: this.timeouts.productVisibility });
+        await this.safeClick(locators.gigantti.productCard, { timeout: this.timeouts.productVisibility });
 
         // Wait for navigation to product detail page
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
@@ -42,6 +41,6 @@ export class CategoryPage extends BasePage {
 
         // Dynamically import to avoid circular dependency
         const { ProductDetailPage: ProductDetailPageClass } = await import('./ProductDetailPage.js');
-        return new ProductDetailPageClass(this.page, this.autoHealer);
+        return new ProductDetailPageClass(this.page, undefined, this.siteHandler);
     }
 }

@@ -77,6 +77,7 @@ describe('AutoHealer Core Logic', () => {
             evaluate: vi.fn().mockResolvedValue('<html>mock dom</html>'),
             click: vi.fn(),
             fill: vi.fn(),
+            locator: vi.fn().mockReturnValue({ waitFor: vi.fn() }),
         };
 
         // Reset mocks

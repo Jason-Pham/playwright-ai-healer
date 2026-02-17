@@ -27,6 +27,7 @@ const createMockPage = (): Partial<Page> =>
         click: vi.fn(),
         fill: vi.fn(),
         evaluate: vi.fn().mockResolvedValue('<html><body><button id="btn">Click</button></body></html>'),
+        locator: vi.fn().mockReturnValue({ waitFor: vi.fn() }),
     }) as unknown as Partial<Page>;
 
 describe('AutoHealer', () => {
