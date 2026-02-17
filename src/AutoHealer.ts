@@ -152,7 +152,7 @@ export class AutoHealer {
                 // Update locator if we have a key
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
+                    await locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
@@ -325,28 +325,31 @@ export class AutoHealer {
      */
     private async getSimplifiedDOM(): Promise<string> {
         return await this.page.evaluate(() => {
-            // Create a clone to strip non-visual elements
-            const clone = document.documentElement.cloneNode(true) as HTMLElement;
+            // Helper to scrub PII
+            const scrubPII = (text: string): string => {
+                // Email regex
+                const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                // Simple phone regex (international or local)
+                const phoneRegex = /(\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}/g;
 
-            // 1. Remove non-visual/noisy tags
-            const removeTags = [
-                'script',
-                'style',
-                'svg',
-                'path',
-                'link',
-                'meta',
-                'noscript',
-                'iframe',
-                'video',
-                'audio',
-                'object',
-                'embed',
-            ];
-            removeTags.forEach(tag => {
-                const elements = clone.querySelectorAll(tag);
-                elements.forEach(el => el.remove());
-            });
+                return text.replace(emailRegex, '[EMAIL]').replace(phoneRegex, '[PHONE]');
+            };
+
+
+
+            // Allow-list for attributes to keep token count low and focus on structural attributes
+            const validAttrs = new Set([
+                'id', 'name', 'class', 'type', 'placeholder',
+                'aria-label', 'role', 'href', 'title', 'alt'
+            ]);
+
+            // Optimization: Clone is safer for structural integrity than custom serializer
+            // We apply PII scrubbing on the clone.
+            const clone = document.body.cloneNode(true) as HTMLElement;
+
+            // 1. Remove noise
+            const removeTags = ['script', 'style', 'svg', 'noscript', 'iframe', 'video', 'audio'];
+            removeTags.forEach(tag => clone.querySelectorAll(tag).forEach(el => el.remove()));
 
             // 2. Remove comments
             const iterator = document.createNodeIterator(clone, NodeFilter.SHOW_COMMENT);
@@ -355,47 +358,32 @@ export class AutoHealer {
                 currentNode.parentNode?.removeChild(currentNode);
             }
 
-            // 3. Clean attributes and truncate text
-            const walk = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
-            while (walk.nextNode()) {
-                const node = walk.currentNode;
-
+            // 3. Walk and Clean attributes
+            const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     const el = node as HTMLElement;
 
-                    // Remove mostly useless attributes for AI selection
-                    const keepAttrs = [
-                        'id',
-                        'name',
-                        'class',
-                        'type',
-                        'placeholder',
-                        'aria-label',
-                        'role',
-                        'href',
-                        'value',
-                        'title',
-                        'alt',
-                    ];
-                    // Also keep data-test attributes
+                    // Scrub Attributes
                     Array.from(el.attributes).forEach(attr => {
-                        const isDataTest = attr.name.startsWith('data-test');
-                        if (!keepAttrs.includes(attr.name) && !isDataTest) {
+                        if (attr.name === 'value' && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+                            el.setAttribute(attr.name, '[REDACTED]');
+                        } else if (!validAttrs.has(attr.name) && !attr.name.startsWith('data-test')) {
                             el.removeAttribute(attr.name);
                         }
                     });
-
-                    // Remove style attributes (noise)
-                    el.removeAttribute('style');
                 } else if (node.nodeType === Node.TEXT_NODE) {
-                    // Truncate very long text nodes (e.g. legal text, huge paragraphs)
-                    if (node.nodeValue && node.nodeValue.length > 200) {
-                        node.nodeValue = node.nodeValue.substring(0, 200) + '...';
+                    if (node.nodeValue) {
+                        node.nodeValue = scrubPII(node.nodeValue);
+                        if (node.nodeValue.length > 200) {
+                            node.nodeValue = node.nodeValue.substring(0, 200) + '...';
+                        }
                     }
                 }
             }
 
-            return clone.outerHTML;
+            return clone.innerHTML;
         });
     }
 }

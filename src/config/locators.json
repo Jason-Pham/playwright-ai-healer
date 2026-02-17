@@ -1,16 +1,16 @@
 {
   "gigantti": {
-    "searchInput": "#speedy-header-search",
-    "cookieBannerAccept": "button[aria-label=\"OK\"], .coi-banner__accept, #coiPage-1 .coi-banner__accept",
-    "categoryLink": "[data-test='main-navigation'] a[href*='/tietokoneet']",
-    "productCard": "[data-testid='product-card']",
-    "searchButton": "[data-testid='search-button']",
-    "navLink": "nav a:has-text('{}'), header a:has-text('{}')",
+    "searchInput": "input#search",
+    "searchButton": "button.search-btn",
+    "navLink": "a.nav-link:has-text('{}')",
+    "productCard": ".product-card",
     "productTitle": [
-      ".ProductPageHeader"
+      ".product-title",
+      "h1"
     ],
     "productPrice": [
-      "[data-cro=\"pdp-main-price-box\"]"
+      ".product-price",
+      ".price"
     ]
   }
 }
