@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { Page } from '@playwright/test';
-import { mockGeminiGenerateContent } from './test-setup.js';
-import { AutoHealer } from './AutoHealer.js';
-import { LocatorManager } from './utils/LocatorManager.js';
+import { mockGeminiGenerateContent } from '../../src/test-setup.js';
+import { AutoHealer } from '../../src/AutoHealer.js';
+import { LocatorManager } from '../../src/utils/LocatorManager.js';
 
 const { mockLocatorManager } = vi.hoisted(() => {
     return {
@@ -225,7 +225,7 @@ describe('AutoHealer', () => {
             // Use 'app.btn' which our mock LocatorManager recognizes
             await healer.click('app.btn');
 
-            const { LocatorManager } = await import('./utils/LocatorManager.js');
+            const { LocatorManager } = await import('../../src/utils/LocatorManager.js');
             const manager = LocatorManager.getInstance();
             // Verify updateLocator was called with correct args
             expect(manager.updateLocator).toHaveBeenCalledWith('app.btn', '#healed-selector');
