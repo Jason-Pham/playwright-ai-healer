@@ -89,29 +89,16 @@ export class AutoHealer {
      * @throws Error if healing fails or element still cannot be found
      */
     async click(selectorOrKey: string, options?: ClickOptions) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting click on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.click(selector, { timeout: config.test.timeouts.short, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Click failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.click(result.selector, options);
-
-                // Update locator if we have a key
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error; // Re-throw if healing failed
+        await this.executeAction(
+            selectorOrKey,
+            'click',
+            async (selector) => {
+                await this.page.click(selector, { timeout: config.test.timeouts.short, ...options });
+            },
+            async (selector) => {
+                await this.page.click(selector, options);
             }
-        }
+        );
     }
 
     /**
@@ -126,19 +113,37 @@ export class AutoHealer {
      * @throws Error if healing fails or element still cannot be found
      */
     async fill(selectorOrKey: string, value: string, options?: FillOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'fill',
+            async (selector) => {
+                await this.page.fill(selector, value, { timeout: config.test.timeouts.short, ...options });
+            },
+            async (selector) => {
+                await this.page.fill(selector, value, options);
+            }
+        );
+    }
+
+    private async executeAction(
+        selectorOrKey: string,
+        actionName: string,
+        actionFn: (selector: string) => Promise<void>,
+        retryFn: (selector: string) => Promise<void>
+    ) {
         const locatorManager = LocatorManager.getInstance();
         const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
         const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
 
         try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting fill on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.fill(selector, value, { timeout: config.test.timeouts.short, ...options });
+            if (this.debug) logger.debug(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
+            await actionFn(selector);
         } catch (error) {
-            logger.warn(`[AutoHealer] Fill failed. Initiating healing protocol (${this.provider})...`);
+            logger.warn(`[AutoHealer] ${actionName} failed. Initiating healing protocol (${this.provider})...`);
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.fill(result.selector, value, options);
+                await retryFn(result.selector);
 
                 // Update locator if we have a key
                 if (locatorKey) {
