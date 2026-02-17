@@ -152,7 +152,7 @@ export class AutoHealer {
                 // Update locator if we have a key
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
+                    await locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
