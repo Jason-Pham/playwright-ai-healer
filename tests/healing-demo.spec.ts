@@ -10,6 +10,9 @@ import { config } from '../src/config/index.js';
  */
 test.describe('Self-Healing Demo', () => {
     test('should heal a broken search button selector', async ({ giganttiPage, autoHealer }) => {
+        // Ensure autoHealer is available
+        expect(autoHealer).toBeDefined();
+        if (!autoHealer) throw new Error('AutoHealer not initialized');
         // Use POM to open the page
         await giganttiPage.open();
 
