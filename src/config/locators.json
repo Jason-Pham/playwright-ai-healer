@@ -11,13 +11,10 @@
     "checkout": "#checkout-btn",
     "navLink": "//a[contains(text(), '{}')]",
     "productTitle": [
-      "h1",
-      ".product-title"
+      ".ProductPageHeader"
     ],
     "productPrice": [
-      ".price-main",
-      ".product-price",
-      ".price"
+      "[data-cro='pdp-main-price-box']"
     ]
   }
 }
