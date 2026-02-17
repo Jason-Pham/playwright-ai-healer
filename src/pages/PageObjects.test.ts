@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Page, Locator } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { GiganttiHomePage } from './GiganttiHomePage.js';
 import { CategoryPage } from './CategoryPage.js';
 import { ProductDetailPage } from './ProductDetailPage.js';
 import { AutoHealer } from '../AutoHealer.js';
-import { GiganttiHandler } from '../utils/SiteHandler.js';
 import { config } from '../config/index.js';
 
 // Mock dependencies
