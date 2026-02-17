@@ -22,12 +22,17 @@ vi.mock('./utils/LocatorManager.js', () => ({
 }));
 
 // Mock page factory
-const createMockPage = (): Partial<Page> =>
-    ({
+const createMockPage = (): Partial<Page> => {
+    const mockLocator = {
+        waitFor: vi.fn().mockResolvedValue(undefined),
+    };
+    return {
         click: vi.fn(),
         fill: vi.fn(),
         evaluate: vi.fn().mockResolvedValue('<html><body><button id="btn">Click</button></body></html>'),
-    }) as unknown as Partial<Page>;
+        locator: vi.fn().mockReturnValue(mockLocator),
+    } as unknown as Partial<Page>;
+};
 
 describe('AutoHealer', () => {
     let mockPage: Partial<Page>;
