@@ -6,6 +6,7 @@ import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
 import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
 
+
 /**
  * AutoHealer - Self-healing test automation agent
  *
@@ -137,7 +138,7 @@ export class AutoHealer {
 
         try {
             if (this.debug)
-                logger.debug(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
+                logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
                 await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
             } catch (e) {
@@ -223,17 +224,25 @@ export class AutoHealer {
                     try {
                         if (this.provider === 'openai' && this.openai) {
                             logger.info(`[AutoHealer:heal] Sending request to OpenAI (model: ${this.modelName})...`);
-                            const completion = await this.openai.chat.completions.create({
-                                messages: [{ role: 'user', content: promptText }],
-                                model: this.modelName,
-                            });
+                            const completion = await this.withTimeout(
+                                this.openai.chat.completions.create({
+                                    messages: [{ role: 'user', content: promptText }],
+                                    model: this.modelName,
+                                }),
+                                config.test.timeouts.default,
+                                'OpenAI'
+                            );
                             result = completion.choices[0]?.message.content?.trim();
                             logger.info(`[AutoHealer:heal] OpenAI response received. Result: "${result}"`);
                             logger.debug(`[AutoHealer:heal] Full completion choices: ${JSON.stringify(completion.choices)}`);
                         } else if (this.provider === 'gemini' && this.gemini) {
                             logger.info(`[AutoHealer:heal] Sending request to Gemini (model: ${this.modelName})...`);
                             const model = this.gemini.getGenerativeModel({ model: this.modelName });
-                            const resultResult = await model.generateContent(promptText);
+                            const resultResult = await this.withTimeout(
+                                model.generateContent(promptText),
+                                config.test.timeouts.default,
+                                'Gemini'
+                            );
                             result = resultResult.response.text().trim();
                             logger.info(`[AutoHealer:heal] Gemini response received. Result: "${result}"`);
                         } else {
@@ -249,7 +258,7 @@ export class AutoHealer {
                         logger.error(`[AutoHealer:heal] AI request FAILED. Status: ${reqErrorTyped.status}, Message: "${reqErrorTyped.message}"`);
                         logger.debug(`[AutoHealer:heal] Full error object: ${JSON.stringify(reqErrorTyped, Object.getOwnPropertyNames(reqErrorTyped))}`);
 
-                        // Handle 503 Service Unavailable / 5xx Server Errors
+                        // Handle 503 Service Unavailable / 5xx Server Errors / Timeouts
                         const isServerError =
                             (reqErrorTyped.status && reqErrorTyped.status >= 500) ||
                             errorMessage.includes('503') ||
@@ -257,7 +266,8 @@ export class AutoHealer {
                             errorMessage.includes('service unavailable') ||
                             errorMessage.includes('overloaded') ||
                             errorMessage.includes('internal server error') ||
-                            errorMessage.includes('bad gateway');
+                            errorMessage.includes('bad gateway') ||
+                            errorMessage.includes('timed out');
 
                         logger.info(`[AutoHealer:heal] Error classification: isServerError=${isServerError}`);
 
@@ -371,6 +381,23 @@ export class AutoHealer {
         }
 
         return healingResult;
+    }
+
+    /**
+     * Wraps a promise with a timeout to prevent hanging API calls
+     */
+    private async withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error(`[AutoHealer] ${label} API request timed out after ${ms / 1000}s`));
+            }, ms);
+        });
+        try {
+            return await Promise.race([promise, timeoutPromise]);
+        } finally {
+            clearTimeout(timeoutId!);
+        }
     }
 
     /**
