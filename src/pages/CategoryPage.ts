@@ -4,6 +4,8 @@ import { config } from '../config/index.js';
 import { LocatorManager } from '../utils/LocatorManager.js';
 import type { ProductDetailPage } from './ProductDetailPage.js';
 
+import locators from '../config/locators.json' with { type: 'json' };
+
 /**
  * Category/Product Listing Page
  * Represents pages showing a list of products (category pages, search results, etc.)
@@ -26,9 +28,8 @@ export class CategoryPage extends BasePage {
         // Wait for page to fully load
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
-        // Resolve selector dynamically from LocatorManager to pick up any healed values
-        const productCardSelector = this.getProductCardSelector();
-        const productSelectors = [productCardSelector];
+        // Primary selector from actual Gigantti search page structure
+        const productSelectors = [locators.gigantti.productCard];
 
         // Wait for products to be visible
         await this.findFirstElement(productSelectors, {
@@ -42,12 +43,7 @@ export class CategoryPage extends BasePage {
     async clickFirstProduct(): Promise<ProductDetailPage> {
         logger.debug('🖱️ Clicking on first product...');
 
-        // Resolve selector dynamically from LocatorManager to pick up any healed values
-        const productCardSelector = this.getProductCardSelector();
-
-        // Click on the first product card using correct Gigantti selector
-        const firstProduct = this.page.locator(productCardSelector).first();
-        await firstProduct.click();
+        await this.safeClick(locators.gigantti.productCard, { timeout: this.timeouts.productVisibility });
 
         // Wait for navigation to product detail page
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
@@ -55,6 +51,6 @@ export class CategoryPage extends BasePage {
 
         // Dynamically import to avoid circular dependency
         const { ProductDetailPage: ProductDetailPageClass } = await import('./ProductDetailPage.js');
-        return new ProductDetailPageClass(this.page, this.autoHealer);
+        return new ProductDetailPageClass(this.page, this.autoHealer, this.siteHandler);
     }
 }

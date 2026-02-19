@@ -1,16 +1,35 @@
 import type { Page, Locator } from '@playwright/test';
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { AutoHealer } from '../AutoHealer.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
+import { type SiteHandler, GiganttiHandler } from '../utils/SiteHandler.js';
 
 export abstract class BasePage {
-    protected page: Page;
-    protected autoHealer: AutoHealer;
+    public page: Page;
+    public autoHealer: AutoHealer | undefined;
+    protected siteHandler: SiteHandler;
 
-    constructor(page: Page, autoHealer: AutoHealer) {
+    private securityChallengeFailed = false;
+
+    constructor(page: Page, autoHealer?: AutoHealer, siteHandler: SiteHandler = new GiganttiHandler()) {
         this.page = page;
         this.autoHealer = autoHealer;
+        this.siteHandler = siteHandler;
+
+        // Monitor for Vercel security challenge failures
+        this.page.on('response', response => {
+            if (
+                config.ai.security?.vercelChallengePath &&
+                response.url().includes(config.ai.security.vercelChallengePath)
+            ) {
+                const status = response.status();
+                if (status >= 400) {
+                    logger.warn(`Vercel security challenge failed with status ${status}`);
+                    this.securityChallengeFailed = true;
+                }
+            }
+        });
     }
 
     async goto(url: string) {
@@ -21,90 +40,84 @@ export abstract class BasePage {
         await this.page.waitForTimeout(ms);
     }
 
-    /**
-     * Wait for page to be fully loaded.
-     * Consolidates waiting for domcontentloaded and potentially other states.
-     */
     async waitForPageLoad(options?: { timeout?: number; networking?: boolean }): Promise<void> {
         await this.page.waitForLoadState('load', options);
         await this.page.waitForLoadState('domcontentloaded', options);
     }
 
-    private hasWaitedForCookiePolicy = false;
+    private overlaysDismissed = false;
 
-    /**
-     * Dismiss cookie/marketing overlays before performing action
-     * Default implementation handles Gigantti cookie banners
-     * Override this in subclasses for site-specific handling
-     */
+    protected skipTest(reason: string): void {
+        test.skip(true, reason);
+    }
+
+    protected checkSecurityChallenge(): void {
+        if (this.securityChallengeFailed) {
+            logger.warn('Skipping test due to failed security challenge.');
+            this.skipTest('Aborting test due to Vercel security challenge failure');
+        }
+    }
+
     protected async dismissOverlaysBeforeAction(): Promise<void> {
+        this.checkSecurityChallenge();
         await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
+        await this.siteHandler.dismissOverlays(this.page);
+        this.overlaysDismissed = true;
+    }
 
-        try {
-            await this.page.waitForResponse(
-                resp =>
-                    resp.url().includes('policy.app.cookieinformation.com/cookie-data/gigantti.fi/cabl.json') &&
-                    resp.status() === 200,
-                { timeout: config.test.timeouts.default }
-            );
-        } catch {
-            // Ignore timeout - likely already loaded or cached
+    private async ensureOverlaysDismissed(): Promise<void> {
+        if (!this.overlaysDismissed) {
+            await this.dismissOverlaysBeforeAction();
+            this.overlaysDismissed = true;
         }
+    }
 
-        try {
-            // Handle Gigantti cookie consent banner
-            const cookieBtn = this.page
-                .locator('button[aria-label="OK"], .coi-banner__accept, #coiPage-1 .coi-banner__accept')
-                .first();
-
-            if (await cookieBtn.isVisible({ timeout: config.test.timeouts.default }).catch(() => false)) {
-                logger.debug('Dismissing cookie banner before action...');
-                await cookieBtn.click({ force: true });
-
-                // Wait for body.noScroll to be removed
-                try {
-                    await this.page.waitForFunction(() => !document.body.classList.contains('noScroll'), {
-                        timeout: config.test.timeouts.default,
-                    });
-                } catch {
-                    // Ignore - not all pages have noScroll
-                }
+    async safeClick(
+        selectorOrLocator: string | Locator,
+        options?: { force?: boolean; timeout?: number }
+    ): Promise<void> {
+        await this.ensureOverlaysDismissed();
+        if (typeof selectorOrLocator === 'string') {
+            if (this.autoHealer) {
+                await this.autoHealer.click(selectorOrLocator, options);
+            } else {
+                await this.page.click(selectorOrLocator, options);
             }
-        } catch {
-            // Ignore - overlays may not be present
+        } else {
+            await selectorOrLocator.click(options);
         }
     }
 
-    /**
-     * Click an element after dismissing any overlays
-     */
-    async safeClick(locator: Locator, options?: { force?: boolean; timeout?: number }): Promise<void> {
-        await locator.click(options);
-    }
+    async safeFill(
+        selectorOrLocator: string | Locator,
+        value: string,
+        options?: { force?: boolean; timeout?: number }
+    ): Promise<void> {
+        await this.ensureOverlaysDismissed();
 
-    /**
-     * Fill an input with reliable retry logic:
-     * 1. Dismiss overlays
-     * 2. Attempt: Focus -> Clear -> Fill -> Verify Value
-     * 3. Retry on failure
-     */
-    async safeFill(locator: Locator, value: string, options?: { force?: boolean; timeout?: number }): Promise<void> {
-        await this.dismissOverlaysBeforeAction();
+        if (typeof selectorOrLocator === 'string') {
+            if (this.autoHealer) {
+                await this.autoHealer.fill(selectorOrLocator, value, options);
+                return;
+            } else {
+                await this.page.fill(selectorOrLocator, value, options);
+                return;
+            }
+        }
+
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
         await expect(async () => {
-            // Short timeouts for internal steps to allow faster retries
-            // but ensure we give enough time for the action itself
-            await locator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
-            await locator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
+            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
+            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
 
-            await locator.fill(value, {
+            await selectorOrLocator.fill(value, {
                 force: true,
                 timeout: config.test.timeouts.short,
                 ...options,
             });
 
-            await expect(locator).toHaveValue(value, { timeout: config.test.timeouts.short });
+            await expect(selectorOrLocator).toHaveValue(value, { timeout: config.test.timeouts.short });
         }).toPass({ timeout });
     }
 
@@ -112,7 +125,7 @@ export abstract class BasePage {
      * Verify URL after dismissing any overlays and waiting for page load
      */
     async safeVerifyURL(pattern: RegExp, options?: { timeout?: number }): Promise<void> {
-        await this.dismissOverlaysBeforeAction();
+        await this.ensureOverlaysDismissed();
         await expect(this.page).toHaveURL(pattern, options);
     }
 

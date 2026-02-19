@@ -1,10 +1,20 @@
 {
-    "gigantti": {
-        "searchInput": "#speedy-header-search",
-        "cookieBannerAccept": "button.coi-banner__accept",
-        "categoryLink": "[data-test='main-navigation'] a[href*='/tietokoneet']",
-        "productCard": "[data-test='product-card']",
-        "productTitle": ".ProductPageHeader",
-        "productPrice": "[data-cro=\"pdp-main-price-box\"]"
-    }
+  "test": {
+    "concurrentString": "value-0"
+  },
+  "gigantti": {
+    "cookieBannerAccept": "#coiPage-1 .coi-banner__accept",
+    "searchInput": "input[type='search']",
+    "searchButton": "button[type='submit']",
+    "productCard": "[data-testid='product-card']",
+    "addToCart": ".add-to-cart",
+    "checkout": "#checkout-btn",
+    "navLink": "//a[contains(text(), '{}')]",
+    "productTitle": [
+      ".ProductPageHeader"
+    ],
+    "productPrice": [
+      "[data-cro='pdp-main-price-box']"
+    ]
+  }
 }

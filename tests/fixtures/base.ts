@@ -5,7 +5,7 @@ import { config } from '../../src/config/index.js';
 
 // Define custom fixtures
 type MyFixtures = {
-    autoHealer: AutoHealer;
+    autoHealer: AutoHealer | undefined;
     giganttiPage: GiganttiHomePage;
 };
 
@@ -23,12 +23,14 @@ export const test = base.extend<MyFixtures>({
             apiKeys = ai.gemini.apiKey;
             model = ai.gemini.modelName;
         } else if (ai.openai.apiKeys && ai.openai.apiKeys.length > 0) {
+            console.log('DEBUG: Checking openai keys. Length:', ai.openai.apiKeys.length);
             provider = 'openai';
             // Type assertion or minor adjustment needed if AutoHealer constructor expects string | string[]
             // We changed the constructor, so this is fine.
-            apiKey = ai.openai.apiKeys as unknown as string;
+            apiKeys = ai.openai.apiKeys;
             model = ai.openai.modelName;
         } else {
+            console.log('DEBUG: No API keys found for Gemini or OpenAI');
             throw new Error('❌ API Key missing! Check src/config/index.ts or .env');
         }
 

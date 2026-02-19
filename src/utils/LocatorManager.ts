@@ -1,6 +1,8 @@
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import * as lockfile from 'proper-lockfile';
 import { logger } from './Logger.js';
 import type { LocatorStore } from '../types.js';
 
@@ -66,7 +68,7 @@ export class LocatorManager {
     public getLocator(key: string): string | null {
         try {
             const parts = key.split('.');
-            let current: string | LocatorMap | undefined = this.locators;
+            let current: string | LocatorStore | undefined = this.locators;
 
             for (const part of parts) {
                 if (current === undefined || current === null || typeof current === 'string') return null;
@@ -88,8 +90,23 @@ export class LocatorManager {
      * @param key - Dot-separated path to the locator
      * @param newSelector - New CSS selector value
      */
-    public updateLocator(key: string, newSelector: string) {
+    public async updateLocator(key: string, newSelector: string): Promise<void> {
+        let release: (() => Promise<void>) | undefined;
+
         try {
+            // Wait for lock with retries
+            release = await lockfile.lock(this.locatorsPath, {
+                retries: {
+                    retries: 5,
+                    factor: 2,
+                    minTimeout: 100,
+                    maxTimeout: 1000,
+                },
+            });
+
+            // Re-read file to get latest state after acquiring lock
+            this.loadLocators();
+
             const parts = key.split('.');
             let current: LocatorStore = this.locators;
 
@@ -121,7 +138,12 @@ export class LocatorManager {
             this.saveLocators();
             logger.info(`[LocatorManager] Updated locator '${key}' to '${newSelector}'`);
         } catch (error) {
+            console.error('[LocatorManager] updateLocator failed:', error);
             logger.error(`[LocatorManager] Failed to update locator '${key}': ${String(error)}`);
+        } finally {
+            if (release) {
+                await release();
+            }
         }
     }
 

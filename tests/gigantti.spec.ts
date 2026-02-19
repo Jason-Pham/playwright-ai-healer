@@ -1,5 +1,11 @@
-import { test } from './fixtures/base.js';
+import { test as base } from './fixtures/base.js';
 import { config } from '../src/config/index.js';
+
+const test = base.extend({
+    autoHealer: async ({}, use) => {
+        await use(undefined);
+    },
+});
 
 test.describe('Gigantti.fi E2E Tests', () => {
     test('should search for a product and verify results', async ({ giganttiPage }) => {

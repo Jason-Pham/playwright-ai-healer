@@ -42,6 +42,7 @@ export default tseslint.config(
         rules: {
             'playwright/expect-expect': 'off',
             'playwright/no-skipped-test': 'off',
+            'playwright/no-standalone-expect': 'off',
         }
     },
     {

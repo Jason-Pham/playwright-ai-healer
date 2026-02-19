@@ -35,8 +35,21 @@ vi.mock('openai', () => {
 // Mock @playwright/test
 vi.mock('@playwright/test', () => ({
     test: {
-        info: vi.fn().mockReturnValue({ annotations: [] }),
+        info: vi.fn().mockReturnValue({ annotations: [], project: { name: 'unit-test' } }),
         skip: vi.fn(),
     },
-    expect: vi.fn(),
+    expect: vi.fn().mockImplementation(actual => ({
+        toPass: vi.fn().mockImplementation(async () => {
+            if (typeof actual === 'function') {
+                await actual();
+            }
+        }),
+        toHaveURL: vi.fn(),
+        toHaveValue: vi.fn(),
+        toBeVisible: vi.fn(),
+        toContainText: vi.fn(),
+        not: {
+            toBeVisible: vi.fn(),
+        },
+    })),
 }));

@@ -17,9 +17,10 @@ if (fs.existsSync(envPath)) {
 
 export default defineConfig({
     testDir: './tests',
+    testIgnore: 'tests/unit/**',
     timeout: parseInt(process.env['TEST_TIMEOUT'] || '120000', 10),
     retries: process.env['CI'] ? 2 : 0,
-    workers: 4,
+    workers: process.env['CI'] ? 2 : 4,
     fullyParallel: true,
 
     // Generate HTML report for CI artifacts
@@ -80,12 +81,7 @@ export default defineConfig({
         },
         {
             name: 'webkit',
-            use: {
-                ...devices['Desktop Safari'],
-                launchOptions: {
-                    slowMo: 100,
-                },
-            },
+            use: { ...devices['Desktop Safari'] },
         },
         {
             name: 'edge',

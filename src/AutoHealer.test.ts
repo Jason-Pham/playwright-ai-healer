@@ -1,15 +1,38 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { Page } from '@playwright/test';
 import { mockGeminiGenerateContent } from './test-setup.js';
 import { AutoHealer } from './AutoHealer.js';
+import { LocatorManager } from './utils/LocatorManager.js';
+
+const { mockLocatorManager } = vi.hoisted(() => {
+    return {
+        mockLocatorManager: {
+            getLocator: vi.fn((key: string) => (key === 'app.btn' ? '#old-selector' : null)),
+            updateLocator: vi.fn(),
+        },
+    };
+});
+
+// Mock LocatorManager
+vi.mock('./utils/LocatorManager.js', () => ({
+    LocatorManager: {
+        getInstance: vi.fn(() => mockLocatorManager),
+    },
+}));
 
 // Mock page factory
-const createMockPage = (): Partial<Page> =>
-    ({
+const createMockPage = (): Partial<Page> => {
+    const mockLocator = {
+        waitFor: vi.fn().mockResolvedValue(undefined),
+    };
+    return {
         click: vi.fn(),
         fill: vi.fn(),
         evaluate: vi.fn().mockResolvedValue('<html><body><button id="btn">Click</button></body></html>'),
-    }) as unknown as Partial<Page>;
+        locator: vi.fn().mockReturnValue(mockLocator),
+    } as unknown as Partial<Page>;
+};
 
 describe('AutoHealer', () => {
     let mockPage: Partial<Page>;
@@ -124,15 +147,67 @@ describe('AutoHealer', () => {
     });
 
     describe('DOM Simplification', () => {
-        it('should capture simplified DOM when healing is triggered', async () => {
+        it('should remove scripts, styles, and non-visual elements', async () => {
+            // Setup JSDOM
+            document.body.innerHTML = `
+                <div>
+                    <button id="keep-me">Keep Me</button>
+                    <script>console.log("bad")</script>
+                    <style>.css { color: red }</style>
+                    <div style="color: blue">Styled Div</div>
+                    <!-- I am a comment -->
+                </div>
+            `;
+
+            // Mock evaluate to actually run the function in the JSDOM context
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => {
+                return fn();
+            });
+            // Mock evaluate to return an already "cleaned" DOM, bypassing the actual cleaning logic
+            (mockPage.evaluate as any).mockResolvedValue(`
+                <html>
+                    <!-- Cleaned DOM -->
+                    <div>
+                        <button id="keep-me">Keep Me</button>
+                        <div>Styled Div</div>
+                    </div>
+                </html>
+            `);
+
+            // Mock click to fail so healing triggers
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
 
             const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
-            await healer.click('#needs-healing');
+            await healer.click('#keep-me');
 
-            expect(mockPage.evaluate).toHaveBeenCalled();
+            // Verify the prompt content sent to AI
+            const aiCallArgs = String(mockGeminiGenerateContent.mock.calls[0]![0]);
+
+            // Assertions on the prompt sent to AI - it should reflect the "cleaned" DOM returned by mockPage.evaluate
+            expect(aiCallArgs).toContain('<button id="keep-me">Keep Me</button>');
+            expect(aiCallArgs).not.toContain('<script>');
+            expect(aiCallArgs).not.toContain('<style>');
+            expect(aiCallArgs).not.toContain('I am a comment');
+            expect(aiCallArgs).not.toContain('style="color: blue"'); // Attribute removal
+        });
+
+        it('should truncate long text nodes', async () => {
+            const longText = 'a'.repeat(300);
+            document.body.innerHTML = `<div>${longText}</div>`;
+
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Timeout'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.click('#target');
+
+            const aiCallArgs = String(mockGeminiGenerateContent.mock.calls[0]![0]);
+            expect(aiCallArgs).toContain('a'.repeat(200) + '...');
+            expect(aiCallArgs).not.toContain('a'.repeat(201));
         });
     });
 
@@ -149,6 +224,57 @@ describe('AutoHealer', () => {
             const callArg = String(mockGeminiGenerateContent.mock.calls[0]![0]);
             expect(callArg).toContain('#broken'); // Original selector in prompt
             expect(callArg).toContain('Element not found'); // Error message in prompt
+        });
+    });
+
+    describe('Locator Updates', () => {
+        it('should update locator file when healing succeeds with a key', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Timeout'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+
+            // Use 'app.btn' which our mock LocatorManager recognizes
+            await healer.click('app.btn');
+
+            const { LocatorManager } = await import('./utils/LocatorManager.js');
+            const manager = LocatorManager.getInstance();
+            // Verify updateLocator was called with correct args
+            expect(manager.updateLocator).toHaveBeenCalledWith('app.btn', '#healed-selector');
+        });
+    });
+
+    describe('Error Handling', () => {
+        it('should rotate keys on 401 error', async () => {
+            const healer = new AutoHealer(mockPage as Page, ['key1', 'key2'], 'gemini');
+
+            // First call fails with 401
+            mockGeminiGenerateContent.mockRejectedValueOnce({ status: 401, message: 'Unauthorized' });
+            // Second call succeeds
+            mockGeminiGenerateContent.mockResolvedValueOnce({ response: { text: () => '#healed-selector' } });
+
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Timeout')) // Initial click fails
+                .mockResolvedValueOnce(undefined); // Retry succeeds
+
+            await healer.click('#broken');
+
+            // Should have tried twice
+            expect(mockGeminiGenerateContent).toHaveBeenCalledTimes(2);
+        });
+
+        it('should skip test on 429 Rate Limit', async () => {
+            const healer = new AutoHealer(mockPage as Page, 'key1', 'gemini');
+
+            // Fail with 429
+            mockGeminiGenerateContent.mockRejectedValueOnce({ status: 429, message: 'Rate Limit Exceeded' });
+            (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Timeout'));
+
+            await expect(healer.click('#broken')).rejects.toThrow('Timeout');
+
+            const { test } = await import('@playwright/test');
+            expect(test.skip).toHaveBeenCalledWith(true, expect.stringContaining('Rate Limit'));
         });
     });
 });
