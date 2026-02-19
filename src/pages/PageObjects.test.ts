@@ -24,8 +24,25 @@ vi.mock('../config/locators.json', () => ({
 vi.mock('../utils/Logger.js', () => ({
     logger: {
         debug: vi.fn(),
+        info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
+    },
+}));
+
+// Mock LocatorManager - ProductDetailPage uses this, not raw locators.json
+vi.mock('../utils/LocatorManager.js', () => ({
+    LocatorManager: {
+        getInstance: vi.fn(() => ({
+            getLocator: vi.fn((key: string) => {
+                const map: Record<string, string> = {
+                    'gigantti.productTitle': '.title',
+                    'gigantti.productPrice': '.price',
+                };
+                return map[key] ?? null;
+            }),
+            updateLocator: vi.fn(),
+        })),
     },
 }));
 

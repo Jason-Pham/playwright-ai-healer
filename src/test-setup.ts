@@ -1,6 +1,10 @@
 // Test setup file for proper mock hoisting
 import { vi } from 'vitest';
 
+// Set dummy environment variables so config/index.ts validation passes in tests
+process.env.GEMINI_API_KEY ??= 'test-dummy-key';
+process.env.TEST_ENV ??= 'dev';
+
 // Create controllable mock functions
 export const mockGeminiGenerateContent = vi.fn();
 export const mockOpenaiCreate = vi.fn();
@@ -9,7 +13,7 @@ export const mockOpenaiCreate = vi.fn();
 vi.mock('@google/generative-ai', () => {
     // Define a mock class that can be instantiated with 'new'
     class MockGoogleGenerativeAI {
-        constructor(_apiKey: string) {}
+        constructor(_apiKey: string) { }
         getGenerativeModel() {
             return {
                 generateContent: mockGeminiGenerateContent,
@@ -27,7 +31,7 @@ vi.mock('openai', () => {
                 create: mockOpenaiCreate,
             },
         };
-        constructor(_opts: unknown) {}
+        constructor(_opts: unknown) { }
     }
     return { default: MockOpenAI };
 });
