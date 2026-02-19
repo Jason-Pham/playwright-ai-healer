@@ -90,6 +90,9 @@ export const config = {
             cookie: 10000,
             urlVerify: 15000,
             productVisibility: 30000,
+            // AutoHealer action timeouts
+            click: 10000,
+            fill: 10000,
             // Action timeouts
             short: 5000,
             stabilization: 200,
