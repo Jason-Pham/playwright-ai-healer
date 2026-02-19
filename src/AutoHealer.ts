@@ -178,14 +178,14 @@ export class AutoHealer {
             await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
         } catch (error) {
             logger.warn(`[AutoHealer] Hover failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.hover(newSelector, options);
+            const result = await this.heal(selector, error as Error);
+            if (result) {
+                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                await this.page.hover(result.selector, options);
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
+                    locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
@@ -206,14 +206,14 @@ export class AutoHealer {
             await this.page.locator(selector).pressSequentially(text, { ...(options?.delay !== undefined && { delay: options.delay }), timeout: options?.timeout ?? config.test.timeouts.fill });
         } catch (error) {
             logger.warn(`[AutoHealer] Type failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.locator(newSelector).pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
+            const result = await this.heal(selector, error as Error);
+            if (result) {
+                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                await this.page.locator(result.selector).pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
+                    locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
@@ -234,14 +234,14 @@ export class AutoHealer {
             await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
         } catch (error) {
             logger.warn(`[AutoHealer] SelectOption failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.selectOption(newSelector, values, options);
+            const result = await this.heal(selector, error as Error);
+            if (result) {
+                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                await this.page.selectOption(result.selector, values, options);
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
+                    locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
@@ -262,14 +262,14 @@ export class AutoHealer {
             await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
         } catch (error) {
             logger.warn(`[AutoHealer] Check failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.check(newSelector, options);
+            const result = await this.heal(selector, error as Error);
+            if (result) {
+                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                await this.page.check(result.selector, options);
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
+                    locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
@@ -290,14 +290,14 @@ export class AutoHealer {
             await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
         } catch (error) {
             logger.warn(`[AutoHealer] Uncheck failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.uncheck(newSelector, options);
+            const result = await this.heal(selector, error as Error);
+            if (result) {
+                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                await this.page.uncheck(result.selector, options);
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
+                    locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
@@ -318,14 +318,14 @@ export class AutoHealer {
             await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
         } catch (error) {
             logger.warn(`[AutoHealer] WaitForSelector failed. Initiating healing protocol (${this.provider})...`);
-            const newSelector = await this.heal(selector, error as Error);
-            if (newSelector) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${newSelector}`);
-                await this.page.waitForSelector(newSelector, options ?? {});
+            const result = await this.heal(selector, error as Error);
+            if (result) {
+                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                await this.page.waitForSelector(result.selector, options ?? {});
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, newSelector);
+                    locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
                 throw error;
