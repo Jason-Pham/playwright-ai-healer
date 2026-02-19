@@ -5,7 +5,7 @@ import { config } from '../../src/config/index.js';
 
 // Define custom fixtures
 type MyFixtures = {
-    autoHealer: AutoHealer;
+    autoHealer: AutoHealer | undefined;
     giganttiPage: GiganttiHomePage;
 };
 
@@ -14,26 +14,27 @@ export const test = base.extend<MyFixtures>({
         const { ai } = config;
 
         // Determine provider based on available keys using our config logic
-        // This logic is slightly duplicated from config but simplified here for flow
         let provider: 'openai' | 'gemini';
-        let apiKey: string;
+        let apiKeys: string | string[];
         let model: string;
 
         if (ai.gemini.apiKey) {
             provider = 'gemini';
-            apiKey = ai.gemini.apiKey;
+            apiKeys = ai.gemini.apiKey;
             model = ai.gemini.modelName;
         } else if (ai.openai.apiKeys && ai.openai.apiKeys.length > 0) {
+            console.log('DEBUG: Checking openai keys. Length:', ai.openai.apiKeys.length);
             provider = 'openai';
             // Type assertion or minor adjustment needed if AutoHealer constructor expects string | string[]
             // We changed the constructor, so this is fine.
-            apiKey = ai.openai.apiKeys as any;
+            apiKeys = ai.openai.apiKeys;
             model = ai.openai.modelName;
         } else {
+            console.log('DEBUG: No API keys found for Gemini or OpenAI');
             throw new Error('❌ API Key missing! Check src/config/index.ts or .env');
         }
 
-        const healer = new AutoHealer(page, apiKey, provider, model, true);
+        const healer = new AutoHealer(page, apiKeys, provider, model, true);
         await use(healer);
     },
 

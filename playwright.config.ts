@@ -8,23 +8,23 @@ const testEnv = process.env['TEST_ENV'] || 'dev';
 const envPath = path.resolve(`.env.${testEnv}`);
 
 if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath, quiet: true } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dotenv.config({ path: envPath, override: true, quiet: true } as any);
 } else {
-    dotenv.config({ quiet: true } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dotenv.config({ override: true, quiet: true } as any);
 }
 
 export default defineConfig({
     testDir: './tests',
+    testIgnore: 'tests/unit/**',
     timeout: parseInt(process.env['TEST_TIMEOUT'] || '120000', 10),
     retries: process.env['CI'] ? 2 : 0,
-    workers: 4,
+    workers: process.env['CI'] ? 2 : 4,
     fullyParallel: true,
 
     // Generate HTML report for CI artifacts
-    reporter: [
-        ['list'],
-        ['html', { outputFolder: 'playwright-report', open: 'never' }],
-    ],
+    reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
 
     use: {
         headless: process.env['HEADLESS'] !== 'false',
@@ -72,7 +72,7 @@ export default defineConfig({
             name: 'chrome',
             use: {
                 ...devices['Desktop Chrome'],
-                channel: 'chrome',  // Uses actual Google Chrome
+                channel: 'chrome', // Uses actual Google Chrome
             },
         },
         {
@@ -81,18 +81,13 @@ export default defineConfig({
         },
         {
             name: 'webkit',
-            use: {
-                ...devices['Desktop Safari'],
-                launchOptions: {
-                    slowMo: 100
-                }
-            },
+            use: { ...devices['Desktop Safari'] },
         },
         {
             name: 'edge',
             use: {
                 ...devices['Desktop Edge'],
-                channel: 'msedge',  // Uses actual Microsoft Edge
+                channel: 'msedge', // Uses actual Microsoft Edge
             },
         },
 
