@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 5
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -49,6 +50,7 @@ jobs:
     needs: unit-tests
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
       TEST_ENV: prod
 
     strategy:
