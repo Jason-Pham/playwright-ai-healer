@@ -23,6 +23,8 @@ vi.mock('../../src/utils/Logger.js', () => ({
 vi.mock('../../src/config/index.js', () => ({
     config: {
         ai: {
+            gemini: { modelName: 'mock-gemini-model' },
+            openai: { modelName: 'mock-openai-model' },
             prompts: {
                 healingPrompt: () => 'mock prompt',
             },
