@@ -8,8 +8,13 @@ const testEnv = process.env['TEST_ENV'] || 'dev';
 const envPath = path.resolve(`.env.${testEnv}`);
 
 if (fs.existsSync(envPath)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    dotenv.config({ path: envPath, override: true, quiet: true } as any);
+    // Only apply non-empty values so empty placeholders don't clobber existing env vars
+    const envConfig = dotenv.parse(fs.readFileSync(envPath, 'utf-8'));
+    for (const [key, value] of Object.entries(envConfig)) {
+        if (value && value.trim() !== '') {
+            process.env[key] = value;
+        }
+    }
 }
 
 // Ensure the local .env overrides the env-specific file
