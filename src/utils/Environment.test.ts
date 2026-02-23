@@ -1,14 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
+import dotenv from 'dotenv';
 import { loadEnvironment, getEnvironment, isDev, isProd } from './Environment.js';
 
-// Mock fs and path
+// Mock fs, path, and dotenv
 vi.mock('fs');
 vi.mock('path', async () => {
     const actual = await vi.importActual('path');
     return {
         ...actual,
         resolve: vi.fn(),
+    };
+});
+vi.mock('dotenv', async () => {
+    const actual = await vi.importActual<typeof import('dotenv')>('dotenv');
+    return {
+        default: {
+            parse: actual.parse,
+            config: vi.fn(),
+        },
     };
 });
 
@@ -80,6 +90,40 @@ describe('Environment', () => {
 
             const result = loadEnvironment();
             expect(result).toBe('dev');
+        });
+
+        it('should prefer .env values over env-specific file values', () => {
+            process.env['TEST_ENV'] = 'staging';
+            delete process.env['MY_TEST_VAR'];
+
+            // Both .env.staging and .env exist
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            // env-specific file sets MY_TEST_VAR=staging-value
+            vi.mocked(fs.readFileSync).mockReturnValue('MY_TEST_VAR=staging-value' as never);
+            // base .env loading overrides with MY_TEST_VAR=local-value
+            vi.mocked(dotenv.config).mockImplementation(() => {
+                process.env['MY_TEST_VAR'] = 'local-value';
+                return { parsed: { MY_TEST_VAR: 'local-value' } };
+            });
+
+            loadEnvironment();
+
+            expect(process.env['MY_TEST_VAR']).toBe('local-value');
+        });
+
+        it('should not apply empty values from env-specific file', () => {
+            process.env['TEST_ENV'] = 'staging';
+            process.env['MY_TEST_VAR'] = 'existing-value';
+
+            vi.mocked(fs.existsSync).mockReturnValue(true);
+            // env-specific file has MY_TEST_VAR with an empty value
+            vi.mocked(fs.readFileSync).mockReturnValue('MY_TEST_VAR=' as never);
+            // base .env doesn't touch MY_TEST_VAR
+            vi.mocked(dotenv.config).mockReturnValue({ parsed: {} });
+
+            loadEnvironment();
+
+            expect(process.env['MY_TEST_VAR']).toBe('existing-value');
         });
     });
 });

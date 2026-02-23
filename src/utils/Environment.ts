@@ -6,8 +6,8 @@ export type Environment = 'dev' | 'staging' | 'prod';
 
 /**
  * Load environment configuration.
- * Strategy: Load base .env first (for secrets), then override with env-specific values.
- * This allows env-specific files to only contain non-secret overrides.
+ * Strategy: Load env-specific .env.{env} first (as defaults), then load base .env with override so
+ * local values (API keys, secrets) always take precedence over env-specific settings.
  */
 export function loadEnvironment(): Environment {
     // Determine which environment to load from TEST_ENV or ENV
