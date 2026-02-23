@@ -51,7 +51,7 @@ export class AutoHealer {
         this.page = page;
         this.debug = debug;
         this.provider = provider;
-        this.modelName = modelName || (provider === 'openai' ? 'gpt-4o' : 'gemini-1.5-flash');
+        this.modelName = modelName || (provider === 'openai' ? config.ai.openai.modelName : config.ai.gemini.modelName);
 
         this.apiKeys = Array.isArray(apiKeys) ? apiKeys : [apiKeys];
 
