@@ -13,26 +13,27 @@ export function loadEnvironment(): Environment {
     // Determine which environment to load from TEST_ENV or ENV
     const env = (process.env['TEST_ENV'] || process.env['ENV'] || '') as Environment;
 
-    // 1. First, load the base .env file for secrets (API keys, etc.)
-    const basePath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(basePath)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        dotenv.config({ path: basePath, override: true, quiet: true } as any);
-    }
-
-    // 2. If env is specified, overlay the env-specific file (overrides non-secret config)
+    // 1. First load the env-specific file (defaults for that environment)
     if (env) {
         const envPath = path.resolve(process.cwd(), `.env.${env}`);
         if (fs.existsSync(envPath)) {
             // Only override if values are not empty
             const envConfig = dotenv.parse(fs.readFileSync(envPath, 'utf-8'));
             for (const [key, value] of Object.entries(envConfig)) {
-                // Only override if value is not empty (allows base .env secrets to remain)
+                // Only override if value is not empty
                 if (value && value.trim() !== '') {
                     process.env[key] = value;
                 }
             }
         }
+    }
+
+    // 2. Then load the base .env file for secrets and user overrides (API keys, etc.)
+    // This ensures that local values in .env always take precedence over env-specific files.
+    const basePath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(basePath)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        dotenv.config({ path: basePath, override: true, quiet: true } as any);
     }
 
     // Set ENV so config can read it
