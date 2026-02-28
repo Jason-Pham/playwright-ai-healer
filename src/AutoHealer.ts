@@ -640,21 +640,23 @@ export class AutoHealer {
 
     /**
      * Captures a minimal DOM snapshot focused on interactive/actionable elements
-     * and their ancestor chains. This dramatically reduces token usage (90-95%)
-     * while preserving all the context the AI needs for selector healing.
+     * and their ancestor chains. Uses a two-tier priority system with a character
+     * budget to keep token usage minimal (~10-20K chars instead of 300K+).
      *
-     * Strategy: "Interactive Elements + Ancestors"
-     * 1. Find all interactive elements (buttons, inputs, links, etc.)
-     * 2. Mark each element and its ancestor chain as "needed"
-     * 3. Serialize only needed elements with allowed attributes
+     * Strategy: "Priority-Based Interactive Elements + Ancestors"
+     * 1. HIGH priority: form controls (input, button, select, textarea, form)
+     * 2. LOW priority: links, labels, ARIA elements — included only within budget
+     * 3. Mark needed ancestors, serialize with allowed attributes
      * 4. Collapse 3+ repeated siblings into a summary comment
-     * 5. Fall back to full clone if result is suspiciously small
+     * 5. Enforce a character budget (default 15K) to cap output
      *
      * @returns Simplified HTML string
      * @private
      */
     private async getSimplifiedDOM(): Promise<string> {
         return await this.page.evaluate(() => {
+            const MAX_OUTPUT_CHARS = 15000;
+
             // ── Helpers ──
             const scrubPII = (text: string): string => {
                 const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -671,34 +673,45 @@ export class AutoHealer {
                 'script', 'style', 'svg', 'path', 'link', 'meta', 'noscript', 'iframe', 'video', 'audio'
             ]);
 
-            // CSS selector for all interactive / actionable elements
-            const INTERACTIVE_SELECTOR = [
-                'input', 'button', 'a', 'select', 'textarea', 'label', 'form',
-                '[role="button"]', '[role="link"]', '[role="textbox"]',
-                '[role="searchbox"]', '[role="combobox"]', '[role="tab"]',
-                '[role="menuitem"]', '[role="checkbox"]', '[role="radio"]',
-                '[onclick]', '[data-testid]', '[data-test]', '[data-cy]',
-                '[aria-label]', '[aria-controls]'
+            // HIGH priority: form controls and buttons (always included)
+            const HIGH_PRIORITY_SELECTOR = [
+                'input', 'button', 'select', 'textarea', 'form',
+                '[role="button"]', '[role="textbox"]', '[role="searchbox"]',
+                '[role="combobox"]', '[role="checkbox"]', '[role="radio"]',
+                '[onclick]', '[data-testid]', '[data-test]', '[data-cy]'
             ].join(',');
 
-            // ── Step 1: Collect interactive elements & mark ancestor chains ──
-            const neededElements = new Set<Element>();
-            const interactiveElements = document.body.querySelectorAll(INTERACTIVE_SELECTOR);
+            // LOW priority: links, labels, tabs, menus (budget-limited)
+            const LOW_PRIORITY_SELECTOR = [
+                'a', 'label',
+                '[role="link"]', '[role="tab"]', '[role="menuitem"]',
+                '[aria-controls]'
+            ].join(',');
 
-            interactiveElements.forEach(el => {
-                // Walk up the ancestor chain to <body>
+            // ── Step 1: Collect elements by priority ──
+            const highPriorityEls = Array.from(document.body.querySelectorAll(HIGH_PRIORITY_SELECTOR));
+            const lowPriorityEls = Array.from(document.body.querySelectorAll(LOW_PRIORITY_SELECTOR));
+
+            // Deduplicate: an element already in high priority shouldn't be in low
+            const highSet = new Set(highPriorityEls);
+            const dedupedLow = lowPriorityEls.filter(el => !highSet.has(el));
+
+            // ── Step 2: Mark ancestors for high-priority elements ──
+            const neededElements = new Set<Element>();
+
+            const markAncestors = (el: Element) => {
                 let current: Element | null = el;
                 while (current && current !== document.body) {
-                    if (neededElements.has(current)) break; // Already marked
+                    if (neededElements.has(current)) break;
                     neededElements.add(current);
                     current = current.parentElement;
                 }
-            });
+            };
 
-            // Always include <body> itself as root
+            highPriorityEls.forEach(markAncestors);
             neededElements.add(document.body);
 
-            // ── Step 2: Serialize only needed elements ──
+            // ── Step 3: Serialize helpers ──
             const serializeAttrs = (el: Element): string => {
                 const tagName = el.tagName.toLowerCase();
                 let attrs = '';
@@ -708,9 +721,8 @@ export class AutoHealer {
                         if (attr.name === 'value' && (tagName === 'input' || tagName === 'textarea')) {
                             value = '[REDACTED]';
                         }
-                        // Truncate very long class lists
-                        if (attr.name === 'class' && value.length > 100) {
-                            value = value.substring(0, 100) + '...';
+                        if (attr.name === 'class' && value.length > 80) {
+                            value = value.substring(0, 80) + '...';
                         }
                         attrs += ` ${attr.name}="${value}"`;
                     }
@@ -722,27 +734,25 @@ export class AutoHealer {
                 const tagName = node.tagName.toLowerCase();
                 if (SKIP_TAGS.has(tagName)) return '';
 
-                const indent = '  '.repeat(depth);
+                const indent = '  '.repeat(Math.min(depth, 6)); // Cap indent depth
                 let html = `${indent}<${tagName}${serializeAttrs(node)}>`;
 
                 // Collect children that are needed
                 const neededChildren: Element[] = [];
-                const allChildren = Array.from(node.children);
-
-                allChildren.forEach(child => {
+                Array.from(node.children).forEach(child => {
                     if (neededElements.has(child)) {
                         neededChildren.push(child);
                     }
                 });
 
-                // Gather direct text content of this node (not from children)
+                // Gather direct text (brief)
                 const directText: string[] = [];
                 node.childNodes.forEach(child => {
                     if (child.nodeType === Node.TEXT_NODE) {
                         const text = child.nodeValue?.trim();
                         if (text) {
                             const scrubbed = scrubPII(text);
-                            directText.push(scrubbed.length > 200 ? scrubbed.substring(0, 200) + '...' : scrubbed);
+                            directText.push(scrubbed.length > 100 ? scrubbed.substring(0, 100) + '...' : scrubbed);
                         }
                     }
                 });
@@ -751,10 +761,9 @@ export class AutoHealer {
                     html += directText.join(' ');
                 }
 
-                // ── Step 3: Collapse repeated siblings ──
+                // Collapse repeated siblings
                 if (neededChildren.length > 0) {
                     html += '\n';
-
                     let i = 0;
                     while (i < neededChildren.length) {
                         const child = neededChildren[i]!;
@@ -762,7 +771,6 @@ export class AutoHealer {
                         const childClass = child.getAttribute('class') || '';
                         const signature = `${childTag}|${childClass}`;
 
-                        // Count consecutive siblings with the same tag+class
                         let runLength = 1;
                         while (
                             i + runLength < neededChildren.length &&
@@ -772,32 +780,42 @@ export class AutoHealer {
                         }
 
                         if (runLength >= 3) {
-                            // Serialize the first 2, collapse the rest
                             html += serializeNode(child, depth + 1) + '\n';
                             html += serializeNode(neededChildren[i + 1]!, depth + 1) + '\n';
-                            html += `${'  '.repeat(depth + 1)}<!-- ... ${runLength - 2} more similar <${childTag}> items -->\n`;
+                            html += `${'  '.repeat(Math.min(depth + 1, 6))}<!-- ... ${runLength - 2} more similar <${childTag}> items -->\n`;
                             i += runLength;
                         } else {
                             html += serializeNode(child, depth + 1) + '\n';
                             i++;
                         }
                     }
-
                     html += `${indent}</${tagName}>`;
                 } else {
-                    // Leaf node or node with only text — self-close
                     html += `</${tagName}>`;
                 }
 
                 return html;
             };
 
-            const result = serializeNode(document.body, 0);
+            // ── Step 4: Serialize high-priority tree ──
+            let result = serializeNode(document.body, 0);
 
-            // ── Step 4: Fallback if no interactive elements found ──
-            // If there are no interactive elements at all, the focused strategy
-            // would produce an empty/useless result. Fall back to a cleaned clone.
-            if (interactiveElements.length === 0) {
+            // ── Step 5: Add low-priority elements within budget ──
+            if (result.length < MAX_OUTPUT_CHARS && dedupedLow.length > 0) {
+                // Add low-priority elements and their ancestors
+                dedupedLow.forEach(markAncestors);
+
+                // Re-serialize with expanded set
+                const expanded = serializeNode(document.body, 0);
+
+                if (expanded.length <= MAX_OUTPUT_CHARS) {
+                    result = expanded;
+                }
+                // If expanded exceeds budget, keep the high-priority-only result
+            }
+
+            // ── Step 6: Fallback if no interactive elements found ──
+            if (highPriorityEls.length === 0 && dedupedLow.length === 0) {
                 const clone = document.body.cloneNode(true) as HTMLElement;
                 const removeTags = ['script', 'style', 'svg', 'noscript', 'iframe', 'video', 'audio'];
                 removeTags.forEach(tag => clone.querySelectorAll(tag).forEach(el => el.remove()));

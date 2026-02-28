@@ -227,8 +227,8 @@ describe('AutoHealer', () => {
             await healer.click('#target');
 
             const aiCallArgs = String(mockGeminiGenerateContent.mock.calls[0]![0]);
-            expect(aiCallArgs).toContain('a'.repeat(200) + '...');
-            expect(aiCallArgs).not.toContain('a'.repeat(201));
+            expect(aiCallArgs).toContain('a'.repeat(100) + '...');
+            expect(aiCallArgs).not.toContain('a'.repeat(101));
         });
 
         it('should collapse 3+ repeated siblings', async () => {
