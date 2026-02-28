@@ -11,6 +11,7 @@ blob-report/
 playwright/.cache/
 test_output.txt
 lint_output.txt
+test.log
 
 # OS
 .DS_Store
