@@ -79,6 +79,33 @@ export class AutoHealer {
         return false;
     }
 
+    private switchProvider(): boolean {
+        if (this.provider === 'gemini') {
+            const openaiKeys = config.ai.openai.apiKeys;
+            if (openaiKeys && openaiKeys.length > 0) {
+                logger.info(`[AutoHealer] Switching from Gemini to OpenAI due to 4xx error.`);
+                this.provider = 'openai';
+                this.apiKeys = typeof openaiKeys === 'string' ? [openaiKeys] : openaiKeys;
+                this.currentKeyIndex = 0;
+                this.modelName = config.ai.openai.modelName;
+                this.initializeClient();
+                return true;
+            }
+        } else if (this.provider === 'openai') {
+            const geminiKey = config.ai.gemini.apiKey;
+            if (geminiKey) {
+                logger.info(`[AutoHealer] Switching from OpenAI to Gemini due to 4xx error.`);
+                this.provider = 'gemini';
+                this.apiKeys = [geminiKey];
+                this.currentKeyIndex = 0;
+                this.modelName = config.ai.gemini.modelName;
+                this.initializeClient();
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Safe click method that attempts self-healing on failure
      *
@@ -379,11 +406,12 @@ export class AutoHealer {
 
         let healingSuccess = false;
         let healingResult: HealingResult | null = null;
+        let hasSwitchedProvider = false;
 
         try {
             let result: string | undefined;
 
-            const maxKeyRotations = this.apiKeys.length;
+            let maxKeyRotations = this.apiKeys.length;
             logger.info(`[AutoHealer:heal] Step 3: Starting AI request loop (maxKeyRotations=${maxKeyRotations})`);
 
             // Outer loop for key rotation
@@ -442,8 +470,8 @@ export class AutoHealer {
                         // Handle 503 Service Unavailable / 5xx Server Errors / Timeouts
                         const isServerError =
                             (reqErrorTyped.status && reqErrorTyped.status >= 500) ||
-                            errorMessage.includes('503') ||
-                            errorMessage.includes('500') ||
+                            /\\b503\\b/.test(errorMessage) ||
+                            /\\b500\\b/.test(errorMessage) ||
                             errorMessage.includes('service unavailable') ||
                             errorMessage.includes('overloaded') ||
                             errorMessage.includes('internal server error') ||
@@ -467,41 +495,36 @@ export class AutoHealer {
                             }
                         }
 
-                        const isRateLimit =
-                            reqErrorTyped.status === 429 ||
-                            errorMessage.includes('429') ||
+                        // Handle 4xx Client Errors (Rate limit, Auth, Quota, etc)
+                        const is4xxError =
+                            (reqErrorTyped.status && reqErrorTyped.status >= 400 && reqErrorTyped.status < 500) ||
+                            /\\b429\\b/.test(errorMessage) ||
+                            /\\b401\\b/.test(errorMessage) ||
                             errorMessage.includes('rate limit') ||
                             errorMessage.includes('resource exhausted') ||
-                            errorMessage.includes('insufficient quota');
+                            errorMessage.includes('insufficient quota') ||
+                            errorMessage.includes('unauthorized');
 
-                        logger.info(`[AutoHealer:heal] Error classification: isRateLimit=${isRateLimit}`);
+                        logger.info(`[AutoHealer:heal] Error classification: is4xxError=${is4xxError}`);
 
-                        if (isRateLimit) {
-                            logger.warn(`[AutoHealer:heal] Rate limit detected. Will skip test.`);
-                            test.info().annotations.push({
-                                type: 'warning',
-                                description: 'Test skipped due to AI Rate Limit',
-                            });
-                            // This throws an error to stop the test
-                            test.skip(true, 'Test skipped due to AI Rate Limit');
-                            // This part is unreachable if test.skip throws as expected
-                            return null;
-                        }
-
-                        const isAuthError = reqErrorTyped.status === 401 || errorMessage.includes('401');
-                        logger.info(`[AutoHealer:heal] Error classification: isAuthError=${isAuthError}`);
-
-                        if (isAuthError) {
-                            logger.warn(`[AutoHealer:heal] Auth Error (401). Attempting key rotation...`);
-                            const rotated = this.rotateKey();
-                            logger.info(`[AutoHealer:heal] Key rotation result: ${rotated} (new index: ${this.currentKeyIndex})`);
-                            if (rotated) {
-                                continue keyLoop; // Try next key
+                        if (is4xxError) {
+                            logger.warn(`[AutoHealer:heal] Client Error (4xx) detected: ${reqErrorTyped.status}. Attempting to switch AI provider...`);
+                            if (!hasSwitchedProvider && this.switchProvider()) {
+                                hasSwitchedProvider = true;
+                                maxKeyRotations = this.apiKeys.length;
+                                k = -1; // Reset loop variables to restart with the new provider
+                                continue keyLoop; // Restart the outer loop
                             } else {
-                                logger.error('[AutoHealer:heal] No more API keys to try. Throwing error.');
-                                throw reqErrorTyped;
+                                logger.error(`[AutoHealer:heal] No alternate provider configured or provider already switched. Skip healing.`);
+                                test.info().annotations.push({
+                                    type: 'warning',
+                                    description: 'Test skipped due to AI Client Error (4xx)',
+                                });
+                                test.skip(true, 'Test skipped due to AI Client Error (4xx)');
+                                return null;
                             }
                         }
+
                         logger.error(`[AutoHealer:heal] Unhandled error type. Re-throwing.`);
                         throw reqErrorTyped;
                     }
