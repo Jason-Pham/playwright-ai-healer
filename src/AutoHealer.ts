@@ -140,7 +140,7 @@ export class AutoHealer {
             if (this.debug)
                 logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
-                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
+                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.short });
             } catch (e) {
                 logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
             }
@@ -364,7 +364,7 @@ export class AutoHealer {
         // 1. Capture simplified DOM
         logger.info(`[AutoHealer:heal] Step 1: Capturing simplified DOM...`);
         const htmlSnapshot = await this.getSimplifiedDOM();
-        logger.info(`[AutoHealer:heal] DOM snapshot length: ${htmlSnapshot.length} chars (will use first 2000)`);
+        logger.info(`[AutoHealer:heal] DOM snapshot length: ${htmlSnapshot.length} chars (will use full DOM)`);
         logger.debug(`[AutoHealer:heal] DOM snapshot preview (first 500 chars): ${htmlSnapshot.substring(0, 500)}`);
 
         // 2. Construct Prompt
@@ -372,7 +372,7 @@ export class AutoHealer {
         const promptText = config.ai.prompts.healingPrompt(
             originalSelector,
             error.message,
-            htmlSnapshot.substring(0, 2000)
+            htmlSnapshot
         );
         logger.info(`[AutoHealer:heal] Prompt length: ${promptText.length} chars`);
         logger.debug(`[AutoHealer:heal] Prompt preview (first 300 chars): ${promptText.substring(0, 300)}`);
@@ -406,7 +406,9 @@ export class AutoHealer {
                                 'OpenAI'
                             );
                             result = completion.choices[0]?.message.content?.trim();
+                            const usage = completion.usage;
                             logger.info(`[AutoHealer:heal] OpenAI response received. Result: "${result}"`);
+                            logger.info(`[AutoHealer:heal] OpenAI Metadata - ID: ${completion.id}, Model: ${completion.model}, Tokens (Prompt/Completion/Total): ${usage?.prompt_tokens}/${usage?.completion_tokens}/${usage?.total_tokens}`);
                             logger.debug(`[AutoHealer:heal] Full completion choices: ${JSON.stringify(completion.choices)}`);
                         } else if (this.provider === 'gemini' && this.gemini) {
                             logger.info(`[AutoHealer:heal] Sending request to Gemini (model: ${this.modelName})...`);
@@ -417,7 +419,13 @@ export class AutoHealer {
                                 'Gemini'
                             );
                             result = resultResult.response.text().trim();
+                            const usageMetadata = resultResult.response.usageMetadata;
                             logger.info(`[AutoHealer:heal] Gemini response received. Result: "${result}"`);
+                            logger.info(`[AutoHealer:heal] Gemini Metadata - Tokens (Prompt/Candidates/Total): ${usageMetadata?.promptTokenCount}/${usageMetadata?.candidatesTokenCount}/${usageMetadata?.totalTokenCount}`);
+                            logger.debug(`[AutoHealer:heal] Gemini full response details: ${JSON.stringify({
+                                candidates: resultResult.response.candidates,
+                                promptFeedback: resultResult.response.promptFeedback
+                            })}`);
                         } else {
                             logger.error(`[AutoHealer:heal] No AI client initialized! provider=${this.provider}, openai=${!!this.openai}, gemini=${!!this.gemini}`);
                             throw new Error(`[AutoHealer] No AI client initialized for provider "${this.provider}". Check API key configuration.`);
@@ -504,7 +512,26 @@ export class AutoHealer {
             logger.info(`[AutoHealer:heal] Step 4: Processing AI result. Raw result: "${result}"`);
             if (result) {
                 const originalResult = result;
-                result = result.replace(/```/g, '').trim();
+
+                // If real FAIL string exists, keep it
+                if (result.includes('FAIL') && result.length < 20) {
+                    result = 'FAIL';
+                } else {
+                    // Extract code block or backticks if Gemini gave conversational text
+                    const backtickMatch = result.match(/`([^`]+)`/g);
+                    const lastMatch = backtickMatch ? backtickMatch[backtickMatch.length - 1] : undefined;
+                    if (lastMatch) {
+                        result = lastMatch.replace(/`/g, '').trim();
+                    } else {
+                        result = result.replace(/```/g, '').trim();
+                    }
+
+                    // Remove any surrounding quotes that the model might have added
+                    if ((result.startsWith('"') && result.endsWith('"')) || (result.startsWith("'") && result.endsWith("'"))) {
+                        result = result.substring(1, result.length - 1);
+                    }
+                }
+
                 if (originalResult !== result) {
                     logger.info(`[AutoHealer:heal] Cleaned markdown from result: "${originalResult}" -> "${result}"`);
                 }
