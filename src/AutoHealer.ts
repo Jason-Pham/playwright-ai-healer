@@ -5,6 +5,7 @@ import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
 import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
+import { ResponseParser } from './utils/ResponseParser.js';
 
 
 /**
@@ -495,27 +496,15 @@ export class AutoHealer {
                 }
             }
 
-            // Cleanup potential markdown code blocks if the model adds them
+            // Parse AI response using ResponseParser (handles JSON, plain text, markdown, FAIL)
             logger.info(`[AutoHealer:heal] Step 4: Processing AI result. Raw result: "${result}"`);
-            if (result) {
-                const originalResult = result;
-                result = result.replace(/```/g, '').trim();
-                if (originalResult !== result) {
-                    logger.info(`[AutoHealer:heal] Cleaned markdown from result: "${originalResult}" -> "${result}"`);
-                }
-            }
+            healingResult = ResponseParser.parse(result, config.ai.healing.confidenceThreshold);
 
-            if (result && result !== 'FAIL') {
+            if (healingResult) {
                 healingSuccess = true;
-                healingResult = {
-                    selector: result,
-                    confidence: 1.0,
-                    reasoning: 'AI found replacement selector.',
-                    strategy: 'css',
-                };
-                logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! Selector: "${healingResult.selector}", Confidence: ${healingResult.confidence}, Strategy: ${healingResult.strategy}`);
             } else {
-                logger.warn(`[AutoHealer:heal] ❌ HEALING FAILED. Result was: "${result}" (FAIL or empty)`);
+                logger.warn(`[AutoHealer:heal] ❌ HEALING FAILED. Result was: "${result}" (FAIL, below threshold, or empty)`);
             }
         } catch (aiError) {
             const aiErrorTyped = aiError as Error;

@@ -74,7 +74,14 @@ export const config = {
       Below is the current HTML of the page (simplified). 
       Analyze it to find the MOST LIKELY new selector for the element the user intended to interact with.
       
-      Return ONLY the new selector as a plain string. If you cannot find it, return "FAIL".
+      INSTRUCTIONS:
+      1. Return your answer as a JSON object with these fields:
+         - "selector": the new CSS/XPath selector (string)
+         - "confidence": how confident you are in this match (number 0.0-1.0)
+         - "reasoning": brief explanation of why this selector matches (string)
+         - "strategy": selector type, one of: "id", "css", "xpath", "text", "role", "data-testid"
+      2. If you cannot find a highly probable replacement, return: {"selector":"FAIL","confidence":0,"reasoning":"No match found","strategy":"css"}
+      3. Do NOT wrap your JSON in markdown code blocks.
       
       HTML Snippet:
       ${html}
