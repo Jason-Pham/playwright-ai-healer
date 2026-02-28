@@ -227,18 +227,18 @@ describe('AutoHealer', () => {
             await healer.click('#target');
 
             const aiCallArgs = String(mockGeminiGenerateContent.mock.calls[0]![0]);
-            expect(aiCallArgs).toContain('a'.repeat(100) + '...');
-            expect(aiCallArgs).not.toContain('a'.repeat(101));
+            expect(aiCallArgs).toContain('a'.repeat(80) + '...');
+            expect(aiCallArgs).not.toContain('a'.repeat(81));
         });
 
         it('should collapse 3+ repeated siblings', async () => {
             document.body.innerHTML = `
                 <ul id="product-list">
-                    <li class="product-card"><a href="/p1">Product 1</a></li>
-                    <li class="product-card"><a href="/p2">Product 2</a></li>
-                    <li class="product-card"><a href="/p3">Product 3</a></li>
-                    <li class="product-card"><a href="/p4">Product 4</a></li>
-                    <li class="product-card"><a href="/p5">Product 5</a></li>
+                    <li class="product-card"><button>Product 1</button></li>
+                    <li class="product-card"><button>Product 2</button></li>
+                    <li class="product-card"><button>Product 3</button></li>
+                    <li class="product-card"><button>Product 4</button></li>
+                    <li class="product-card"><button>Product 5</button></li>
                 </ul>
             `;
 
@@ -256,7 +256,7 @@ describe('AutoHealer', () => {
             expect(aiCallArgs).toContain('Product 1');
             expect(aiCallArgs).toContain('Product 2');
             // Remaining 3 should be collapsed
-            expect(aiCallArgs).toContain('3 more similar <li> items');
+            expect(aiCallArgs).toContain('3 more <li>');
             // Individual items beyond the 2nd should not appear
             expect(aiCallArgs).not.toContain('Product 3');
             expect(aiCallArgs).not.toContain('Product 5');

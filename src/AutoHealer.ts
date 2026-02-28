@@ -656,16 +656,10 @@ export class AutoHealer {
     }
 
     /**
-     * Captures a minimal DOM snapshot focused on interactive/actionable elements
-     * and their ancestor chains. Uses a two-tier priority system with a character
-     * budget to keep token usage minimal (~10-20K chars instead of 300K+).
-     *
-     * Strategy: "Priority-Based Interactive Elements + Ancestors"
-     * 1. HIGH priority: form controls (input, button, select, textarea, form)
-     * 2. LOW priority: links, labels, ARIA elements — included only within budget
-     * 3. Mark needed ancestors, serialize with allowed attributes
-     * 4. Collapse 3+ repeated siblings into a summary comment
-     * 5. Enforce a character budget (default 15K) to cap output
+     * Captures a minimal DOM snapshot focused on interactive/actionable elements.
+     * Ancestors get minimal structural info (tag + id only).
+     * Interactive elements get full attributes + text.
+     * Output is hard-capped at MAX_OUTPUT_CHARS.
      *
      * @returns Simplified HTML string
      * @private
@@ -674,72 +668,62 @@ export class AutoHealer {
         return await this.page.evaluate(() => {
             const MAX_OUTPUT_CHARS = 15000;
 
-            // ── Helpers ──
             const scrubPII = (text: string): string => {
                 const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
                 const phoneRegex = /(\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}/g;
                 return text.replace(emailRegex, '[EMAIL]').replace(phoneRegex, '[PHONE]');
             };
 
-            const VALID_ATTRS = new Set([
-                'id', 'name', 'class', 'type', 'placeholder',
-                'aria-label', 'role', 'href', 'title', 'alt', 'for', 'action'
-            ]);
-
             const SKIP_TAGS = new Set([
                 'script', 'style', 'svg', 'path', 'link', 'meta', 'noscript', 'iframe', 'video', 'audio'
             ]);
 
-            // HIGH priority: form controls and buttons (always included)
-            const HIGH_PRIORITY_SELECTOR = [
+            const FULL_ATTRS = new Set([
+                'id', 'name', 'class', 'type', 'placeholder',
+                'aria-label', 'role', 'href', 'title', 'alt', 'for', 'action'
+            ]);
+
+            // Only id and name for ancestor (structural) elements
+            const STRUCTURAL_ATTRS = new Set(['id', 'name', 'role']);
+
+            // Selectors for interactive elements
+            const INTERACTIVE_SELECTOR = [
                 'input', 'button', 'select', 'textarea', 'form',
                 '[role="button"]', '[role="textbox"]', '[role="searchbox"]',
                 '[role="combobox"]', '[role="checkbox"]', '[role="radio"]',
                 '[onclick]', '[data-testid]', '[data-test]', '[data-cy]'
             ].join(',');
 
-            // LOW priority: links, labels, tabs, menus (budget-limited)
-            const LOW_PRIORITY_SELECTOR = [
-                'a', 'label',
-                '[role="link"]', '[role="tab"]', '[role="menuitem"]',
-                '[aria-controls]'
-            ].join(',');
-
-            // ── Step 1: Collect elements by priority ──
-            const highPriorityEls = Array.from(document.body.querySelectorAll(HIGH_PRIORITY_SELECTOR));
-            const lowPriorityEls = Array.from(document.body.querySelectorAll(LOW_PRIORITY_SELECTOR));
-
-            // Deduplicate: an element already in high priority shouldn't be in low
-            const highSet = new Set(highPriorityEls);
-            const dedupedLow = lowPriorityEls.filter(el => !highSet.has(el));
-
-            // ── Step 2: Mark ancestors for high-priority elements ──
+            // ── Step 1: Find interactive elements and mark ancestor chains ──
+            const interactiveSet = new Set<Element>();
             const neededElements = new Set<Element>();
 
-            const markAncestors = (el: Element) => {
+            const interactiveEls = document.body.querySelectorAll(INTERACTIVE_SELECTOR);
+            interactiveEls.forEach(el => {
+                interactiveSet.add(el);
                 let current: Element | null = el;
                 while (current && current !== document.body) {
                     if (neededElements.has(current)) break;
                     neededElements.add(current);
                     current = current.parentElement;
                 }
-            };
-
-            highPriorityEls.forEach(markAncestors);
+            });
             neededElements.add(document.body);
 
-            // ── Step 3: Serialize helpers ──
-            const serializeAttrs = (el: Element): string => {
+            // ── Step 2: Serialize with role-based attribute filtering ──
+            const serializeAttrs = (el: Element, isInteractive: boolean): string => {
                 const tagName = el.tagName.toLowerCase();
+                const allowedAttrs = isInteractive ? FULL_ATTRS : STRUCTURAL_ATTRS;
                 let attrs = '';
                 Array.from(el.attributes).forEach(attr => {
-                    if (VALID_ATTRS.has(attr.name) || attr.name.startsWith('data-test') || attr.name.startsWith('data-cy')) {
+                    const isDataTest = attr.name.startsWith('data-test') || attr.name.startsWith('data-cy');
+                    if (allowedAttrs.has(attr.name) || (isInteractive && isDataTest)) {
                         let value = attr.value;
                         if (attr.name === 'value' && (tagName === 'input' || tagName === 'textarea')) {
                             value = '[REDACTED]';
                         }
-                        if (attr.name === 'class' && value.length > 80) {
-                            value = value.substring(0, 80) + '...';
+                        if (attr.name === 'class' && value.length > 60) {
+                            value = value.substring(0, 60) + '...';
                         }
                         attrs += ` ${attr.name}="${value}"`;
                     }
@@ -747,60 +731,62 @@ export class AutoHealer {
                 return attrs;
             };
 
+            let charCount = 0;
+            let budgetExceeded = false;
+
             const serializeNode = (node: Element, depth: number): string => {
+                if (budgetExceeded) return '';
                 const tagName = node.tagName.toLowerCase();
                 if (SKIP_TAGS.has(tagName)) return '';
 
-                const indent = '  '.repeat(Math.min(depth, 6)); // Cap indent depth
-                let html = `${indent}<${tagName}${serializeAttrs(node)}>`;
+                const isInteractive = interactiveSet.has(node);
+                const indent = '  '.repeat(Math.min(depth, 4));
+                let html = `${indent}<${tagName}${serializeAttrs(node, isInteractive)}>`;
 
-                // Collect children that are needed
-                const neededChildren: Element[] = [];
-                Array.from(node.children).forEach(child => {
-                    if (neededElements.has(child)) {
-                        neededChildren.push(child);
-                    }
-                });
-
-                // Gather direct text (brief)
-                const directText: string[] = [];
-                node.childNodes.forEach(child => {
-                    if (child.nodeType === Node.TEXT_NODE) {
-                        const text = child.nodeValue?.trim();
-                        if (text) {
-                            const scrubbed = scrubPII(text);
-                            directText.push(scrubbed.length > 100 ? scrubbed.substring(0, 100) + '...' : scrubbed);
+                // Only include text for interactive elements (not ancestors)
+                if (isInteractive) {
+                    const directText: string[] = [];
+                    node.childNodes.forEach(child => {
+                        if (child.nodeType === Node.TEXT_NODE) {
+                            const text = child.nodeValue?.trim();
+                            if (text) {
+                                const scrubbed = scrubPII(text);
+                                directText.push(scrubbed.length > 80 ? scrubbed.substring(0, 80) + '...' : scrubbed);
+                            }
                         }
+                    });
+                    if (directText.length > 0) {
+                        html += directText.join(' ');
                     }
-                });
-
-                if (directText.length > 0) {
-                    html += directText.join(' ');
                 }
 
-                // Collapse repeated siblings
+                // Collect needed children
+                const neededChildren: Element[] = [];
+                Array.from(node.children).forEach(child => {
+                    if (neededElements.has(child)) neededChildren.push(child);
+                });
+
                 if (neededChildren.length > 0) {
                     html += '\n';
                     let i = 0;
-                    while (i < neededChildren.length) {
+                    while (i < neededChildren.length && !budgetExceeded) {
                         const child = neededChildren[i]!;
                         const childTag = child.tagName.toLowerCase();
                         const childClass = child.getAttribute('class') || '';
-                        const signature = `${childTag}|${childClass}`;
+                        const sig = `${childTag}|${childClass}`;
 
-                        let runLength = 1;
+                        // Count consecutive similar siblings
+                        let run = 1;
                         while (
-                            i + runLength < neededChildren.length &&
-                            `${neededChildren[i + runLength]!.tagName.toLowerCase()}|${neededChildren[i + runLength]!.getAttribute('class') || ''}` === signature
-                        ) {
-                            runLength++;
-                        }
+                            i + run < neededChildren.length &&
+                            `${neededChildren[i + run]!.tagName.toLowerCase()}|${neededChildren[i + run]!.getAttribute('class') || ''}` === sig
+                        ) { run++; }
 
-                        if (runLength >= 3) {
+                        if (run >= 3) {
                             html += serializeNode(child, depth + 1) + '\n';
                             html += serializeNode(neededChildren[i + 1]!, depth + 1) + '\n';
-                            html += `${'  '.repeat(Math.min(depth + 1, 6))}<!-- ... ${runLength - 2} more similar <${childTag}> items -->\n`;
-                            i += runLength;
+                            html += `${'  '.repeat(Math.min(depth + 1, 4))}<!-- ...${run - 2} more <${childTag}> -->\n`;
+                            i += run;
                         } else {
                             html += serializeNode(child, depth + 1) + '\n';
                             i++;
@@ -811,32 +797,27 @@ export class AutoHealer {
                     html += `</${tagName}>`;
                 }
 
+                charCount += html.length;
+                if (charCount > MAX_OUTPUT_CHARS) {
+                    budgetExceeded = true;
+                }
+
                 return html;
             };
 
-            // ── Step 4: Serialize high-priority tree ──
+            // ── Step 3: Serialize and enforce budget ──
             let result = serializeNode(document.body, 0);
 
-            // ── Step 5: Add low-priority elements within budget ──
-            if (result.length < MAX_OUTPUT_CHARS && dedupedLow.length > 0) {
-                // Add low-priority elements and their ancestors
-                dedupedLow.forEach(markAncestors);
-
-                // Re-serialize with expanded set
-                const expanded = serializeNode(document.body, 0);
-
-                if (expanded.length <= MAX_OUTPUT_CHARS) {
-                    result = expanded;
-                }
-                // If expanded exceeds budget, keep the high-priority-only result
+            // Hard-cap the output
+            if (result.length > MAX_OUTPUT_CHARS) {
+                result = result.substring(0, MAX_OUTPUT_CHARS) + '\n<!-- DOM truncated at budget limit -->';
             }
 
-            // ── Step 6: Fallback if no interactive elements found ──
-            if (highPriorityEls.length === 0 && dedupedLow.length === 0) {
+            // ── Step 4: Fallback if no interactive elements found ──
+            if (interactiveEls.length === 0) {
                 const clone = document.body.cloneNode(true) as HTMLElement;
-                const removeTags = ['script', 'style', 'svg', 'noscript', 'iframe', 'video', 'audio'];
-                removeTags.forEach(tag => clone.querySelectorAll(tag).forEach(el => el.remove()));
-
+                ['script', 'style', 'svg', 'noscript', 'iframe', 'video', 'audio']
+                    .forEach(tag => clone.querySelectorAll(tag).forEach(el => el.remove()));
                 const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
                 while (walker.nextNode()) {
                     const n = walker.currentNode;
@@ -845,18 +826,16 @@ export class AutoHealer {
                         Array.from(el.attributes).forEach(attr => {
                             if (attr.name === 'value' && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
                                 el.setAttribute(attr.name, '[REDACTED]');
-                            } else if (!VALID_ATTRS.has(attr.name) && !attr.name.startsWith('data-test')) {
+                            } else if (!FULL_ATTRS.has(attr.name) && !attr.name.startsWith('data-test')) {
                                 el.removeAttribute(attr.name);
                             }
                         });
                     } else if (n.nodeType === Node.TEXT_NODE && n.nodeValue) {
                         n.nodeValue = scrubPII(n.nodeValue);
-                        if (n.nodeValue.length > 200) {
-                            n.nodeValue = n.nodeValue.substring(0, 200) + '...';
-                        }
+                        if (n.nodeValue.length > 100) n.nodeValue = n.nodeValue.substring(0, 100) + '...';
                     }
                 }
-                return clone.innerHTML;
+                return clone.innerHTML.substring(0, MAX_OUTPUT_CHARS);
             }
 
             return result;
