@@ -407,6 +407,7 @@ export class AutoHealer {
         let healingSuccess = false;
         let healingResult: HealingResult | null = null;
         let hasSwitchedProvider = false;
+        let tokensUsed: { prompt: number; completion: number; total: number } | undefined;
 
         try {
             let result: string | undefined;
@@ -435,6 +436,13 @@ export class AutoHealer {
                             );
                             result = completion.choices[0]?.message.content?.trim();
                             const usage = completion.usage;
+                            if (usage) {
+                                tokensUsed = {
+                                    prompt: usage.prompt_tokens ?? 0,
+                                    completion: usage.completion_tokens ?? 0,
+                                    total: usage.total_tokens ?? 0,
+                                };
+                            }
                             logger.info(`[AutoHealer:heal] OpenAI response received. Result: "${result}"`);
                             logger.info(`[AutoHealer:heal] OpenAI Metadata - ID: ${completion.id}, Model: ${completion.model}, Tokens (Prompt/Completion/Total): ${usage?.prompt_tokens}/${usage?.completion_tokens}/${usage?.total_tokens}`);
                             logger.debug(`[AutoHealer:heal] Full completion choices: ${JSON.stringify(completion.choices)}`);
@@ -448,6 +456,13 @@ export class AutoHealer {
                             );
                             result = resultResult.response.text().trim();
                             const usageMetadata = resultResult.response.usageMetadata;
+                            if (usageMetadata) {
+                                tokensUsed = {
+                                    prompt: usageMetadata.promptTokenCount ?? 0,
+                                    completion: usageMetadata.candidatesTokenCount ?? 0,
+                                    total: usageMetadata.totalTokenCount ?? 0,
+                                };
+                            }
                             logger.info(`[AutoHealer:heal] Gemini response received. Result: "${result}"`);
                             logger.info(`[AutoHealer:heal] Gemini Metadata - Tokens (Prompt/Candidates/Total): ${usageMetadata?.promptTokenCount}/${usageMetadata?.candidatesTokenCount}/${usageMetadata?.totalTokenCount}`);
                             logger.debug(`[AutoHealer:heal] Gemini full response details: ${JSON.stringify({
@@ -615,6 +630,8 @@ export class AutoHealer {
                 success: healingSuccess,
                 provider: this.provider,
                 durationMs,
+                ...(tokensUsed ? { tokensUsed } : {}),
+                domSnapshotLength: htmlSnapshot.length,
             });
         }
 

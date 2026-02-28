@@ -33,6 +33,14 @@ export interface HealingEvent {
     success: boolean;
     provider: AIProvider;
     durationMs: number;
+    /** Token usage from the AI provider (if available) */
+    tokensUsed?: {
+        prompt: number;
+        completion: number;
+        total: number;
+    };
+    /** Character length of the DOM snapshot sent to the AI */
+    domSnapshotLength?: number;
 }
 
 /**
