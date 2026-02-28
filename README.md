@@ -28,6 +28,9 @@ npm install
 # Run tests (production environment)
 npm run test:prod
 
+# Run the Self-Healing Demo specifically
+npm run test:healing-demo
+
 # Run on specific browser
 npm run test:firefox
 npm run test:webkit
