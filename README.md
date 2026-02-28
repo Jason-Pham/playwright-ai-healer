@@ -129,8 +129,7 @@ npx playwright show-report playwright-report
 
 ```
 src/
-├── AutoHealer.ts              # Core AI healing logic with structured output
-├── types.ts                   # Shared type definitions
+├── AutoHealer.ts              # Core AI healing logic
 ├── config/
 │   ├── index.ts               # Centralized configuration
 │   └── locators.json          # Persistent selector storage
@@ -143,7 +142,6 @@ src/
     ├── Environment.ts         # Multi-env loader
     ├── Logger.ts              # Winston wrapper
     ├── LocatorManager.ts      # Selector persistence
-    ├── HealingReporter.ts     # Healing event recording & reporting
     └── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
 
 tests/
@@ -158,9 +156,8 @@ GitHub Actions workflow runs on every push:
 
 - ✅ Unit tests with code coverage reporting
 - ✅ E2E tests on **all 9 browser configurations** (matrix strategy)
-- ✅ HTML report artifacts with healing events attached
+- ✅ HTML report artifacts
 - ✅ Automatic retries for flaky tests
-- ✅ Coverage report uploaded as artifact
 
 ## 🧬 Architecture — How Self-Healing Works
 
@@ -176,28 +173,26 @@ sequenceDiagram
     Page-->>AutoHealer: ❌ TimeoutError
     AutoHealer->>Page: getSimplifiedDOM()
     Page-->>AutoHealer: cleaned HTML
-    AutoHealer->>AI: Find new selector (JSON mode)
-    AI-->>AutoHealer: { selector: "#new-btn", confidence: 0.95 }
-    AutoHealer->>AutoHealer: confidence > threshold? ✅
+    AutoHealer->>AI: Find new selector
+    AI-->>AutoHealer: "#new-btn"
     AutoHealer->>Page: page.click("#new-btn")
     Page-->>AutoHealer: ✅ Success
-    AutoHealer->>AutoHealer: updateLocator + record event
+    AutoHealer->>AutoHealer: updateLocator
 ```
 
 ## 📝 How It Works
 
 ```typescript
 // AutoHealer intercepts failures and uses AI to recover
-// The AI returns structured JSON with confidence scoring
+// The AI returns the plain CSS selector as a string
 async click(selector: string) {
   try {
     await this.page.click(selector);
   } catch (error) {
-    // Ask AI for a new selector with confidence scoring
+    // Ask AI for a new replacement selector
     const result = await this.heal(selector, error);
-    if (result && result.confidence >= threshold) {
+    if (result && result.selector !== 'FAIL') {
       await this.page.click(result.selector);
-      this.healingReporter.record(event); // Attach to HTML report
     }
   }
 }
