@@ -13,7 +13,7 @@ const envSchema = z.object({
             return val;
         })
         .pipe(z.string().url()),
-    AI_PROVIDER: z.enum(['gemini', 'openai']).default('openai'),
+    AI_PROVIDER: z.enum(['gemini', 'openai']).default('gemini'),
     GEMINI_API_KEY: z.string().optional(),
     GEMINI_MODEL: z.string().default('gemini-flash-latest'),
     OPENAI_API_KEYS: z.string().optional(),
