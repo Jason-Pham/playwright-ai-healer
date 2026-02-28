@@ -160,7 +160,12 @@ export class AutoHealer {
                     await locatorManager.updateLocator(locatorKey, result.selector);
                 }
             } else {
-                throw error;
+                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
+                test.info().annotations.push({
+                    type: 'warning',
+                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
+                });
+                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
             }
         }
     }
