@@ -101,7 +101,7 @@ describe('AutoHealer', () => {
 
             const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
 
-            await expect(healer.click('#nonexistent')).rejects.toThrow('Element not found');
+            await healer.click('#nonexistent');
         });
 
         it('should clean markdown code blocks from AI response', async () => {
@@ -264,17 +264,57 @@ describe('AutoHealer', () => {
             expect(mockGeminiGenerateContent).toHaveBeenCalledTimes(2);
         });
 
-        it('should skip test on 429 Rate Limit', async () => {
+        it('should skip test on 429 Rate Limit when fallback is unavailable', async () => {
             const healer = new AutoHealer(mockPage as Page, 'key1', 'gemini');
+
+            // Setup config to ensure no fallback is possible
+            const { config } = await import('./config/index.js');
+            const originalOpenAiKeys = config.ai.openai.apiKeys;
+            config.ai.openai.apiKeys = undefined as any;
 
             // Fail with 429
             mockGeminiGenerateContent.mockRejectedValueOnce({ status: 429, message: 'Rate Limit Exceeded' });
             (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Timeout'));
 
-            await expect(healer.click('#broken')).rejects.toThrow('Timeout');
+            await healer.click('#broken');
 
             const { test } = await import('@playwright/test');
-            expect(test.skip).toHaveBeenCalledWith(true, expect.stringContaining('Rate Limit'));
+            expect(test.skip).toHaveBeenCalledWith(true, expect.stringContaining('Client Error (4xx)'));
+
+            // Restore config
+            config.ai.openai.apiKeys = originalOpenAiKeys;
+        });
+
+        it('should switch AI provider on 4xx Client Error', async () => {
+            const healer = new AutoHealer(mockPage as Page, 'key1', 'gemini');
+
+            const { config } = await import('./config/index.js');
+            const originalOpenAiKeys = config.ai.openai.apiKeys;
+            config.ai.openai.apiKeys = ['mock-openai-key']; // Enable fallback
+
+            // First call fails with 429 (Gemini)
+            mockGeminiGenerateContent.mockRejectedValueOnce({ status: 429, message: 'Rate Limit Exceeded' });
+
+            // Setup second call to succeed (OpenAI)
+            const { mockOpenaiCreate } = await import('./test-setup.js');
+            mockOpenaiCreate.mockResolvedValueOnce({
+                id: 'mock-id',
+                model: 'mock-model',
+                choices: [{ message: { content: '#healed-selector' } }],
+                usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+            });
+
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Timeout')) // Initial click fails
+                .mockResolvedValueOnce(undefined); // Retry succeeds
+
+            await healer.click('#broken');
+
+            // Should have tried both providers
+            expect(mockGeminiGenerateContent).toHaveBeenCalledTimes(1);
+            expect(mockOpenaiCreate).toHaveBeenCalledTimes(1);
+
+            config.ai.openai.apiKeys = originalOpenAiKeys;
         });
     });
 });

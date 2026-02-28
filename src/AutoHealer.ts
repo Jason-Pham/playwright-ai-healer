@@ -495,15 +495,30 @@ export class AutoHealer {
                             }
                         }
 
-                        // Handle 4xx Client Errors (Rate limit, Auth, Quota, etc)
+                        // Handle 401 Auth Errors specifically for key rotation prioritizing
+                        const isAuthError =
+                            reqErrorTyped.status === 401 || /\\b401\\b/.test(errorMessage) || errorMessage.includes('unauthorized');
+
+                        logger.info(`[AutoHealer:heal] Error classification: isAuthError=${isAuthError}`);
+
+                        if (isAuthError) {
+                            logger.warn(`[AutoHealer:heal] Auth Error (401). Attempting key rotation...`);
+                            const rotated = this.rotateKey();
+                            if (rotated) {
+                                logger.info(`[AutoHealer:heal] Key rotation result: ${rotated} (new index: ${this.currentKeyIndex})`);
+                                continue keyLoop; // Try next key
+                            }
+                            logger.info(`[AutoHealer:heal] Key rotation exhausted. Falling through to provider switch.`);
+                        }
+
+                        // Handle 4xx Client Errors (Rate limit, Auth fallback, Quota, etc)
                         const is4xxError =
                             (reqErrorTyped.status && reqErrorTyped.status >= 400 && reqErrorTyped.status < 500) ||
                             /\\b429\\b/.test(errorMessage) ||
-                            /\\b401\\b/.test(errorMessage) ||
                             errorMessage.includes('rate limit') ||
                             errorMessage.includes('resource exhausted') ||
                             errorMessage.includes('insufficient quota') ||
-                            errorMessage.includes('unauthorized');
+                            isAuthError;
 
                         logger.info(`[AutoHealer:heal] Error classification: is4xxError=${is4xxError}`);
 

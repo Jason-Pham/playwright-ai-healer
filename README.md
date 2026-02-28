@@ -12,6 +12,7 @@
 | Feature                   | Description                                                 |
 | ------------------------- | ----------------------------------------------------------- |
 | 🔧 **AI Self-Healing**    | Automatically fixes broken selectors using OpenAI or Gemini |
+| 🔄 **Provider Fallback**  | Automatically switches between Gemini/OpenAI on rate limits |
 | 🌐 **Multi-Browser**      | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices    |
 | 🌍 **Multi-Environment**  | Dev, Staging, Prod configs with `.env.{env}` files          |
 | 📊 **Structured Logging** | Winston logger with console + file output                   |
@@ -168,6 +169,8 @@ async click(selector: string) {
   }
 }
 ```
+
+*Note: If the primary AI Provider (e.g. Gemini) hits a 4xx Rate Limit error, the `AutoHealer` automatically detects the quota failure and falls back to an alternate AI Provider (e.g. OpenAI) if configured!*
 
 ## 📚 Portfolio Notes
 
