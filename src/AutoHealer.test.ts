@@ -146,35 +146,21 @@ describe('AutoHealer', () => {
         });
     });
 
-    describe('DOM Simplification', () => {
-        it('should remove scripts, styles, and non-visual elements', async () => {
-            // Setup JSDOM
+    describe('DOM Simplification (Interactive Elements + Ancestors)', () => {
+        it('should include interactive elements and exclude scripts/styles', async () => {
             document.body.innerHTML = `
-                <div>
+                <div id="wrapper">
                     <button id="keep-me">Keep Me</button>
                     <script>console.log("bad")</script>
                     <style>.css { color: red }</style>
-                    <div style="color: blue">Styled Div</div>
+                    <div style="color: blue">Decorative Div</div>
                     <!-- I am a comment -->
                 </div>
             `;
 
-            // Mock evaluate to actually run the function in the JSDOM context
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => {
-                return fn();
-            });
-            // Mock evaluate to return an already "cleaned" DOM, bypassing the actual cleaning logic
-            (mockPage.evaluate as any).mockResolvedValue(`
-                <html>
-                    <!-- Cleaned DOM -->
-                    <div>
-                        <button id="keep-me">Keep Me</button>
-                        <div>Styled Div</div>
-                    </div>
-                </html>
-            `);
+            // Run the actual evaluate function in JSDOM
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
 
-            // Mock click to fail so healing triggers
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -182,20 +168,55 @@ describe('AutoHealer', () => {
             const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
             await healer.click('#keep-me');
 
-            // Verify the prompt content sent to AI
             const aiCallArgs = String(mockGeminiGenerateContent.mock.calls[0]![0]);
 
-            // Assertions on the prompt sent to AI - it should reflect the "cleaned" DOM returned by mockPage.evaluate
-            expect(aiCallArgs).toContain('<button id="keep-me">Keep Me</button>');
+            // Interactive element (button) should be included
+            expect(aiCallArgs).toContain('button');
+            expect(aiCallArgs).toContain('keep-me');
+            // Scripts/styles should not appear
             expect(aiCallArgs).not.toContain('<script>');
             expect(aiCallArgs).not.toContain('<style>');
-            expect(aiCallArgs).not.toContain('I am a comment');
-            expect(aiCallArgs).not.toContain('style="color: blue"'); // Attribute removal
+            // Non-whitelisted attributes like style should be stripped
+            expect(aiCallArgs).not.toContain('style="color: blue"');
+        });
+
+        it('should include ancestor chain of interactive elements', async () => {
+            document.body.innerHTML = `
+                <main id="app">
+                    <section id="search-area">
+                        <div id="inner-wrapper">
+                            <input id="search-input" type="text" placeholder="Search..." />
+                        </div>
+                    </section>
+                    <footer id="foot">
+                        <p>Copyright 2025</p>
+                    </footer>
+                </main>
+            `;
+
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Timeout'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.click('#search-input');
+
+            const aiCallArgs = String(mockGeminiGenerateContent.mock.calls[0]![0]);
+
+            // Interactive element and its ancestors should be included
+            expect(aiCallArgs).toContain('search-input');
+            expect(aiCallArgs).toContain('inner-wrapper');
+            expect(aiCallArgs).toContain('search-area');
+            expect(aiCallArgs).toContain('app');
+            // Footer with no interactive children should NOT be included
+            expect(aiCallArgs).not.toContain('foot');
+            expect(aiCallArgs).not.toContain('Copyright');
         });
 
         it('should truncate long text nodes', async () => {
             const longText = 'a'.repeat(300);
-            document.body.innerHTML = `<div>${longText}</div>`;
+            document.body.innerHTML = `<div><button id="btn">${longText}</button></div>`;
 
             (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
@@ -208,6 +229,37 @@ describe('AutoHealer', () => {
             const aiCallArgs = String(mockGeminiGenerateContent.mock.calls[0]![0]);
             expect(aiCallArgs).toContain('a'.repeat(200) + '...');
             expect(aiCallArgs).not.toContain('a'.repeat(201));
+        });
+
+        it('should collapse 3+ repeated siblings', async () => {
+            document.body.innerHTML = `
+                <ul id="product-list">
+                    <li class="product-card"><a href="/p1">Product 1</a></li>
+                    <li class="product-card"><a href="/p2">Product 2</a></li>
+                    <li class="product-card"><a href="/p3">Product 3</a></li>
+                    <li class="product-card"><a href="/p4">Product 4</a></li>
+                    <li class="product-card"><a href="/p5">Product 5</a></li>
+                </ul>
+            `;
+
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Timeout'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.click('#target');
+
+            const aiCallArgs = String(mockGeminiGenerateContent.mock.calls[0]![0]);
+
+            // First 2 products should be serialized
+            expect(aiCallArgs).toContain('Product 1');
+            expect(aiCallArgs).toContain('Product 2');
+            // Remaining 3 should be collapsed
+            expect(aiCallArgs).toContain('3 more similar <li> items');
+            // Individual items beyond the 2nd should not appear
+            expect(aiCallArgs).not.toContain('Product 3');
+            expect(aiCallArgs).not.toContain('Product 5');
         });
     });
 
