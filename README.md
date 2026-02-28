@@ -67,8 +67,8 @@ npm run test:prod
 | `tablet`        | iPad (gen 7)   |
 
 ```bash
-# Run on all browsers
-npm run test:all-browsers
+# Run on all 9 browser configurations
+npm run test:prod:all-browsers
 ```
 
 ## 🔧 Configuration
@@ -139,13 +139,15 @@ src/
     ├── Environment.ts         # Multi-env loader
     ├── Logger.ts              # Winston wrapper
     ├── LocatorManager.ts      # Selector persistence
-    ├── HealingReporter.ts     # Healing event recording & reporting
     └── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
 
 tests/
 ├── gigantti.spec.ts           # E2E tests
 ├── healing-demo.spec.ts       # Self-healing demo tests
-└── fixtures/base.ts           # Playwright fixtures
+├── fixtures/base.ts           # Playwright fixtures
+└── unit/                      # Unit tests
+    ├── autohealer-core.test.ts
+    └── autohealer-error-handling.test.ts
 ```
 
 ## 🔄 CI/CD
@@ -193,7 +195,7 @@ async click(selector: string) {
     const result = await this.heal(selector, error);
     if (result && result.confidence >= threshold) {
       await this.page.click(result.selector);
-      this.healingReporter.record(event); // Attach to HTML report
+      this.healingEvents.push(event); // Stored internally; accessible via getHealingEvents()
     }
   }
 }
@@ -204,7 +206,7 @@ async click(selector: string) {
 Run the demo test to see self-healing in action:
 
 ```bash
-npm run test:healing-demo
+npx playwright test healing-demo --project=prod
 ```
 
 This uses an intentionally broken selector that the AI heals. Check the Playwright HTML report for the attached healing event JSON.
