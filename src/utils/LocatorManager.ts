@@ -134,12 +134,19 @@ export class LocatorManager {
                 current[lastPart] = newSelector;
             }
 
-            // Save to file
-            this.saveLocators();
+            // Save to file — rollback in-memory state if disk write fails
+            const saved = this.saveLocators();
+            if (!saved) {
+                logger.warn(`[LocatorManager] Disk write failed. Rolling back in-memory state for '${key}'.`);
+                this.loadLocators();
+                return;
+            }
             logger.info(`[LocatorManager] Updated locator '${key}' to '${newSelector}'`);
         } catch (error) {
             console.error('[LocatorManager] updateLocator failed:', error);
             logger.error(`[LocatorManager] Failed to update locator '${key}': ${String(error)}`);
+            // Rollback in-memory state to disk state on any error
+            this.loadLocators();
         } finally {
             if (release) {
                 await release();
@@ -147,11 +154,13 @@ export class LocatorManager {
         }
     }
 
-    private saveLocators() {
+    private saveLocators(): boolean {
         try {
             fs.writeFileSync(this.locatorsPath, JSON.stringify(this.locators, null, 2), 'utf-8');
+            return true;
         } catch (error) {
             logger.error(`[LocatorManager] Failed to save locators: ${String(error)}`);
+            return false;
         }
     }
 }

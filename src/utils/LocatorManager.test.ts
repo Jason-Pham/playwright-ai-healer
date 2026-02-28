@@ -127,6 +127,24 @@ describe('LocatorManager', () => {
 
             expect(mockedFs.writeFileSync).toHaveBeenCalled();
         });
+
+        it('should rollback in-memory state when disk write fails', async () => {
+            const mockLocators = { gigantti: { searchInput: '#original-selector' } };
+            const { LocatorManager, mockedFs } = await getLocatorManager();
+            vi.mocked(mockedFs.existsSync).mockReturnValue(true);
+            vi.mocked(mockedFs.readFileSync).mockReturnValue(JSON.stringify(mockLocators));
+            // writeFileSync throws to simulate disk failure
+            vi.mocked(mockedFs.writeFileSync).mockImplementation(() => {
+                throw new Error('ENOSPC: no space left on device');
+            });
+
+            const manager = LocatorManager.getInstance();
+
+            await manager.updateLocator('gigantti.searchInput', '#broken-update');
+
+            // In-memory state should have rolled back to the original disk value
+            expect(manager.getLocator('gigantti.searchInput')).toBe('#original-selector');
+        });
     });
 
     describe('File Handling', () => {
