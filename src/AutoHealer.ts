@@ -6,7 +6,6 @@ import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
 import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
 
-
 /**
  * AutoHealer - Self-healing test automation agent
  *
@@ -168,7 +167,7 @@ export class AutoHealer {
                 logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
                 await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.short });
-            } catch (e) {
+            } catch {
                 logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
             }
             await actionFn(selector);
@@ -179,12 +178,39 @@ export class AutoHealer {
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await retryFn(result.selector);
 
-                // Update locator if we have a key
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                try {
+                    // Pre-validation: verify new selector exists before attempting action
+                    try {
+                        const target = this.page.locator(result.selector);
+                        const count = await target.count();
+                        if (count === 0) {
+                            throw new Error(
+                                `Healed selector '${result.selector}' resulted in 0 matches in the active DOM.`
+                            );
+                        }
+                    } catch (validationErr) {
+                        logger.warn(`[AutoHealer] Healed selector validation failed: ${String(validationErr)}`);
+                        throw validationErr; // Pass to outer catch context for skipping
+                    }
+
+                    await retryFn(result.selector);
+
+                    // Update locator if we have a key
+                    if (locatorKey) {
+                        logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                        await locatorManager.updateLocator(locatorKey, result.selector);
+                    }
+                } catch (retryError) {
+                    logger.error(`[AutoHealer] Failed to interact with healed selector: ${String(retryError)}`);
+                    test.info().annotations.push({
+                        type: 'warning',
+                        description: `Test skipped because healed selector '${result.selector}' failed during interaction.`,
+                    });
+                    test.skip(
+                        true,
+                        `Test skipped because healed selector '${result.selector}' failed during interaction.`
+                    );
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -200,169 +226,118 @@ export class AutoHealer {
     /**
      * Safe hover method that attempts self-healing on failure
      */
-    async hover(selectorOrKey: string, options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting hover on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Hover failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.hover(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async hover(
+        selectorOrKey: string,
+        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
+    ) {
+        await this.executeAction(
+            selectorOrKey,
+            'hover',
+            async selector => {
+                await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.hover(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe type method (pressSequentially) that attempts self-healing on failure
      */
     async type(selectorOrKey: string, text: string, options?: { delay?: number; timeout?: number }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting type on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.locator(selector).pressSequentially(text, { ...(options?.delay !== undefined && { delay: options.delay }), timeout: options?.timeout ?? config.test.timeouts.fill });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Type failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.locator(result.selector).pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+        await this.executeAction(
+            selectorOrKey,
+            'type',
+            async selector => {
+                await this.page.locator(selector).pressSequentially(text, {
+                    ...(options?.delay !== undefined && { delay: options.delay }),
+                    timeout: options?.timeout ?? config.test.timeouts.fill,
+                });
+            },
+            async selector => {
+                await this.page
+                    .locator(selector)
+                    .pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
             }
-        }
+        );
     }
 
     /**
      * Safe selectOption method that attempts self-healing on failure
      */
-    async selectOption(selectorOrKey: string, values: string | string[] | { value?: string; label?: string; index?: number }, options?: { timeout?: number; force?: boolean }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting selectOption on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] SelectOption failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.selectOption(result.selector, values, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async selectOption(
+        selectorOrKey: string,
+        values: string | string[] | { value?: string; label?: string; index?: number },
+        options?: { timeout?: number; force?: boolean }
+    ) {
+        await this.executeAction(
+            selectorOrKey,
+            'selectOption',
+            async selector => {
+                await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.selectOption(selector, values, options);
             }
-        }
+        );
     }
 
     /**
      * Safe check method that attempts self-healing on failure
      */
-    async check(selectorOrKey: string, options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting check on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Check failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.check(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async check(
+        selectorOrKey: string,
+        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
+    ) {
+        await this.executeAction(
+            selectorOrKey,
+            'check',
+            async selector => {
+                await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.check(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe uncheck method that attempts self-healing on failure
      */
-    async uncheck(selectorOrKey: string, options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting uncheck on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Uncheck failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.uncheck(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async uncheck(
+        selectorOrKey: string,
+        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
+    ) {
+        await this.executeAction(
+            selectorOrKey,
+            'uncheck',
+            async selector => {
+                await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.uncheck(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe waitForSelector method that attempts self-healing on failure
      */
-    async waitForSelector(selectorOrKey: string, options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting waitForSelector on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] WaitForSelector failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.waitForSelector(result.selector, options ?? {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async waitForSelector(
+        selectorOrKey: string,
+        options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }
+    ) {
+        await this.executeAction(
+            selectorOrKey,
+            'waitForSelector',
+            async selector => {
+                await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
+            },
+            async selector => {
+                await this.page.waitForSelector(selector, options ?? {});
             }
-        }
+        );
     }
 
     /**
@@ -386,7 +361,9 @@ export class AutoHealer {
         logger.info(`[AutoHealer:heal] Original selector: "${originalSelector}"`);
         logger.info(`[AutoHealer:heal] Error: ${error.message}`);
         logger.info(`[AutoHealer:heal] Provider: ${this.provider}, Model: ${this.modelName}`);
-        logger.info(`[AutoHealer:heal] Available API keys: ${this.apiKeys.length}, Current key index: ${this.currentKeyIndex}`);
+        logger.info(
+            `[AutoHealer:heal] Available API keys: ${this.apiKeys.length}, Current key index: ${this.currentKeyIndex}`
+        );
 
         // 1. Capture simplified DOM
         logger.info(`[AutoHealer:heal] Step 1: Capturing simplified DOM...`);
@@ -396,11 +373,7 @@ export class AutoHealer {
 
         // 2. Construct Prompt
         logger.info(`[AutoHealer:heal] Step 2: Constructing prompt...`);
-        const promptText = config.ai.prompts.healingPrompt(
-            originalSelector,
-            error.message,
-            htmlSnapshot
-        );
+        const promptText = config.ai.prompts.healingPrompt(originalSelector, error.message, htmlSnapshot);
         logger.info(`[AutoHealer:heal] Prompt length: ${promptText.length} chars`);
         logger.debug(`[AutoHealer:heal] Prompt preview (first 300 chars): ${promptText.substring(0, 300)}`);
 
@@ -436,8 +409,12 @@ export class AutoHealer {
                             result = completion.choices[0]?.message.content?.trim();
                             const usage = completion.usage;
                             logger.info(`[AutoHealer:heal] OpenAI response received. Result: "${result}"`);
-                            logger.info(`[AutoHealer:heal] OpenAI Metadata - ID: ${completion.id}, Model: ${completion.model}, Tokens (Prompt/Completion/Total): ${usage?.prompt_tokens}/${usage?.completion_tokens}/${usage?.total_tokens}`);
-                            logger.debug(`[AutoHealer:heal] Full completion choices: ${JSON.stringify(completion.choices)}`);
+                            logger.info(
+                                `[AutoHealer:heal] OpenAI Metadata - ID: ${completion.id}, Model: ${completion.model}, Tokens (Prompt/Completion/Total): ${usage?.prompt_tokens}/${usage?.completion_tokens}/${usage?.total_tokens}`
+                            );
+                            logger.debug(
+                                `[AutoHealer:heal] Full completion choices: ${JSON.stringify(completion.choices)}`
+                            );
                         } else if (this.provider === 'gemini' && this.gemini) {
                             logger.info(`[AutoHealer:heal] Sending request to Gemini (model: ${this.modelName})...`);
                             const model = this.gemini.getGenerativeModel({ model: this.modelName });
@@ -449,14 +426,22 @@ export class AutoHealer {
                             result = resultResult.response.text().trim();
                             const usageMetadata = resultResult.response.usageMetadata;
                             logger.info(`[AutoHealer:heal] Gemini response received. Result: "${result}"`);
-                            logger.info(`[AutoHealer:heal] Gemini Metadata - Tokens (Prompt/Candidates/Total): ${usageMetadata?.promptTokenCount}/${usageMetadata?.candidatesTokenCount}/${usageMetadata?.totalTokenCount}`);
-                            logger.debug(`[AutoHealer:heal] Gemini full response details: ${JSON.stringify({
-                                candidates: resultResult.response.candidates,
-                                promptFeedback: resultResult.response.promptFeedback
-                            })}`);
+                            logger.info(
+                                `[AutoHealer:heal] Gemini Metadata - Tokens (Prompt/Candidates/Total): ${usageMetadata?.promptTokenCount}/${usageMetadata?.candidatesTokenCount}/${usageMetadata?.totalTokenCount}`
+                            );
+                            logger.debug(
+                                `[AutoHealer:heal] Gemini full response details: ${JSON.stringify({
+                                    candidates: resultResult.response.candidates,
+                                    promptFeedback: resultResult.response.promptFeedback,
+                                })}`
+                            );
                         } else {
-                            logger.error(`[AutoHealer:heal] No AI client initialized! provider=${this.provider}, openai=${!!this.openai}, gemini=${!!this.gemini}`);
-                            throw new Error(`[AutoHealer] No AI client initialized for provider "${this.provider}". Check API key configuration.`);
+                            logger.error(
+                                `[AutoHealer:heal] No AI client initialized! provider=${this.provider}, openai=${!!this.openai}, gemini=${!!this.gemini}`
+                            );
+                            throw new Error(
+                                `[AutoHealer] No AI client initialized for provider "${this.provider}". Check API key configuration.`
+                            );
                         }
                         // If success, break loop
                         logger.info(`[AutoHealer:heal] AI request succeeded, breaking out of retry loop.`);
@@ -464,8 +449,12 @@ export class AutoHealer {
                     } catch (reqError) {
                         const reqErrorTyped = reqError as AIError;
                         const errorMessage = reqErrorTyped.message?.toLowerCase() || '';
-                        logger.error(`[AutoHealer:heal] AI request FAILED. Status: ${reqErrorTyped.status}, Message: "${reqErrorTyped.message}"`);
-                        logger.debug(`[AutoHealer:heal] Full error object: ${JSON.stringify(reqErrorTyped, Object.getOwnPropertyNames(reqErrorTyped))}`);
+                        logger.error(
+                            `[AutoHealer:heal] AI request FAILED. Status: ${reqErrorTyped.status}, Message: "${reqErrorTyped.message}"`
+                        );
+                        logger.debug(
+                            `[AutoHealer:heal] Full error object: ${JSON.stringify(reqErrorTyped, Object.getOwnPropertyNames(reqErrorTyped))}`
+                        );
 
                         // Handle 503 Service Unavailable / 5xx Server Errors / Timeouts
                         const isServerError =
@@ -490,14 +479,18 @@ export class AutoHealer {
                                 await new Promise(resolve => setTimeout(resolve, delay));
                                 continue;
                             } else {
-                                logger.error(`[AutoHealer:heal] AI Server Error after ${maxRetries} retries. Giving up.`);
+                                logger.error(
+                                    `[AutoHealer:heal] AI Server Error after ${maxRetries} retries. Giving up.`
+                                );
                                 throw reqErrorTyped;
                             }
                         }
 
                         // Handle 401 Auth Errors specifically for key rotation prioritizing
                         const isAuthError =
-                            reqErrorTyped.status === 401 || /\\b401\\b/.test(errorMessage) || errorMessage.includes('unauthorized');
+                            reqErrorTyped.status === 401 ||
+                            /\\b401\\b/.test(errorMessage) ||
+                            errorMessage.includes('unauthorized');
 
                         logger.info(`[AutoHealer:heal] Error classification: isAuthError=${isAuthError}`);
 
@@ -505,10 +498,14 @@ export class AutoHealer {
                             logger.warn(`[AutoHealer:heal] Auth Error (401). Attempting key rotation...`);
                             const rotated = this.rotateKey();
                             if (rotated) {
-                                logger.info(`[AutoHealer:heal] Key rotation result: ${rotated} (new index: ${this.currentKeyIndex})`);
+                                logger.info(
+                                    `[AutoHealer:heal] Key rotation result: ${rotated} (new index: ${this.currentKeyIndex})`
+                                );
                                 continue keyLoop; // Try next key
                             }
-                            logger.info(`[AutoHealer:heal] Key rotation exhausted. Falling through to provider switch.`);
+                            logger.info(
+                                `[AutoHealer:heal] Key rotation exhausted. Falling through to provider switch.`
+                            );
                         }
 
                         // Handle 4xx Client Errors (Rate limit, Auth fallback, Quota, etc)
@@ -523,14 +520,18 @@ export class AutoHealer {
                         logger.info(`[AutoHealer:heal] Error classification: is4xxError=${is4xxError}`);
 
                         if (is4xxError) {
-                            logger.warn(`[AutoHealer:heal] Client Error (4xx) detected: ${reqErrorTyped.status}. Attempting to switch AI provider...`);
+                            logger.warn(
+                                `[AutoHealer:heal] Client Error (4xx) detected: ${reqErrorTyped.status}. Attempting to switch AI provider...`
+                            );
                             if (!hasSwitchedProvider && this.switchProvider()) {
                                 hasSwitchedProvider = true;
                                 maxKeyRotations = this.apiKeys.length;
                                 k = -1; // Reset loop variables to restart with the new provider
                                 continue keyLoop; // Restart the outer loop
                             } else {
-                                logger.error(`[AutoHealer:heal] No alternate provider configured or provider already switched. Skip healing.`);
+                                logger.error(
+                                    `[AutoHealer:heal] No alternate provider configured or provider already switched. Skip healing.`
+                                );
                                 test.info().annotations.push({
                                     type: 'warning',
                                     description: 'Test skipped due to AI Client Error (4xx)',
@@ -565,7 +566,10 @@ export class AutoHealer {
                     }
 
                     // Remove any surrounding quotes that the model might have added
-                    if ((result.startsWith('"') && result.endsWith('"')) || (result.startsWith("'") && result.endsWith("'"))) {
+                    if (
+                        (result.startsWith('"') && result.endsWith('"')) ||
+                        (result.startsWith("'") && result.endsWith("'"))
+                    ) {
                         result = result.substring(1, result.length - 1);
                     }
                 }
@@ -605,7 +609,9 @@ export class AutoHealer {
         } finally {
             const durationMs = Date.now() - startTime;
             logger.info(`[AutoHealer:heal] ========== HEALING END (${durationMs}ms) ==========`);
-            logger.info(`[AutoHealer:heal] Success: ${healingSuccess}, Result: ${healingResult ? healingResult.selector : 'null'}`);
+            logger.info(
+                `[AutoHealer:heal] Success: ${healingSuccess}, Result: ${healingResult ? healingResult.selector : 'null'}`
+            );
             // Record the healing event
             this.healingEvents.push({
                 timestamp: new Date().toISOString(),
@@ -658,17 +664,20 @@ export class AutoHealer {
 
             // Use TreeWalker to traverse the DOM efficiently without cloning the entire tree first
             // This reduces memory overhead significantly on large pages
-            const walk = document.createTreeWalker(
-                document.body,
-                NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT
-            );
-
-            let output = '';
+            const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
 
             // Allow-list for attributes to keep token count low and focus on structural attributes
             const validAttrs = new Set([
-                'id', 'name', 'class', 'type', 'placeholder',
-                'aria-label', 'role', 'href', 'title', 'alt'
+                'id',
+                'name',
+                'class',
+                'type',
+                'placeholder',
+                'aria-label',
+                'role',
+                'href',
+                'title',
+                'alt',
             ]);
 
             while (walk.nextNode()) {
@@ -679,41 +688,31 @@ export class AutoHealer {
                     const tagName = el.tagName.toLowerCase();
 
                     // Skip non-visual or noisy tags
-                    if (['script', 'style', 'svg', 'path', 'link', 'meta', 'noscript', 'iframe', 'video', 'audio'].includes(tagName)) {
+                    if (
+                        [
+                            'script',
+                            'style',
+                            'svg',
+                            'path',
+                            'link',
+                            'meta',
+                            'noscript',
+                            'iframe',
+                            'video',
+                            'audio',
+                        ].includes(tagName)
+                    ) {
                         continue;
-                    }
-
-                    output += `<${tagName}`;
-
-                    Array.from(el.attributes).forEach(attr => {
-                        // Data-test attributes are high value for automation
-                        if (validAttrs.has(attr.name) || attr.name.startsWith('data-test')) {
-                            let value = attr.value;
-                            // Mask value attribute for inputs to avoid leaking passwords/user data
-                            if (attr.name === 'value' && tagName === 'input') {
-                                value = '[REDACTED]';
-                            }
-                            output += ` ${attr.name}="${value}"`;
-                        }
-                    });
-
-                    output += '>';
-                } else if (node.nodeType === Node.TEXT_NODE) {
-                    const text = node.nodeValue?.trim();
-                    if (text) {
-                        // Scrub PII from visible text and truncate
-                        const scrubbed = scrubPII(text);
-                        output += scrubbed.length > 100 ? scrubbed.substring(0, 100) + '...' : scrubbed;
                     }
                 }
 
-                // Close tags logic would require a recursive approach or a more complex stack management 
-                // for a purely streaming DOM serializer. 
+                // Close tags logic would require a recursive approach or a more complex stack management
+                // for a purely streaming DOM serializer.
                 // For 'simplified' DOM context for LLM, a flat stream or simple hierarchy is often enough.
                 // However, to keep it valid HTML-ish for the LLM to understand structure:
 
-                // NOTE: A full serializer re-implementation is complex. 
-                // Reverting to Clone methodology but with PII scrubbing and stricter filtering 
+                // NOTE: A full serializer re-implementation is complex.
+                // Reverting to Clone methodology but with PII scrubbing and stricter filtering
                 // is safer for correctness while still optimizing.
             }
 
@@ -725,10 +724,23 @@ export class AutoHealer {
             const removeTags = ['script', 'style', 'svg', 'noscript', 'iframe', 'video', 'audio'];
             removeTags.forEach(tag => clone.querySelectorAll(tag).forEach(el => el.remove()));
 
-            // 2. Walk and Clean
+            // 2. Walk and Clean with Node Limit
             const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+            let processedNodes = 0;
+            const MAX_NODES = 5000;
+
+            const nodesToRemove: Node[] = [];
+
             while (walker.nextNode()) {
+                processedNodes++;
                 const node = walker.currentNode;
+
+                if (processedNodes > MAX_NODES) {
+                    // Start marking rest of tree for deletion when limit hit
+                    nodesToRemove.push(node);
+                    continue;
+                }
+
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     const el = node as HTMLElement;
 
@@ -748,6 +760,19 @@ export class AutoHealer {
                         }
                     }
                 }
+            }
+
+            // Cleanup nodes beyond max limit mapping
+            nodesToRemove.forEach(node => {
+                if (node.parentNode) {
+                    node.parentNode.removeChild(node);
+                }
+            });
+
+            if (processedNodes > MAX_NODES) {
+                console.warn(`[AutoHealer] DOM simplified snapshot truncated at ${MAX_NODES} nodes safely.`);
+                // Add a note attribute to body so the AI knows we truncated
+                clone.setAttribute('data-truncated', 'true');
             }
 
             return clone.innerHTML;
