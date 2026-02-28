@@ -126,45 +126,75 @@ npx playwright show-report playwright-report
 
 ```
 src/
-├── AutoHealer.ts           # Core AI healing logic
+├── AutoHealer.ts              # Core AI healing logic with structured output
+├── types.ts                   # Shared type definitions
 ├── config/
-│   └── index.ts            # Centralized configuration
+│   ├── index.ts               # Centralized configuration
+│   └── locators.json          # Persistent selector storage
 ├── pages/
-│   ├── BasePage.ts         # Abstract base page
-│   ├── GiganttiHomePage.ts # Entry point
-│   ├── CategoryPage.ts     # Product listings
-│   └── ProductDetailPage.ts# Product details
+│   ├── BasePage.ts            # Abstract base page
+│   ├── GiganttiHomePage.ts    # Entry point
+│   ├── CategoryPage.ts        # Product listings
+│   └── ProductDetailPage.ts   # Product details
 └── utils/
-    ├── Environment.ts      # Multi-env loader
-    ├── Logger.ts           # Winston wrapper
-    └── LocatorManager.ts   # Selector persistence
+    ├── Environment.ts         # Multi-env loader
+    ├── Logger.ts              # Winston wrapper
+    ├── LocatorManager.ts      # Selector persistence
+    ├── HealingReporter.ts     # Healing event recording & reporting
+    └── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
 
 tests/
-├── gigantti.spec.ts        # E2E tests
-└── fixtures/base.ts        # Playwright fixtures
+├── gigantti.spec.ts           # E2E tests
+├── healing-demo.spec.ts       # Self-healing demo tests
+└── fixtures/base.ts           # Playwright fixtures
 ```
 
 ## 🔄 CI/CD
 
 GitHub Actions workflow runs on every push:
 
-- ✅ Unit tests
-- ✅ E2E tests on **all 9 browser configurations**
-- ✅ HTML report artifacts
+- ✅ Unit tests with code coverage reporting
+- ✅ E2E tests on **all 9 browser configurations** (matrix strategy)
+- ✅ HTML report artifacts with healing events attached
 - ✅ Automatic retries for flaky tests
+- ✅ Coverage report uploaded as artifact
+
+## 🧬 Architecture — How Self-Healing Works
+
+```mermaid
+sequenceDiagram
+    participant Test
+    participant AutoHealer
+    participant Page
+    participant AI
+
+    Test->>AutoHealer: click("#old-btn")
+    AutoHealer->>Page: page.click("#old-btn")
+    Page-->>AutoHealer: ❌ TimeoutError
+    AutoHealer->>Page: getSimplifiedDOM()
+    Page-->>AutoHealer: cleaned HTML
+    AutoHealer->>AI: Find new selector (JSON mode)
+    AI-->>AutoHealer: { selector: "#new-btn", confidence: 0.95 }
+    AutoHealer->>AutoHealer: confidence > threshold? ✅
+    AutoHealer->>Page: page.click("#new-btn")
+    Page-->>AutoHealer: ✅ Success
+    AutoHealer->>AutoHealer: updateLocator + record event
+```
 
 ## 📝 How It Works
 
 ```typescript
 // AutoHealer intercepts failures and uses AI to recover
+// The AI returns structured JSON with confidence scoring
 async click(selector: string) {
   try {
     await this.page.click(selector);
   } catch (error) {
-    // Ask AI for the new correct selector
-    const newSelector = await this.heal(selector, error);
-    if (newSelector) {
-      await this.page.click(newSelector);
+    // Ask AI for a new selector with confidence scoring
+    const result = await this.heal(selector, error);
+    if (result && result.confidence >= threshold) {
+      await this.page.click(result.selector);
+      this.healingReporter.record(event); // Attach to HTML report
     }
   }
 }
