@@ -14,9 +14,9 @@ import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, Hea
  *
  * @example
  * ```typescript
- * const healer = new AutoHealer(page, 'your-api-key', 'gemini');
- * await healer.click('#submit-button');
- * await healer.fill('#search-input', 'test query');
+ * const healer = new AutoHealer(page, process.env['GEMINI_API_KEY']!, 'gemini');
+ * await healer.click('gigantti.searchInput');
+ * await healer.fill('gigantti.searchInput', 'laptop');
  * ```
  */
 export class AutoHealer {

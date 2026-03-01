@@ -16,9 +16,13 @@ export type SelectorStrategy = 'id' | 'css' | 'xpath' | 'text' | 'role' | 'data-
  * Structured result from an AI healing attempt
  */
 export interface HealingResult {
+    /** The replacement CSS/XPath/role selector returned by the AI. */
     selector: string;
+    /** Confidence score in the range 0–1. Values below `config.ai.healing.confidenceThreshold` are rejected. */
     confidence: number;
+    /** Human-readable explanation of why the AI chose this selector. */
     reasoning: string;
+    /** Selector strategy the AI applied to locate the element. */
     strategy: SelectorStrategy;
 }
 
@@ -26,17 +30,27 @@ export interface HealingResult {
  * A recorded healing event for reporting
  */
 export interface HealingEvent {
+    /** ISO 8601 timestamp of when the healing attempt started. */
     timestamp: string;
+    /** The selector that failed and triggered the healing attempt. */
     originalSelector: string;
+    /** The healing result if the AI succeeded, or `null` if healing failed. */
     result: HealingResult | null;
+    /** Error message from the failed AI request, if any. */
     error?: string;
+    /** Whether the healing attempt ultimately succeeded. */
     success: boolean;
+    /** AI provider that was used for this healing attempt. */
     provider: AIProvider;
+    /** Total duration of the healing attempt in milliseconds. */
     durationMs: number;
     /** Token usage from the AI provider (if available) */
     tokensUsed?: {
+        /** Number of tokens in the prompt sent to the AI. */
         prompt: number;
+        /** Number of tokens in the AI's response. */
         completion: number;
+        /** Total tokens consumed (prompt + completion). */
         total: number;
     };
     /** Character length of the DOM snapshot sent to the AI */
@@ -47,7 +61,9 @@ export interface HealingEvent {
  * AI error with optional status code
  */
 export interface AIError extends Error {
+    /** HTTP status code from the AI provider response, if available. */
     status?: number;
+    /** Provider-specific error code string, if available. */
     code?: string;
 }
 
@@ -55,10 +71,15 @@ export interface AIError extends Error {
  * Click options extending Playwright's native options
  */
 export interface ClickOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
     timeout?: number;
+    /** Bypass actionability checks and force the click. */
     force?: boolean;
+    /** Do not wait for initiated navigations to finish after the click. */
     noWaitAfter?: boolean;
+    /** Perform a trial run — check actionability without actually clicking. */
     trial?: boolean;
+    /** Click at this position relative to the element's top-left corner. */
     position?: { x: number; y: number };
 }
 
@@ -66,40 +87,62 @@ export interface ClickOptions {
  * Fill options extending Playwright's native options
  */
 export interface FillOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
     timeout?: number;
+    /** Do not wait for initiated navigations to finish after filling. */
     noWaitAfter?: boolean;
+    /** Bypass actionability checks and force the fill. */
     force?: boolean;
 }
 
 /**
- * Configuration types for better type safety
+ * Timeout configuration used across the test framework (all values in milliseconds)
  */
 export interface TimeoutConfig {
+    /** Default timeout for most page interactions. */
     default: number;
+    /** Timeout for waiting on cookie/consent banners to appear. */
     cookie: number;
+    /** Timeout for URL pattern verification after navigation. */
     urlVerify: number;
+    /** Timeout for waiting on product visibility assertions. */
     productVisibility: number;
+    /** Timeout for click and hover actions. */
     click: number;
+    /** Timeout for fill and type actions. */
     fill: number;
 }
 
+/**
+ * AI provider configuration used by `AutoHealer`
+ */
 export interface AIConfig {
+    /** Active AI provider. */
     provider: AIProvider;
     gemini: {
+        /** Gemini API key. Required when `provider` is `'gemini'`. */
         apiKey?: string;
+        /** Gemini model name (e.g. `'gemini-flash-latest'`). */
         modelName: string;
     };
     openai: {
+        /** Ordered list of OpenAI API keys used for key rotation. */
         apiKeys: string[];
+        /** OpenAI model name (e.g. `'gpt-4o'`). */
         modelName: string;
+        /** Primary OpenAI API key (first entry in `apiKeys`). */
         apiKey?: string;
     };
     healing: {
+        /** Maximum number of AI retry attempts per healing event. */
         maxRetries: number;
+        /** Delay in milliseconds between retry attempts. */
         retryDelay: number;
+        /** Minimum confidence score (0–1) required to accept an AI-suggested selector. */
         confidenceThreshold: number;
     };
     prompts: {
+        /** Function that builds the healing prompt sent to the AI. */
         healingPrompt: (selector: string, error: string, html: string) => string;
     };
 }
