@@ -12,6 +12,7 @@
 | Feature                   | Description                                                 |
 | ------------------------- | ----------------------------------------------------------- |
 | 🔧 **AI Self-Healing**    | Automatically fixes broken selectors using OpenAI or Gemini |
+| 🔄 **Provider Fallback**  | Automatically switches between Gemini/OpenAI on rate limits |
 | 🌐 **Multi-Browser**      | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices    |
 | 🌍 **Multi-Environment**  | Dev, Staging, Prod configs with `.env.{env}` files          |
 | 📊 **Structured Logging** | Winston logger with console + file output                   |
@@ -26,6 +27,9 @@ npm install
 
 # Run tests (production environment)
 npm run test:prod
+
+# Run the Self-Healing Demo specifically
+npm run test:healing-demo
 
 # Run on specific browser
 npm run test:firefox
@@ -125,8 +129,7 @@ npx playwright show-report playwright-report
 
 ```
 src/
-├── AutoHealer.ts              # Core AI healing logic with structured output
-├── types.ts                   # Shared type definitions
+├── AutoHealer.ts              # Core AI healing logic
 ├── config/
 │   ├── index.ts               # Centralized configuration
 │   └── locators.json          # Persistent selector storage
@@ -156,9 +159,8 @@ GitHub Actions workflow runs on every push:
 
 - ✅ Unit tests with code coverage reporting
 - ✅ E2E tests on **all 9 browser configurations** (matrix strategy)
-- ✅ HTML report artifacts with healing events attached
+- ✅ HTML report artifacts
 - ✅ Automatic retries for flaky tests
-- ✅ Coverage report uploaded as artifact
 
 ## 🧬 Architecture — How Self-Healing Works
 
@@ -174,32 +176,33 @@ sequenceDiagram
     Page-->>AutoHealer: ❌ TimeoutError
     AutoHealer->>Page: getSimplifiedDOM()
     Page-->>AutoHealer: cleaned HTML
-    AutoHealer->>AI: Find new selector (JSON mode)
-    AI-->>AutoHealer: { selector: "#new-btn", confidence: 0.95 }
-    AutoHealer->>AutoHealer: confidence > threshold? ✅
+    AutoHealer->>AI: Find new selector
+    AI-->>AutoHealer: "#new-btn"
     AutoHealer->>Page: page.click("#new-btn")
     Page-->>AutoHealer: ✅ Success
-    AutoHealer->>AutoHealer: updateLocator + record event
+    AutoHealer->>AutoHealer: updateLocator
 ```
 
 ## 📝 How It Works
 
 ```typescript
 // AutoHealer intercepts failures and uses AI to recover
-// The AI returns structured JSON with confidence scoring
+// The AI returns the plain CSS selector as a string
 async click(selector: string) {
   try {
     await this.page.click(selector);
   } catch (error) {
-    // Ask AI for a new selector with confidence scoring
+    // Ask AI for a new replacement selector
     const result = await this.heal(selector, error);
-    if (result && result.confidence >= threshold) {
+    if (result && result.selector !== 'FAIL') {
       await this.page.click(result.selector);
       this.healingEvents.push(event); // Stored internally; accessible via getHealingEvents()
     }
   }
 }
 ```
+
+_Note: If the primary AI Provider (e.g. Gemini) hits a 4xx Rate Limit error, the `AutoHealer` automatically detects the quota failure and falls back to an alternate AI Provider (e.g. OpenAI) if configured!_
 
 ### 🎭 Healing Demo
 
