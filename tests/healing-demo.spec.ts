@@ -16,8 +16,8 @@ test.describe('Self-Healing Demo', () => {
         // Use POM to open the page
         await giganttiPage.open();
 
-        // Use the POM's "safeFill" function with a correct selector
-        await giganttiPage.safeFill('#speedy-header-search', 'laptop');
+        // Use the POM's "safeFill" function with the real search input selector
+        await giganttiPage.safeFill("input[type='search']", 'laptop');
 
         // Intentionally use a BROKEN selector with the POM's "safeClick" function
         // This demonstrates that POM functions are now self-healing!
