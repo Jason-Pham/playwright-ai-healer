@@ -23,7 +23,7 @@ describe('BasePage', () => {
             goto: vi.fn(),
             waitForTimeout: vi.fn(),
             locator: vi.fn(),
-            waitForLoadState: vi.fn(),
+            waitForLoadState: vi.fn().mockResolvedValue(undefined),
             waitForFunction: vi.fn(),
             getByRole: vi.fn(),
             on: vi.fn().mockReturnThis(), // Returns itself for chaining

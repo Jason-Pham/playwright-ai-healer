@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import dotenv from 'dotenv';
-import { loadEnvironment, getEnvironment, isDev, isProd } from './Environment.js';
+import { loadEnvironment, getEnvironment, isDev, isProd, resetEnvironmentForTesting } from './Environment.js';
 
 // Mock fs, path, and dotenv
 vi.mock('fs');
@@ -29,6 +29,7 @@ describe('Environment', () => {
         vi.resetModules();
         process.env = { ...originalEnv };
         vi.clearAllMocks();
+        resetEnvironmentForTesting();
     });
 
     afterEach(() => {

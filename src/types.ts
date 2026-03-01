@@ -96,6 +96,53 @@ export interface FillOptions {
 }
 
 /**
+ * Hover options extending Playwright's native options
+ */
+export interface HoverOptions {
+    timeout?: number;
+    force?: boolean;
+    position?: { x: number; y: number };
+}
+
+/**
+ * Type (pressSequentially) options
+ */
+export interface TypeOptions {
+    delay?: number;
+    timeout?: number;
+}
+
+/**
+ * SelectOption options extending Playwright's native options
+ */
+export interface SelectOptionOptions {
+    timeout?: number;
+    force?: boolean;
+}
+
+/**
+ * SelectOption value argument — mirrors Playwright's overload
+ */
+export type SelectOptionValues = string | string[] | { value?: string; label?: string; index?: number };
+
+/**
+ * Check/uncheck options extending Playwright's native options
+ */
+export interface CheckOptions {
+    timeout?: number;
+    force?: boolean;
+    position?: { x: number; y: number };
+}
+
+/**
+ * WaitForSelector options extending Playwright's native options
+ */
+export interface WaitForSelectorOptions {
+    state?: 'attached' | 'detached' | 'visible' | 'hidden';
+    timeout?: number;
+}
+
+/**
  * Timeout configuration used across the test framework (all values in milliseconds)
  */
 export interface TimeoutConfig {
