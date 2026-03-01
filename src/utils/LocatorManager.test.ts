@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import * as fs from 'fs';
 
 // Mock fs module before importing LocatorManager
 vi.mock('fs', () => ({
@@ -18,7 +17,7 @@ vi.mock('proper-lockfile', () => ({
         lock: vi.fn().mockResolvedValue(() => Promise.resolve()),
         check: vi.fn(),
         unlock: vi.fn(),
-    }
+    },
 }));
 
 const getLocatorManager = async () => {
@@ -103,7 +102,7 @@ describe('LocatorManager', () => {
             const { LocatorManager, mockedFs } = await getLocatorManager();
             vi.mocked(mockedFs.existsSync).mockReturnValue(true);
             vi.mocked(mockedFs.readFileSync).mockReturnValue(JSON.stringify(mockLocators));
-            vi.mocked(mockedFs.writeFileSync).mockImplementation(() => { });
+            vi.mocked(mockedFs.writeFileSync).mockImplementation(() => {});
 
             const manager = LocatorManager.getInstance();
 
@@ -119,7 +118,7 @@ describe('LocatorManager', () => {
             const { LocatorManager, mockedFs } = await getLocatorManager();
             vi.mocked(mockedFs.existsSync).mockReturnValue(true);
             vi.mocked(mockedFs.readFileSync).mockReturnValue(JSON.stringify(mockLocators));
-            vi.mocked(mockedFs.writeFileSync).mockImplementation(() => { });
+            vi.mocked(mockedFs.writeFileSync).mockImplementation(() => {});
 
             const manager = LocatorManager.getInstance();
 
@@ -133,7 +132,7 @@ describe('LocatorManager', () => {
         it('should handle missing locators file gracefully', async () => {
             const { LocatorManager, mockedFs } = await getLocatorManager();
             vi.mocked(mockedFs.existsSync).mockReturnValue(false);
-            const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => { });
+            const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
             const manager = LocatorManager.getInstance();
 
@@ -145,7 +144,7 @@ describe('LocatorManager', () => {
             const { LocatorManager, mockedFs } = await getLocatorManager();
             vi.mocked(mockedFs.existsSync).mockReturnValue(true);
             vi.mocked(mockedFs.readFileSync).mockReturnValue('{ invalid json }');
-            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+            const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
             const manager = LocatorManager.getInstance();
 

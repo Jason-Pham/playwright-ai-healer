@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as lockfile from 'proper-lockfile';
@@ -42,6 +41,21 @@ export class LocatorManager {
             LocatorManager.instance = new LocatorManager();
         }
         return LocatorManager.instance;
+    }
+
+    /**
+     * Reset the singleton instance.
+     *
+     * **For testing only** — allows unit tests to obtain a fresh instance with
+     * a clean locator store between test cases without leaking state.
+     *
+     * @example
+     * ```typescript
+     * beforeEach(() => { LocatorManager.resetInstance(); });
+     * ```
+     */
+    public static resetInstance(): void {
+        LocatorManager.instance = undefined as unknown as LocatorManager;
     }
 
     private loadLocators() {
@@ -138,8 +152,8 @@ export class LocatorManager {
             this.saveLocators();
             logger.info(`[LocatorManager] Updated locator '${key}' to '${newSelector}'`);
         } catch (error) {
-            console.error('[LocatorManager] updateLocator failed:', error);
             logger.error(`[LocatorManager] Failed to update locator '${key}': ${String(error)}`);
+            throw error;
         } finally {
             if (release) {
                 await release();

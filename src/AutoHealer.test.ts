@@ -1,15 +1,14 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Page } from '@playwright/test';
 import { mockGeminiGenerateContent } from './test-setup.js';
 import { AutoHealer } from './AutoHealer.js';
-import { LocatorManager } from './utils/LocatorManager.js';
 
 const { mockLocatorManager } = vi.hoisted(() => {
     return {
         mockLocatorManager: {
             getLocator: vi.fn((key: string) => (key === 'app.btn' ? '#old-selector' : null)),
-            updateLocator: vi.fn(),
+            updateLocator: vi.fn().mockResolvedValue(undefined),
         },
     };
 });
