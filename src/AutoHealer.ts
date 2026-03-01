@@ -4,8 +4,20 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
-import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
-
+import type {
+    AIProvider,
+    ClickOptions,
+    FillOptions,
+    HoverOptions,
+    TypeOptions,
+    SelectOptionOptions,
+    SelectOptionValues,
+    CheckOptions,
+    WaitForSelectorOptions,
+    AIError,
+    HealingResult,
+    HealingEvent,
+} from './types.js';
 
 /**
  * AutoHealer - Self-healing test automation agent
@@ -141,7 +153,7 @@ export class AutoHealer {
                 logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
                 await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
-            } catch (e) {
+            } catch {
                 logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
             }
             await actionFn(selector);
@@ -167,170 +179,129 @@ export class AutoHealer {
 
     /**
      * Safe hover method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright hover options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async hover(selectorOrKey: string, options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting hover on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Hover failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.hover(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async hover(selectorOrKey: string, options?: HoverOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'hover',
+            async selector => {
+                await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.hover(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe type method (pressSequentially) that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param text - Text to type character by character
+     * @param options - Delay between keystrokes and timeout
+     * @throws Error if healing fails or element still cannot be found
      */
-    async type(selectorOrKey: string, text: string, options?: { delay?: number; timeout?: number }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting type on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.locator(selector).pressSequentially(text, { ...(options?.delay !== undefined && { delay: options.delay }), timeout: options?.timeout ?? config.test.timeouts.fill });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Type failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.locator(result.selector).pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async type(selectorOrKey: string, text: string, options?: TypeOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'type',
+            async selector => {
+                await this.page.locator(selector).pressSequentially(text, {
+                    ...(options?.delay !== undefined && { delay: options.delay }),
+                    timeout: options?.timeout ?? config.test.timeouts.fill,
+                });
+            },
+            async selector => {
+                await this.page
+                    .locator(selector)
+                    .pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
             }
-        }
+        );
     }
 
     /**
      * Safe selectOption method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param values - Option value(s) to select
+     * @param options - Playwright selectOption options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async selectOption(selectorOrKey: string, values: string | string[] | { value?: string; label?: string; index?: number }, options?: { timeout?: number; force?: boolean }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting selectOption on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] SelectOption failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.selectOption(result.selector, values, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async selectOption(selectorOrKey: string, values: SelectOptionValues, options?: SelectOptionOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'selectOption',
+            async selector => {
+                await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.selectOption(selector, values, options);
             }
-        }
+        );
     }
 
     /**
      * Safe check method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright check options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async check(selectorOrKey: string, options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting check on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Check failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.check(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async check(selectorOrKey: string, options?: CheckOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'check',
+            async selector => {
+                await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.check(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe uncheck method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright uncheck options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async uncheck(selectorOrKey: string, options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting uncheck on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Uncheck failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.uncheck(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async uncheck(selectorOrKey: string, options?: CheckOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'uncheck',
+            async selector => {
+                await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.uncheck(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe waitForSelector method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright waitForSelector options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async waitForSelector(selectorOrKey: string, options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting waitForSelector on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] WaitForSelector failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.waitForSelector(result.selector, options ?? {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                throw error;
+    async waitForSelector(selectorOrKey: string, options?: WaitForSelectorOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'waitForSelector',
+            async selector => {
+                await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
+            },
+            async selector => {
+                await this.page.waitForSelector(selector, options ?? {});
             }
-        }
+        );
     }
 
     /**
@@ -354,7 +325,9 @@ export class AutoHealer {
         logger.info(`[AutoHealer:heal] Original selector: "${originalSelector}"`);
         logger.info(`[AutoHealer:heal] Error: ${error.message}`);
         logger.info(`[AutoHealer:heal] Provider: ${this.provider}, Model: ${this.modelName}`);
-        logger.info(`[AutoHealer:heal] Available API keys: ${this.apiKeys.length}, Current key index: ${this.currentKeyIndex}`);
+        logger.info(
+            `[AutoHealer:heal] Available API keys: ${this.apiKeys.length}, Current key index: ${this.currentKeyIndex}`
+        );
 
         // 1. Capture simplified DOM
         logger.info(`[AutoHealer:heal] Step 1: Capturing simplified DOM...`);
@@ -402,7 +375,9 @@ export class AutoHealer {
                             );
                             result = completion.choices[0]?.message.content?.trim();
                             logger.info(`[AutoHealer:heal] OpenAI response received. Result: "${result}"`);
-                            logger.debug(`[AutoHealer:heal] Full completion choices: ${JSON.stringify(completion.choices)}`);
+                            logger.debug(
+                                `[AutoHealer:heal] Full completion choices: ${JSON.stringify(completion.choices)}`
+                            );
                         } else if (this.provider === 'gemini' && this.gemini) {
                             logger.info(`[AutoHealer:heal] Sending request to Gemini (model: ${this.modelName})...`);
                             const model = this.gemini.getGenerativeModel({ model: this.modelName });
@@ -414,8 +389,12 @@ export class AutoHealer {
                             result = resultResult.response.text().trim();
                             logger.info(`[AutoHealer:heal] Gemini response received. Result: "${result}"`);
                         } else {
-                            logger.error(`[AutoHealer:heal] No AI client initialized! provider=${this.provider}, openai=${!!this.openai}, gemini=${!!this.gemini}`);
-                            throw new Error(`[AutoHealer] No AI client initialized for provider "${this.provider}". Check API key configuration.`);
+                            logger.error(
+                                `[AutoHealer:heal] No AI client initialized! provider=${this.provider}, openai=${!!this.openai}, gemini=${!!this.gemini}`
+                            );
+                            throw new Error(
+                                `[AutoHealer] No AI client initialized for provider "${this.provider}". Check API key configuration.`
+                            );
                         }
                         // If success, break loop
                         logger.info(`[AutoHealer:heal] AI request succeeded, breaking out of retry loop.`);
@@ -423,8 +402,12 @@ export class AutoHealer {
                     } catch (reqError) {
                         const reqErrorTyped = reqError as AIError;
                         const errorMessage = reqErrorTyped.message?.toLowerCase() || '';
-                        logger.error(`[AutoHealer:heal] AI request FAILED. Status: ${reqErrorTyped.status}, Message: "${reqErrorTyped.message}"`);
-                        logger.debug(`[AutoHealer:heal] Full error object: ${JSON.stringify(reqErrorTyped, Object.getOwnPropertyNames(reqErrorTyped))}`);
+                        logger.error(
+                            `[AutoHealer:heal] AI request FAILED. Status: ${reqErrorTyped.status}, Message: "${reqErrorTyped.message}"`
+                        );
+                        logger.debug(
+                            `[AutoHealer:heal] Full error object: ${JSON.stringify(reqErrorTyped, Object.getOwnPropertyNames(reqErrorTyped))}`
+                        );
 
                         // Handle 503 Service Unavailable / 5xx Server Errors / Timeouts
                         const isServerError =
@@ -449,7 +432,9 @@ export class AutoHealer {
                                 await new Promise(resolve => setTimeout(resolve, delay));
                                 continue;
                             } else {
-                                logger.error(`[AutoHealer:heal] AI Server Error after ${maxRetries} retries. Giving up.`);
+                                logger.error(
+                                    `[AutoHealer:heal] AI Server Error after ${maxRetries} retries. Giving up.`
+                                );
                                 throw reqErrorTyped;
                             }
                         }
@@ -481,7 +466,9 @@ export class AutoHealer {
                         if (isAuthError) {
                             logger.warn(`[AutoHealer:heal] Auth Error (401). Attempting key rotation...`);
                             const rotated = this.rotateKey();
-                            logger.info(`[AutoHealer:heal] Key rotation result: ${rotated} (new index: ${this.currentKeyIndex})`);
+                            logger.info(
+                                `[AutoHealer:heal] Key rotation result: ${rotated} (new index: ${this.currentKeyIndex})`
+                            );
                             if (rotated) {
                                 continue keyLoop; // Try next key
                             } else {
@@ -506,14 +493,21 @@ export class AutoHealer {
             }
 
             if (result && result !== 'FAIL') {
-                healingSuccess = true;
-                healingResult = {
-                    selector: result,
-                    confidence: 1.0,
-                    reasoning: 'AI found replacement selector.',
-                    strategy: 'css',
-                };
-                logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                // Validate the selector before using or persisting it
+                if (!this.validateSelector(result)) {
+                    logger.warn(
+                        `[AutoHealer:heal] ❌ HEALING REJECTED. AI-returned selector failed validation: "${result}"`
+                    );
+                } else {
+                    healingSuccess = true;
+                    healingResult = {
+                        selector: result,
+                        confidence: 1.0,
+                        reasoning: 'AI found replacement selector.',
+                        strategy: 'css',
+                    };
+                    logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                }
             } else {
                 logger.warn(`[AutoHealer:heal] ❌ HEALING FAILED. Result was: "${result}" (FAIL or empty)`);
             }
@@ -535,7 +529,9 @@ export class AutoHealer {
         } finally {
             const durationMs = Date.now() - startTime;
             logger.info(`[AutoHealer:heal] ========== HEALING END (${durationMs}ms) ==========`);
-            logger.info(`[AutoHealer:heal] Success: ${healingSuccess}, Result: ${healingResult ? healingResult.selector : 'null'}`);
+            logger.info(
+                `[AutoHealer:heal] Success: ${healingSuccess}, Result: ${healingResult ? healingResult.selector : 'null'}`
+            );
             // Record the healing event
             this.healingEvents.push({
                 timestamp: new Date().toISOString(),
@@ -549,6 +545,94 @@ export class AutoHealer {
         }
 
         return healingResult;
+    }
+
+    /**
+     * Validates an AI-returned selector against an allowlist of safe patterns and a
+     * denylist of dangerous payloads before the selector is used in any page interaction
+     * or persisted to locators.json.
+     *
+     * Allowed patterns:
+     * - XPath expressions starting with `//` or `./`
+     * - Playwright built-in text engines: `text=`, `role=`, `label=`, `placeholder=`,
+     *   `alt=`, `title=`, `testid=`, `data-testid=`
+     * - Attribute selectors starting with `[`
+     * - Standard CSS selectors matching only known-safe characters
+     *
+     * Rejected patterns (denylist takes precedence):
+     * - Strings starting with `javascript:` or `data:`
+     * - Strings containing HTML tags or angle brackets (`<`, `>`)
+     * - Strings containing JS execution primitives: `eval(`, `document.`, `window.`
+     *
+     * @param selector - The selector string returned by the AI provider
+     * @returns `true` when the selector is considered safe, `false` otherwise
+     */
+    private validateSelector(selector: string): boolean {
+        if (!selector || selector.trim().length === 0) {
+            return false;
+        }
+
+        const trimmed = selector.trim();
+
+        // Denylist: dangerous prefixes (case-insensitive)
+        const dangerousPrefixes = ['javascript:', 'data:'];
+        for (const prefix of dangerousPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous prefix "${prefix}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Denylist: dangerous substrings that indicate HTML or JS injection.
+        // Note: standalone `<` and `>` are NOT in the denylist because `>` is a valid
+        // CSS child combinator and XPath uses `<`/`>` in comparisons.  We only block
+        // patterns that unambiguously indicate injection payloads.
+        const dangerousSubstrings = ['<script', '</', '<!--', 'eval(', 'document.', 'window.'];
+        for (const pattern of dangerousSubstrings) {
+            if (trimmed.toLowerCase().includes(pattern.toLowerCase())) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous pattern "${pattern}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Allowlist: Playwright text engine prefixes
+        const playwrightPrefixes = [
+            'text=',
+            'role=',
+            'label=',
+            'placeholder=',
+            'alt=',
+            'title=',
+            'testid=',
+            'data-testid=',
+        ];
+        for (const prefix of playwrightPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        // Allowlist: XPath expressions
+        if (trimmed.startsWith('//') || trimmed.startsWith('./')) {
+            return true;
+        }
+
+        // Allowlist: CSS attribute selectors starting with `[`
+        if (trimmed.startsWith('[')) {
+            return true;
+        }
+
+        // Allowlist: Standard CSS selector characters only
+        // Permits: alphanumeric, whitespace, and common CSS selector syntax tokens
+        // (#id, .class, tag, [attr], :pseudo, >, +, ~, *, comma, quotes, =, ^, $, |, -, !, @, /)
+        const safeCssPattern = /^[a-zA-Z0-9\s\-_#.:,[\]()="'^$*|>+~!@/\\]+$/;
+        if (safeCssPattern.test(trimmed)) {
+            return true;
+        }
+
+        // Default deny: selector did not match any known-safe pattern
+        logger.warn(`[AutoHealer:validateSelector] Rejected — selector does not match any safe pattern: "${trimmed}"`);
+        return false;
     }
 
     /**
@@ -586,69 +670,22 @@ export class AutoHealer {
                 return text.replace(emailRegex, '[EMAIL]').replace(phoneRegex, '[PHONE]');
             };
 
-            // Use TreeWalker to traverse the DOM efficiently without cloning the entire tree first
-            // This reduces memory overhead significantly on large pages
-            const walk = document.createTreeWalker(
-                document.body,
-                NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT
-            );
-
-            let output = '';
-
             // Allow-list for attributes to keep token count low and focus on structural attributes
             const validAttrs = new Set([
-                'id', 'name', 'class', 'type', 'placeholder',
-                'aria-label', 'role', 'href', 'title', 'alt'
+                'id',
+                'name',
+                'class',
+                'type',
+                'placeholder',
+                'aria-label',
+                'role',
+                'href',
+                'title',
+                'alt',
             ]);
 
-            while (walk.nextNode()) {
-                const node = walk.currentNode;
-
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    const el = node as HTMLElement;
-                    const tagName = el.tagName.toLowerCase();
-
-                    // Skip non-visual or noisy tags
-                    if (['script', 'style', 'svg', 'path', 'link', 'meta', 'noscript', 'iframe', 'video', 'audio'].includes(tagName)) {
-                        continue;
-                    }
-
-                    output += `<${tagName}`;
-
-                    Array.from(el.attributes).forEach(attr => {
-                        // Data-test attributes are high value for automation
-                        if (validAttrs.has(attr.name) || attr.name.startsWith('data-test')) {
-                            let value = attr.value;
-                            // Mask value attribute for inputs to avoid leaking passwords/user data
-                            if (attr.name === 'value' && tagName === 'input') {
-                                value = '[REDACTED]';
-                            }
-                            output += ` ${attr.name}="${value}"`;
-                        }
-                    });
-
-                    output += '>';
-                } else if (node.nodeType === Node.TEXT_NODE) {
-                    const text = node.nodeValue?.trim();
-                    if (text) {
-                        // Scrub PII from visible text and truncate
-                        const scrubbed = scrubPII(text);
-                        output += scrubbed.length > 100 ? scrubbed.substring(0, 100) + '...' : scrubbed;
-                    }
-                }
-
-                // Close tags logic would require a recursive approach or a more complex stack management 
-                // for a purely streaming DOM serializer. 
-                // For 'simplified' DOM context for LLM, a flat stream or simple hierarchy is often enough.
-                // However, to keep it valid HTML-ish for the LLM to understand structure:
-
-                // NOTE: A full serializer re-implementation is complex. 
-                // Reverting to Clone methodology but with PII scrubbing and stricter filtering 
-                // is safer for correctness while still optimizing.
-            }
-
-            // Optimization: Clone is safer for structural integrity than custom serializer
-            // We apply PII scrubbing on the clone.
+            // Clone is safer for structural integrity than a custom serializer.
+            // We apply PII scrubbing on the clone before returning its innerHTML.
             const clone = document.body.cloneNode(true) as HTMLElement;
 
             // 1. Remove noise

@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Page } from '@playwright/test';
 import { mockGeminiGenerateContent } from './test-setup.js';
 import { AutoHealer } from './AutoHealer.js';
-import { LocatorManager } from './utils/LocatorManager.js';
 
 const { mockLocatorManager } = vi.hoisted(() => {
     return {
@@ -21,16 +20,22 @@ vi.mock('./utils/LocatorManager.js', () => ({
     },
 }));
 
-// Mock page factory
+// Mock page factory — includes all methods exercised by the 8 public action methods
 const createMockPage = (): Partial<Page> => {
-    const mockLocator = {
+    const mockLocatorHandle = {
         waitFor: vi.fn().mockResolvedValue(undefined),
+        pressSequentially: vi.fn().mockResolvedValue(undefined),
     };
     return {
         click: vi.fn(),
         fill: vi.fn(),
+        hover: vi.fn(),
+        selectOption: vi.fn(),
+        check: vi.fn(),
+        uncheck: vi.fn(),
+        waitForSelector: vi.fn(),
         evaluate: vi.fn().mockResolvedValue('<html><body><button id="btn">Click</button></body></html>'),
-        locator: vi.fn().mockReturnValue(mockLocator),
+        locator: vi.fn().mockReturnValue(mockLocatorHandle),
     } as unknown as Partial<Page>;
 };
 
@@ -275,6 +280,199 @@ describe('AutoHealer', () => {
 
             const { test } = await import('@playwright/test');
             expect(test.skip).toHaveBeenCalledWith(true, expect.stringContaining('Rate Limit'));
+        });
+    });
+
+    describe('validateSelector()', () => {
+        // Access the private method via a typed cast — avoids `any`
+        type WithValidate = { validateSelector: (selector: string) => boolean };
+        const getValidator = (healer: AutoHealer) =>
+            (healer as unknown as WithValidate).validateSelector.bind(healer as unknown as WithValidate);
+
+        let healer: AutoHealer;
+
+        beforeEach(() => {
+            healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+        });
+
+        describe('valid CSS selectors', () => {
+            it('should accept a simple element selector', () => {
+                expect(getValidator(healer)('button')).toBe(true);
+            });
+
+            it('should accept an ID selector', () => {
+                expect(getValidator(healer)('#submit-btn')).toBe(true);
+            });
+
+            it('should accept a class selector', () => {
+                expect(getValidator(healer)('.primary-button')).toBe(true);
+            });
+
+            it('should accept a compound selector with descendant combinator', () => {
+                expect(getValidator(healer)('form .submit-button')).toBe(true);
+            });
+
+            it('should accept a selector with child combinator', () => {
+                expect(getValidator(healer)('ul > li.active')).toBe(true);
+            });
+
+            it('should accept a selector with a pseudo-class', () => {
+                expect(getValidator(healer)('input:focus')).toBe(true);
+            });
+
+            it('should accept an attribute selector', () => {
+                expect(getValidator(healer)('[data-testid="search-input"]')).toBe(true);
+            });
+
+            it('should accept a type + attribute compound selector', () => {
+                expect(getValidator(healer)('input[type="text"]')).toBe(true);
+            });
+
+            it('should accept a selector with adjacent sibling combinator', () => {
+                expect(getValidator(healer)('label + input')).toBe(true);
+            });
+        });
+
+        describe('valid XPath selectors', () => {
+            it('should accept an absolute XPath starting with //', () => {
+                expect(getValidator(healer)('//button[@id="submit"]')).toBe(true);
+            });
+
+            it('should accept a relative XPath starting with ./', () => {
+                expect(getValidator(healer)('./div/span[@class="label"]')).toBe(true);
+            });
+
+            it('should accept an XPath with text()', () => {
+                expect(getValidator(healer)('//button[text()="Submit"]')).toBe(true);
+            });
+
+            it('should accept an XPath with contains()', () => {
+                expect(getValidator(healer)('//input[contains(@placeholder,"Search")]')).toBe(true);
+            });
+        });
+
+        describe('valid Playwright text engine selectors', () => {
+            it('should accept text= selector', () => {
+                expect(getValidator(healer)('text=Submit')).toBe(true);
+            });
+
+            it('should accept role= selector', () => {
+                expect(getValidator(healer)('role=button')).toBe(true);
+            });
+
+            it('should accept label= selector', () => {
+                expect(getValidator(healer)('label=Email address')).toBe(true);
+            });
+
+            it('should accept placeholder= selector', () => {
+                expect(getValidator(healer)('placeholder=Enter your name')).toBe(true);
+            });
+
+            it('should accept alt= selector', () => {
+                expect(getValidator(healer)('alt=Company logo')).toBe(true);
+            });
+
+            it('should accept title= selector', () => {
+                expect(getValidator(healer)('title=Close dialog')).toBe(true);
+            });
+
+            it('should accept testid= selector', () => {
+                expect(getValidator(healer)('testid=login-form')).toBe(true);
+            });
+
+            it('should accept data-testid= selector', () => {
+                expect(getValidator(healer)('data-testid=search-input')).toBe(true);
+            });
+
+            it('should accept text= with mixed case prefix', () => {
+                expect(getValidator(healer)('TEXT=Submit')).toBe(true);
+            });
+        });
+
+        describe('dangerous patterns — denylist', () => {
+            it('should reject javascript: URI', () => {
+                expect(getValidator(healer)('javascript:alert(1)')).toBe(false);
+            });
+
+            it('should reject javascript: URI with uppercase prefix', () => {
+                expect(getValidator(healer)('JavaScript:alert(1)')).toBe(false);
+            });
+
+            it('should reject data: URI', () => {
+                expect(getValidator(healer)('data:text/html,<h1>hi</h1>')).toBe(false);
+            });
+
+            it('should reject a selector containing <script', () => {
+                expect(getValidator(healer)('<script>alert(1)</script>')).toBe(false);
+            });
+
+            it('should reject a selector containing a closing tag </', () => {
+                expect(getValidator(healer)('</div>')).toBe(false);
+            });
+
+            it('should reject a selector containing an HTML comment <!--', () => {
+                expect(getValidator(healer)('<!-- injected -->')).toBe(false);
+            });
+
+            it('should reject a selector containing eval(', () => {
+                expect(getValidator(healer)('#id eval(alert(1))')).toBe(false);
+            });
+
+            it('should reject a selector containing document.', () => {
+                expect(getValidator(healer)('document.getElementById("x")')).toBe(false);
+            });
+
+            it('should reject a selector containing window.', () => {
+                expect(getValidator(healer)('window.location')).toBe(false);
+            });
+
+            it('should reject a selector containing an inline <script tag (no closing slash needed)', () => {
+                expect(getValidator(healer)('#id<script>x</script>')).toBe(false);
+            });
+
+            it('should reject a selector that starts an HTML comment sequence', () => {
+                expect(getValidator(healer)('<!--#id-->')).toBe(false);
+            });
+        });
+
+        describe('edge cases', () => {
+            it('should reject an empty string', () => {
+                expect(getValidator(healer)('')).toBe(false);
+            });
+
+            it('should reject a whitespace-only string', () => {
+                expect(getValidator(healer)('   ')).toBe(false);
+            });
+
+            it('should reject a selector with only unknown special characters', () => {
+                expect(getValidator(healer)('{}')).toBe(false);
+            });
+
+            it('should accept a selector with leading/trailing whitespace after trim', () => {
+                // Trim is applied internally so surrounding spaces should be fine
+                expect(getValidator(healer)('  #submit-btn  ')).toBe(true);
+            });
+        });
+
+        describe('integration — heal() returns null when selector fails validation', () => {
+            it('should treat a malicious AI response as a healing failure', async () => {
+                (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Element not found'));
+
+                // AI returns a dangerous selector
+                mockGeminiGenerateContent.mockResolvedValue({
+                    response: { text: () => 'javascript:alert(1)' },
+                });
+
+                const healerInstance = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+
+                // executeAction re-throws the original error when heal() returns null
+                await expect(healerInstance.click('#any-selector')).rejects.toThrow('Element not found');
+
+                // The retry click must NOT have been called with the malicious selector
+                const clickCalls = (mockPage.click as ReturnType<typeof vi.fn>).mock.calls;
+                const retryCallArgs = clickCalls.slice(1).flat();
+                expect(retryCallArgs).not.toContain('javascript:alert(1)');
+            });
         });
     });
 });
