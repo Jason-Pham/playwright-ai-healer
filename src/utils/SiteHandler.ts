@@ -4,10 +4,31 @@ import { logger } from './Logger.js';
 
 import locators from '../config/locators.json' with { type: 'json' };
 
+/**
+ * SiteHandler - Strategy interface for site-specific overlay dismissal.
+ *
+ * Implement this interface to handle cookie banners, consent dialogs, or any
+ * other overlay that must be dismissed before page interactions can proceed.
+ * Register your implementation via the `BasePage` constructor.
+ */
 export interface SiteHandler {
+    /**
+     * Dismiss any overlays (cookie banners, consent dialogs, etc.) on the given page.
+     *
+     * Implementations should be idempotent — safe to call multiple times. If no overlay
+     * is present, this method should return without error.
+     *
+     * @param page - Playwright page instance to operate on.
+     */
     dismissOverlays(page: Page): Promise<void>;
 }
 
+/**
+ * GiganttiHandler - SiteHandler implementation for gigantti.fi.
+ *
+ * Dismisses the CookieInformation SDK consent banner by waiting for it to become
+ * visible and then accepting it. Silently no-ops if the banner never appears.
+ */
 export class GiganttiHandler implements SiteHandler {
     async dismissOverlays(page: Page): Promise<void> {
         // Handle Gigantti cookie consent banner using CookieInformation SDK API.
@@ -109,6 +130,12 @@ export class GiganttiHandler implements SiteHandler {
     }
 }
 
+/**
+ * NoOpHandler - No-operation SiteHandler for sites that have no overlays.
+ *
+ * Use this as the `siteHandler` argument to `BasePage` when the target site
+ * does not require any overlay dismissal.
+ */
 export class NoOpHandler implements SiteHandler {
     async dismissOverlays(_page: Page): Promise<void> {
         // Do nothing
