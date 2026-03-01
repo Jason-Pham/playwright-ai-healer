@@ -49,7 +49,7 @@ describe('Page Objects', () => {
             goto: vi.fn(),
             locator: vi.fn().mockReturnValue(mockLocator),
             getByRole: vi.fn().mockReturnValue(mockLocator),
-            waitForLoadState: vi.fn(),
+            waitForLoadState: vi.fn().mockResolvedValue(undefined),
             waitForTimeout: vi.fn(),
             waitForResponse: vi.fn().mockResolvedValue(undefined as any),
             on: vi.fn(),

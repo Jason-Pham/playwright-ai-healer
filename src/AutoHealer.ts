@@ -4,7 +4,20 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
-import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
+import type {
+    AIProvider,
+    ClickOptions,
+    FillOptions,
+    HoverOptions,
+    TypeOptions,
+    SelectOptionOptions,
+    SelectOptionValues,
+    CheckOptions,
+    WaitForSelectorOptions,
+    AIError,
+    HealingResult,
+    HealingEvent,
+} from './types.js';
 
 /**
  * AutoHealer - Self-healing test automation agent
@@ -166,7 +179,7 @@ export class AutoHealer {
             if (this.debug)
                 logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
-                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.short });
+                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
             } catch {
                 logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
             }
@@ -198,224 +211,129 @@ export class AutoHealer {
 
     /**
      * Safe hover method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright hover options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async hover(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting hover on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Hover failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.hover(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+    async hover(selectorOrKey: string, options?: HoverOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'hover',
+            async selector => {
+                await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.hover(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe type method (pressSequentially) that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param text - Text to type character by character
+     * @param options - Delay between keystrokes and timeout
+     * @throws Error if healing fails or element still cannot be found
      */
-    async type(selectorOrKey: string, text: string, options?: { delay?: number; timeout?: number }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting type on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.locator(selector).pressSequentially(text, {
-                ...(options?.delay !== undefined && { delay: options.delay }),
-                timeout: options?.timeout ?? config.test.timeouts.fill,
-            });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Type failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page
-                    .locator(result.selector)
-                    .pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
+    async type(selectorOrKey: string, text: string, options?: TypeOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'type',
+            async selector => {
+                await this.page.locator(selector).pressSequentially(text, {
+                    ...(options?.delay !== undefined && { delay: options.delay }),
+                    timeout: options?.timeout ?? config.test.timeouts.fill,
                 });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+            },
+            async selector => {
+                await this.page
+                    .locator(selector)
+                    .pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
             }
-        }
+        );
     }
 
     /**
      * Safe selectOption method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param values - Option value(s) to select
+     * @param options - Playwright selectOption options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async selectOption(
-        selectorOrKey: string,
-        values: string | string[] | { value?: string; label?: string; index?: number },
-        options?: { timeout?: number; force?: boolean }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug)
-                logger.info(`[AutoHealer] Attempting selectOption on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] SelectOption failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.selectOption(result.selector, values, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+    async selectOption(selectorOrKey: string, values: SelectOptionValues, options?: SelectOptionOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'selectOption',
+            async selector => {
+                await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.selectOption(selector, values, options);
             }
-        }
+        );
     }
 
     /**
      * Safe check method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright check options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async check(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting check on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Check failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.check(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+    async check(selectorOrKey: string, options?: CheckOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'check',
+            async selector => {
+                await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.check(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe uncheck method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright uncheck options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async uncheck(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug)
-                logger.info(`[AutoHealer] Attempting uncheck on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Uncheck failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.uncheck(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+    async uncheck(selectorOrKey: string, options?: CheckOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'uncheck',
+            async selector => {
+                await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.uncheck(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe waitForSelector method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright waitForSelector options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async waitForSelector(
-        selectorOrKey: string,
-        options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug)
-                logger.info(`[AutoHealer] Attempting waitForSelector on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] WaitForSelector failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.waitForSelector(result.selector, options ?? {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+    async waitForSelector(selectorOrKey: string, options?: WaitForSelectorOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'waitForSelector',
+            async selector => {
+                await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
+            },
+            async selector => {
+                await this.page.waitForSelector(selector, options ?? {});
             }
-        }
+        );
     }
 
     /**
@@ -477,11 +395,17 @@ export class AutoHealer {
                     try {
                         if (this.provider === 'openai' && this.openai) {
                             logger.info(`[AutoHealer:heal] Sending request to OpenAI (model: ${this.modelName})...`);
+                            const openai = this.openai;
                             const completion = await this.withTimeout(
-                                this.openai.chat.completions.create({
-                                    messages: [{ role: 'user', content: promptText }],
-                                    model: this.modelName,
-                                }),
+                                signal =>
+                                    openai.chat.completions.create(
+                                        {
+                                            messages: [{ role: 'user', content: promptText }],
+                                            model: this.modelName,
+                                            stream: false,
+                                        },
+                                        { signal }
+                                    ),
                                 config.test.timeouts.default,
                                 'OpenAI'
                             );
@@ -505,7 +429,7 @@ export class AutoHealer {
                             logger.info(`[AutoHealer:heal] Sending request to Gemini (model: ${this.modelName})...`);
                             const model = this.gemini.getGenerativeModel({ model: this.modelName });
                             const resultResult = await this.withTimeout(
-                                model.generateContent(promptText),
+                                signal => model.generateContent(promptText, { signal }),
                                 config.test.timeouts.default,
                                 'Gemini'
                             );
@@ -673,14 +597,21 @@ export class AutoHealer {
             }
 
             if (result && result !== 'FAIL') {
-                healingSuccess = true;
-                healingResult = {
-                    selector: result,
-                    confidence: 1.0,
-                    reasoning: 'AI found replacement selector.',
-                    strategy: 'css',
-                };
-                logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                // Validate the selector before using or persisting it
+                if (!this.validateSelector(result)) {
+                    logger.warn(
+                        `[AutoHealer:heal] ❌ HEALING REJECTED. AI-returned selector failed validation: "${result}"`
+                    );
+                } else {
+                    healingSuccess = true;
+                    healingResult = {
+                        selector: result,
+                        confidence: 1.0,
+                        reasoning: 'AI found replacement selector.',
+                        strategy: 'css',
+                    };
+                    logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                }
             } else {
                 logger.warn(`[AutoHealer:heal] ❌ HEALING FAILED. Result was: "${result}" (FAIL or empty)`);
             }
@@ -723,17 +654,112 @@ export class AutoHealer {
     }
 
     /**
-     * Wraps a promise with a timeout to prevent hanging API calls
+     * Validates an AI-returned selector against an allowlist of safe patterns and a
+     * denylist of dangerous payloads before the selector is used in any page interaction
+     * or persisted to locators.json.
+     *
+     * Allowed patterns:
+     * - XPath expressions starting with `//` or `./`
+     * - Playwright built-in text engines: `text=`, `role=`, `label=`, `placeholder=`,
+     *   `alt=`, `title=`, `testid=`, `data-testid=`
+     * - Attribute selectors starting with `[`
+     * - Standard CSS selectors matching only known-safe characters
+     *
+     * Rejected patterns (denylist takes precedence):
+     * - Strings starting with `javascript:` or `data:`
+     * - Strings containing HTML tags or angle brackets (`<`, `>`)
+     * - Strings containing JS execution primitives: `eval(`, `document.`, `window.`
+     *
+     * @param selector - The selector string returned by the AI provider
+     * @returns `true` when the selector is considered safe, `false` otherwise
      */
-    private async withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    private validateSelector(selector: string): boolean {
+        if (!selector || selector.trim().length === 0) {
+            return false;
+        }
+
+        const trimmed = selector.trim();
+
+        // Denylist: dangerous prefixes (case-insensitive)
+        const dangerousPrefixes = ['javascript:', 'data:'];
+        for (const prefix of dangerousPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous prefix "${prefix}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Denylist: dangerous substrings that indicate HTML or JS injection.
+        // Note: standalone `<` and `>` are NOT in the denylist because `>` is a valid
+        // CSS child combinator and XPath uses `<`/`>` in comparisons.  We only block
+        // patterns that unambiguously indicate injection payloads.
+        const dangerousSubstrings = ['<script', '</', '<!--', 'eval(', 'document.', 'window.'];
+        for (const pattern of dangerousSubstrings) {
+            if (trimmed.toLowerCase().includes(pattern.toLowerCase())) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous pattern "${pattern}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Allowlist: Playwright text engine prefixes
+        const playwrightPrefixes = [
+            'text=',
+            'role=',
+            'label=',
+            'placeholder=',
+            'alt=',
+            'title=',
+            'testid=',
+            'data-testid=',
+        ];
+        for (const prefix of playwrightPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        // Allowlist: XPath expressions
+        if (trimmed.startsWith('//') || trimmed.startsWith('./')) {
+            return true;
+        }
+
+        // Allowlist: CSS attribute selectors starting with `[`
+        if (trimmed.startsWith('[')) {
+            return true;
+        }
+
+        // Allowlist: Standard CSS selector characters only
+        // Permits: alphanumeric, whitespace, and common CSS selector syntax tokens
+        // (#id, .class, tag, [attr], :pseudo, >, +, ~, *, comma, quotes, =, ^, $, |, -, !, @, /)
+        const safeCssPattern = /^[a-zA-Z0-9\s\-_#.:,[\]()="'^$*|>+~!@/\\]+$/;
+        if (safeCssPattern.test(trimmed)) {
+            return true;
+        }
+
+        // Default deny: selector did not match any known-safe pattern
+        logger.warn(`[AutoHealer:validateSelector] Rejected — selector does not match any safe pattern: "${trimmed}"`);
+        return false;
+    }
+
+    /**
+     * Wraps an API call factory with a timeout and AbortController so the underlying
+     * HTTP request is cancelled when the deadline is reached.
+     *
+     * @param factory - A function that receives an AbortSignal and returns a Promise
+     * @param ms - Timeout in milliseconds
+     * @param label - Human-readable label for the error message
+     */
+    private async withTimeout<T>(factory: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {
+        const controller = new AbortController();
         let timeoutId: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {
             timeoutId = setTimeout(() => {
+                controller.abort();
                 reject(new Error(`[AutoHealer] ${label} API request timed out after ${ms / 1000}s`));
             }, ms);
         });
         try {
-            return await Promise.race([promise, timeoutPromise]);
+            return await Promise.race([factory(controller.signal), timeoutPromise]);
         } finally {
             clearTimeout(timeoutId!);
         }
