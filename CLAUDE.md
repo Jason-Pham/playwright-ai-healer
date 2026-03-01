@@ -56,15 +56,15 @@ Test → BasePage.safeClick/safeFill
 
 ### Key Files
 
-| File | Role |
-|------|------|
-| `src/AutoHealer.ts` | Core healing logic: wraps Playwright actions, queries AI, handles retries/key rotation, records `HealingEvent[]` |
-| `src/config/index.ts` | Centralized config validated with Zod; exports `config` object; loads `.env.{TEST_ENV}` via `Environment.ts` |
-| `src/config/locators.json` | Persistent selector store; updated at runtime by `LocatorManager` when healing succeeds |
-| `src/utils/LocatorManager.ts` | Singleton; reads/writes `locators.json` with file locking (`proper-lockfile`); dot-path key access (e.g., `gigantti.searchInput`) |
-| `src/utils/SiteHandler.ts` | Strategy pattern for site-specific overlay dismissal; `GiganttiHandler` handles cookie banners; `NoOpHandler` is a no-op |
-| `src/pages/BasePage.ts` | Abstract base for all page objects; wraps interactions with overlay dismissal, `AutoHealer` delegation, and Vercel security challenge detection |
-| `tests/fixtures/base.ts` | Playwright fixtures providing `autoHealer` and `giganttiPage` to E2E tests |
+| File                          | Role                                                                                                                                            |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/AutoHealer.ts`           | Core healing logic: wraps Playwright actions, queries AI, handles retries/key rotation, records `HealingEvent[]`                                |
+| `src/config/index.ts`         | Centralized config validated with Zod; exports `config` object; loads `.env.{TEST_ENV}` via `Environment.ts`                                    |
+| `src/config/locators.json`    | Persistent selector store; updated at runtime by `LocatorManager` when healing succeeds                                                         |
+| `src/utils/LocatorManager.ts` | Singleton; reads/writes `locators.json` with file locking (`proper-lockfile`); dot-path key access (e.g., `gigantti.searchInput`)               |
+| `src/utils/SiteHandler.ts`    | Strategy pattern for site-specific overlay dismissal; `GiganttiHandler` handles cookie banners; `NoOpHandler` is a no-op                        |
+| `src/pages/BasePage.ts`       | Abstract base for all page objects; wraps interactions with overlay dismissal, `AutoHealer` delegation, and Vercel security challenge detection |
+| `tests/fixtures/base.ts`      | Playwright fixtures providing `autoHealer` and `giganttiPage` to E2E tests                                                                      |
 
 ### Environment Configuration
 
@@ -99,20 +99,21 @@ Environment is selected by `TEST_ENV` variable (`dev`/`staging`/`prod`). The con
 ### CI
 
 GitHub Actions (`.github/workflows/playwright.yml`) runs on push/PR to `main`:
+
 1. Unit tests with coverage
 2. E2E tests across all 9 browser projects (matrix)
 3. Uploads HTML reports as artifacts
-Uses `npm ci` (not `npm install`) and requires `GEMINI_API_KEY` secret.
+   Uses `npm ci` (not `npm install`) and requires `GEMINI_API_KEY` secret.
 
 ## Agents
 
 **Start with `lead` for any task** — it decomposes the request, delegates to the right specialists, and synthesises the results.
 
-| Agent | Task |
-|-------|------|
-| `lead` | Single entry point — orchestrates all other agents |
-| `code-reviewer` | Review a PR, diff, or changed files for correctness, type safety, and design |
-| `test-writer` | Write or expand unit/integration/E2E tests for a source file |
-| `doc-generator` | Add JSDoc comments, README sections, or type documentation |
-| `fullstack-developer` | Build a complete feature across library, page objects, config, and tests |
-| `qa-expert` | Analyse test coverage gaps, identify flaky tests, recommend QA improvements |
+| Agent                 | Task                                                                         |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `lead`                | Single entry point — orchestrates all other agents                           |
+| `code-reviewer`       | Review a PR, diff, or changed files for correctness, type safety, and design |
+| `test-writer`         | Write or expand unit/integration/E2E tests for a source file                 |
+| `doc-generator`       | Add JSDoc comments, README sections, or type documentation                   |
+| `fullstack-developer` | Build a complete feature across library, page objects, config, and tests     |
+| `qa-expert`           | Analyse test coverage gaps, identify flaky tests, recommend QA improvements  |
