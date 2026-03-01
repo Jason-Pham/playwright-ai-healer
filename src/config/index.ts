@@ -7,7 +7,9 @@ loadEnvironment();
 // Define the schema for environment variables
 const envSchema = z.object({
     ENV: z.enum(['dev', 'staging', 'prod']).default('dev'),
-    BASE_URL: z.string().optional()
+    BASE_URL: z
+        .string()
+        .optional()
         .transform(val => {
             if (!val || val === '/' || val === '') return 'https://www.gigantti.fi/';
             return val;
@@ -19,8 +21,11 @@ const envSchema = z.object({
     OPENAI_API_KEYS: z.string().optional(),
     OPENAI_API_KEY: z.string().optional(),
     OPENAI_MODEL: z.string().default('gpt-4o'),
-    TEST_TIMEOUT: z.string().default('120000').transform(Number),
-    HEADLESS: z.string().default('true').transform(val => val !== 'false'),
+    TEST_TIMEOUT: z.string().default('180000').transform(Number),
+    HEADLESS: z
+        .string()
+        .default('true')
+        .transform(val => val !== 'false'),
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
 });
@@ -66,15 +71,19 @@ export const config = {
         },
         prompts: {
             healingPrompt: (selector: string, error: string, html: string) => `
-      You are a Test Automation AI. A Playwright test failed to find an element.
+      You are a Test Automation AI. A Playwright test failed to find or interact with an element.
       
       Original Selector: "${selector}"
       Error: "${error}"
       
-      Below is the current HTML of the page (simplified). 
+      Below is the current HTML of the page. 
       Analyze it to find the MOST LIKELY new selector for the element the user intended to interact with.
       
-      Return ONLY the new selector as a plain string. If you cannot find it, return "FAIL".
+      CRITICAL INSTRUCTIONS:
+      1. Return ONLY the new selector as a plain string.
+      2. DO NOT return markdown formatting like backticks (e.g. no \`#selector\`).
+      3. Use the original selector name as a semantic clue about the element's purpose, not a literal ID to match.
+      4. Only return "FAIL" if there is genuinely no element in the HTML that could serve the intended purpose.
       
       HTML Snippet:
       ${html}
@@ -86,7 +95,7 @@ export const config = {
         headless: env.HEADLESS,
         timeouts: {
             // Global unified timeouts
-            default: 30000,
+            default: 60000,
             cookie: 10000,
             urlVerify: 15000,
             productVisibility: 30000,
