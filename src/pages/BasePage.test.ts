@@ -23,7 +23,7 @@ describe('BasePage', () => {
             goto: vi.fn(),
             waitForTimeout: vi.fn(),
             locator: vi.fn(),
-            waitForLoadState: vi.fn(),
+            waitForLoadState: vi.fn().mockResolvedValue(undefined),
             waitForFunction: vi.fn(),
             getByRole: vi.fn(),
             on: vi.fn().mockReturnThis(), // Returns itself for chaining
@@ -59,7 +59,7 @@ describe('BasePage', () => {
             listener(mockResponse);
 
             // Spy on the protected skipTest method
-            // @ts-ignore - testing protected method
+            // @ts-expect-error - testing protected method
             const skipSpy = vi.spyOn(basePage, 'skipTest').mockImplementation(() => {});
 
             await basePage.safeClick({ click: vi.fn() } as any);

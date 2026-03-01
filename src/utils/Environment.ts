@@ -4,12 +4,19 @@ import * as fs from 'fs';
 
 export type Environment = 'dev' | 'staging' | 'prod';
 
+let _envLoaded = false;
+
 /**
- * Load environment configuration.
+ * Load environment configuration (idempotent – safe to call multiple times).
  * Strategy: Load env-specific .env.{env} first (as defaults), then load base .env with override so
  * local values (API keys, secrets) always take precedence over env-specific settings.
  */
 export function loadEnvironment(): Environment {
+    if (_envLoaded) {
+        return (process.env['ENV'] || 'dev') as Environment;
+    }
+    _envLoaded = true;
+
     // Determine which environment to load from TEST_ENV or ENV
     const env = (process.env['TEST_ENV'] || process.env['ENV'] || '') as Environment;
 
@@ -63,4 +70,11 @@ export function isDev(): boolean {
  */
 export function isProd(): boolean {
     return getEnvironment() === 'prod';
+}
+
+/**
+ * Reset the environment loaded flag. Use only in tests to allow re-loading env vars.
+ */
+export function resetEnvironmentForTesting(): void {
+    _envLoaded = false;
 }
