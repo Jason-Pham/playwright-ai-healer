@@ -10,7 +10,7 @@ const test = base.extend({
 test.describe('Gigantti.fi E2E Tests', () => {
     test('should search for a product and verify results', async ({ giganttiPage }) => {
         await giganttiPage.open();
-        const searchTerm = config.testData.getRandomSearchTerm();
+        const searchTerm = config.testData.getNextSearchTerm();
         const searchResultsPage = await giganttiPage.searchFor(searchTerm);
         await searchResultsPage.verifyProductsDisplayed();
     });
@@ -23,7 +23,7 @@ test.describe('Gigantti.fi E2E Tests', () => {
 
     test('should click on a product and verify product details page', async ({ giganttiPage }) => {
         await giganttiPage.open();
-        const searchTerm = config.testData.getRandomSearchTerm();
+        const searchTerm = config.testData.getNextSearchTerm();
         const searchResultsPage = await giganttiPage.searchFor(searchTerm);
         await searchResultsPage.verifyProductsDisplayed();
         const productDetailPage = await searchResultsPage.clickFirstProduct();
