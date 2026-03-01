@@ -71,8 +71,8 @@ npm run test:prod
 | `tablet`        | iPad (gen 7)   |
 
 ```bash
-# Run on all browsers
-npm run test:all-browsers
+# Run on all 9 browser configurations
+npm run test:prod:all-browsers
 ```
 
 ## 🔧 Configuration
@@ -147,7 +147,10 @@ src/
 tests/
 ├── gigantti.spec.ts           # E2E tests
 ├── healing-demo.spec.ts       # Self-healing demo tests
-└── fixtures/base.ts           # Playwright fixtures
+├── fixtures/base.ts           # Playwright fixtures
+└── unit/                      # Unit tests
+    ├── autohealer-core.test.ts
+    └── autohealer-error-handling.test.ts
 ```
 
 ## 🔄 CI/CD
@@ -193,12 +196,23 @@ async click(selector: string) {
     const result = await this.heal(selector, error);
     if (result && result.selector !== 'FAIL') {
       await this.page.click(result.selector);
+      this.healingEvents.push(event); // Stored internally; accessible via getHealingEvents()
     }
   }
 }
 ```
 
 *Note: If the primary AI Provider (e.g. Gemini) hits a 4xx Rate Limit error, the `AutoHealer` automatically detects the quota failure and falls back to an alternate AI Provider (e.g. OpenAI) if configured!*
+
+### 🎭 Healing Demo
+
+Run the demo test to see self-healing in action:
+
+```bash
+npx playwright test healing-demo --project=prod
+```
+
+This uses an intentionally broken selector that the AI heals. Check the Playwright HTML report for the attached healing event JSON.
 
 ## 📚 Portfolio Notes
 

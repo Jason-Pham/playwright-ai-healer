@@ -16,6 +16,9 @@ test.log
 # OS
 .DS_Store
 
+# Claude Code local settings
+.claude/settings.json
+
 # Environment variables (keep .env.example)
 .env
 .env.local
