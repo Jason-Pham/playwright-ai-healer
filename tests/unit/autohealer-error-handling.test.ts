@@ -158,7 +158,7 @@ describe('AutoHealer Error Handling', () => {
                 // but checking side effects is key
             }
 
-            expect(test.skip).toHaveBeenCalledWith(true, expect.stringContaining('Rate Limit'));
+            expect(test.skip).toHaveBeenCalledWith(true, expect.stringContaining('Client Error (4xx)'));
         });
     });
 

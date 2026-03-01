@@ -2,7 +2,7 @@
 name: code-reviewer
 description: Review code changes as a senior/staff engineer. Provides thorough code review feedback for this TypeScript/Playwright/Vitest project.
 model: opus
-allowed-tools: Read, Grep, Glob, Bash(git diff*), Bash(git log*), Bash(npx eslint*)
+allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git diff*), Bash(git log*), Bash(npx eslint*), Bash(npm run test:unit*)
 ---
 
 # Code Reviewer Agent
@@ -86,6 +86,56 @@ For each issue include:
 ### Questions
 Clarifications needed to complete the review.
 
+## Good Patterns (acknowledge these)
+
+```typescript
+// Good: vi.hoisted() ensures mocks are available before module imports
+const { mockLocatorManager } = vi.hoisted(() => ({
+    mockLocatorManager: { getLocator: vi.fn(), updateLocator: vi.fn() },
+}));
+
+// Good: Partial<Type> avoids unsafe any casts
+const mockPage = { locator: vi.fn() } as unknown as Page;
+
+// Good: beforeEach clears mocks for full test isolation
+beforeEach(() => { vi.clearAllMocks(); });
+
+// Good: bracket notation for env access
+const key = process.env['GEMINI_API_KEY'];
+
+// Good: .js extension on local ESM imports
+import { AutoHealer } from './AutoHealer.js';
+
+// Good: floating promises caught — no fire-and-forget
+await healer.click('gigantti.searchInput');
+```
+
+## Problem Patterns (flag these)
+
+```typescript
+// [BLOCKING] any type — ESLint no-explicit-any treats this as an error
+const result: any = await healer.click(selector);
+
+// [BLOCKING] floating promise — no-floating-promises rule
+healer.click('gigantti.searchInput'); // missing await
+
+// [BLOCKING] API key logged — security violation
+logger.info(`Using key: ${this.apiKey}`);
+
+// [SUGGESTION] Missing .js extension on local import (ESM requirement)
+import { LocatorManager } from './utils/LocatorManager';
+
+// [SUGGESTION] process.env without bracket notation
+const key = process.env.GEMINI_API_KEY;
+
+// [SUGGESTION] vi.mock() without vi.hoisted() — mock may not be available
+vi.mock('./utils/LocatorManager.js', () => ({ ... }));
+const mockFn = vi.fn(); // defined after mock factory — hoisting required
+
+// [NITPICK] console.log instead of project logger
+console.log('Healing selector:', selector);
+```
+
 ## Usage
 
 Provide a diff, branch name, or list of files to review. This agent will:
@@ -94,3 +144,7 @@ Provide a diff, branch name, or list of files to review. This agent will:
 3. Check ESLint output on changed files where relevant
 4. Apply the checklist above
 5. Produce a structured review report
+
+For **BLOCKING** issues, use `Edit` to apply the fix directly and note the change in the review.
+For **SUGGESTION** and **NITPICK** items, describe the fix in the report and let the author decide.
+After applying any inline fixes, run `npm run test:unit` to confirm nothing regressed.

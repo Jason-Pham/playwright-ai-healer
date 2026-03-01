@@ -163,7 +163,7 @@ describe('AutoHealer Core Logic', () => {
             expect(mockUpdateLocator).toHaveBeenCalledWith(key, healedSelector);
         });
 
-        it('should throw error if healing fails (returns null)', async () => {
+        it('should skip test if healing fails (returns null)', async () => {
             const brokenSelector = '#broken';
 
             mockPage.click.mockRejectedValue(new Error('Element not found'));
@@ -173,10 +173,16 @@ describe('AutoHealer Core Logic', () => {
                 response: { text: () => 'FAIL' },
             });
 
-            await expect(autoHealer.click(brokenSelector)).rejects.toThrow('Element not found');
+            await autoHealer.click(brokenSelector);
 
             // Should not retry click
             expect(mockPage.click).toHaveBeenCalledTimes(1);
+
+            const { test } = await import('@playwright/test');
+            expect(test.skip).toHaveBeenCalledWith(
+                true,
+                'Test skipped because AutoHealer AI could not find a suitable replacement selector.'
+            );
         });
     });
 

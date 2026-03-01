@@ -53,8 +53,21 @@ const winstonLogger = winston.createLogger({
 });
 
 /**
- * Enterprise-grade Logger utility.
- * Wraps Winston and provides Playwright integration.
+ * Logger - Singleton logger wrapping Winston with Playwright report integration.
+ *
+ * Writes structured log messages to the console and a rotating file at `logs/execution.log`.
+ * When a Playwright `TestInfo` object is attached via `setTestInfo`, log entries are also
+ * pushed as annotations to the Playwright HTML report.
+ *
+ * Use the exported `logger` constant rather than constructing instances directly.
+ *
+ * @example
+ * ```typescript
+ * import { logger } from './utils/Logger.js';
+ *
+ * logger.info('Starting test');
+ * logger.error('Something went wrong');
+ * ```
  */
 export class Logger {
     private static instance: Logger;
@@ -62,6 +75,9 @@ export class Logger {
 
     private constructor() {}
 
+    /**
+     * Returns the singleton Logger instance, creating it on first call.
+     */
     public static getInstance(): Logger {
         if (!Logger.instance) {
             Logger.instance = new Logger();
@@ -100,18 +116,22 @@ export class Logger {
         }
     }
 
+    /** Log an informational message. @param message - The message to log. */
     public info(message: string): void {
         this.log('info', message);
     }
 
+    /** Log a warning message. @param message - The message to log. */
     public warn(message: string): void {
         this.log('warn', message);
     }
 
+    /** Log an error message. @param message - The message to log. */
     public error(message: string): void {
         this.log('error', message);
     }
 
+    /** Log a debug message. Only visible when `LOG_LEVEL=debug`. @param message - The message to log. */
     public debug(message: string): void {
         this.log('debug', message);
     }

@@ -5,13 +5,38 @@ import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
 import { type SiteHandler, GiganttiHandler } from '../utils/SiteHandler.js';
 
+/**
+ * BasePage - Abstract base class for all page objects.
+ *
+ * Provides overlay dismissal (cookie banners, security challenges), self-healing
+ * interaction wrappers, and Vercel security challenge detection. Extend this class
+ * for every page object and use `safeClick()` / `safeFill()` rather than calling
+ * Playwright directly so interactions automatically benefit from healing.
+ *
+ * @example
+ * ```typescript
+ * class SearchPage extends BasePage {
+ *   async search(term: string) {
+ *     await this.safeClick('gigantti.searchInput');
+ *     await this.safeFill('gigantti.searchInput', term);
+ *   }
+ * }
+ * ```
+ */
 export abstract class BasePage {
+    /** Playwright page instance for direct access when needed. */
     public page: Page;
+    /** AutoHealer instance used for self-healing interactions. `undefined` when running without AI. */
     public autoHealer: AutoHealer | undefined;
     protected siteHandler: SiteHandler;
 
     private securityChallengeFailed = false;
 
+    /**
+     * @param page - Playwright page instance.
+     * @param autoHealer - Optional AutoHealer for self-healing. Omit to use plain Playwright.
+     * @param siteHandler - Site-specific overlay handler. Defaults to `GiganttiHandler`.
+     */
     constructor(page: Page, autoHealer?: AutoHealer, siteHandler: SiteHandler = new GiganttiHandler()) {
         this.page = page;
         this.autoHealer = autoHealer;
@@ -32,14 +57,30 @@ export abstract class BasePage {
         });
     }
 
+    /**
+     * Navigate to the given URL.
+     *
+     * @param url - Absolute URL to navigate to.
+     */
     async goto(url: string) {
         await this.page.goto(url);
     }
 
+    /**
+     * Pause execution for a fixed duration.
+     *
+     * @param ms - Duration to wait in milliseconds.
+     */
     async wait(ms: number) {
         await this.page.waitForTimeout(ms);
     }
 
+    /**
+     * Wait for the page to reach `load` and `domcontentloaded` states.
+     *
+     * @param options.timeout - Maximum wait time in milliseconds.
+     * @param options.networking - When `true`, also waits for `networkidle` after load states.
+     */
     async waitForPageLoad(options?: { timeout?: number; networking?: boolean }): Promise<void> {
         await this.page.waitForLoadState('load', options);
         await this.page.waitForLoadState('domcontentloaded', options);
@@ -72,6 +113,17 @@ export abstract class BasePage {
         }
     }
 
+    /**
+     * Click an element, dismissing overlays first and delegating to `AutoHealer` when available.
+     *
+     * Accepts a dot-notation locator key (e.g. `gigantti.searchInput`) or a raw CSS selector.
+     * When a string selector is provided and `autoHealer` is configured, healing is attempted
+     * automatically on failure. When a `Locator` object is provided, it is clicked directly.
+     *
+     * @param selectorOrLocator - Dot-notation locator key, CSS selector, or Playwright `Locator`.
+     * @param options.force - Bypass actionability checks.
+     * @param options.timeout - Maximum time in milliseconds to wait for the element.
+     */
     async safeClick(
         selectorOrLocator: string | Locator,
         options?: { force?: boolean; timeout?: number }
@@ -88,6 +140,18 @@ export abstract class BasePage {
         }
     }
 
+    /**
+     * Fill an input element, dismissing overlays first and delegating to `AutoHealer` when available.
+     *
+     * When a string selector is provided and `autoHealer` is configured, healing is attempted
+     * automatically on failure. When a `Locator` object is provided, the fill is retried with
+     * `toPass` to handle transient focus/clear timing issues.
+     *
+     * @param selectorOrLocator - Dot-notation locator key, CSS selector, or Playwright `Locator`.
+     * @param value - Text value to fill into the element.
+     * @param options.force - Bypass actionability checks.
+     * @param options.timeout - Maximum time in milliseconds for the overall fill operation.
+     */
     async safeFill(
         selectorOrLocator: string | Locator,
         value: string,
