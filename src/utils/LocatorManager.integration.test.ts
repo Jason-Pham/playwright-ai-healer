@@ -101,7 +101,10 @@ describe('LocatorManager Integration', () => {
         fs.writeFileSync(locatorsPath, JSON.stringify(locators, null, 2), 'utf-8');
 
         // Read back and verify
-        const updated = JSON.parse(fs.readFileSync(locatorsPath, 'utf-8')) as Record<string, Record<string, Record<string, string>>>;
+        const updated = JSON.parse(fs.readFileSync(locatorsPath, 'utf-8')) as Record<
+            string,
+            Record<string, Record<string, string>>
+        >;
         expect(updated['checkout']?.['paymentForm']?.['submit']).toBe('#pay-now');
     });
 
