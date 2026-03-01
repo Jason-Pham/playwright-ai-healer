@@ -7,7 +7,9 @@ loadEnvironment();
 // Define the schema for environment variables
 const envSchema = z.object({
     ENV: z.enum(['dev', 'staging', 'prod']).default('dev'),
-    BASE_URL: z.string().optional()
+    BASE_URL: z
+        .string()
+        .optional()
         .transform(val => {
             if (!val || val === '/' || val === '') return 'https://www.gigantti.fi/';
             return val;
@@ -20,7 +22,11 @@ const envSchema = z.object({
     OPENAI_API_KEY: z.string().optional(),
     OPENAI_MODEL: z.string().default('gpt-4o'),
     TEST_TIMEOUT: z.string().default('120000').transform(Number),
-    HEADLESS: z.string().default('true').transform(val => val !== 'false'),
+    DOM_SNAPSHOT_CHAR_LIMIT: z.string().default('2000').transform(Number),
+    HEADLESS: z
+        .string()
+        .default('true')
+        .transform(val => val !== 'false'),
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
 });
@@ -60,6 +66,7 @@ export const config = {
             maxRetries: 3,
             retryDelay: 5000,
             confidenceThreshold: 0.7,
+            domSnapshotCharLimit: env.DOM_SNAPSHOT_CHAR_LIMIT,
         },
         security: {
             vercelChallengePath: '.well-known/vercel/security/request-challenge',
