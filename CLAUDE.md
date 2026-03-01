@@ -109,11 +109,11 @@ GitHub Actions (`.github/workflows/playwright.yml`) runs on push/PR to `main`:
 
 **Start with `lead` for any task** — it decomposes the request, delegates to the right specialists, and synthesises the results.
 
-| Agent                 | Task                                                                         |
-| --------------------- | ---------------------------------------------------------------------------- |
-| `lead`                | Single entry point — orchestrates all other agents                           |
-| `code-reviewer`       | Review a PR, diff, or changed files for correctness, type safety, and design |
-| `test-writer`         | Write or expand unit/integration/E2E tests for a source file                 |
-| `doc-generator`       | Add JSDoc comments, README sections, or type documentation                   |
-| `fullstack-developer` | Build a complete feature across library, page objects, config, and tests     |
-| `qa-expert`           | Analyse test coverage gaps, identify flaky tests, recommend QA improvements  |
+| Agent              | Model  | Task                                                                                                                                    |
+| ------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `lead`             | opus   | Single entry point — orchestrates all other agents; enforces pre-push gates                                                             |
+| `architect`        | opus   | Principal engineer — builds/modifies AutoHealer, LocatorManager, SiteHandler, BasePage, types, config; owns all architectural decisions |
+| `code-reviewer`    | opus   | Review a PR, diff, or changed files; applies inline fixes for blocking issues                                                           |
+| `test-engineer`    | opus   | All test work — coverage analysis, writing new test files, extending existing suites, flaky test diagnosis                              |
+| `technical-writer` | sonnet | All developer-facing docs — JSDoc, README, CHANGELOG, migration guides, type documentation                                              |
+| `devops-engineer`  | sonnet | CI/CD pipeline, npm deps, Playwright config, env vars, pre-push hooks, build optimisation                                               |
