@@ -124,10 +124,13 @@ export const config = {
             'näppäimistö',
             'näyttö',
         ],
-        // Helper to get random search term
-        getRandomSearchTerm(): string {
+        // Helper to get next search term in round-robin order (deterministic, no Math.random)
+        _searchTermIndex: 0,
+        getNextSearchTerm(): string {
             const terms = this.searchTerms;
-            return terms[Math.floor(Math.random() * terms.length)] || 'laptop';
+            const term = terms[this._searchTermIndex % terms.length];
+            this._searchTermIndex = (this._searchTermIndex + 1) % terms.length;
+            return term ?? 'laptop';
         },
         categories: {
             computers: 'Tietotekniikka',
