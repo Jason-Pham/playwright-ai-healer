@@ -166,7 +166,7 @@ export class AutoHealer {
             if (this.debug)
                 logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
-                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.short });
+                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
             } catch {
                 logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
             }
@@ -180,10 +180,14 @@ export class AutoHealer {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
                 await retryFn(result.selector);
 
-                // Update locator if we have a key
+                // Update locator if we have a key — persistence failure is non-fatal
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                    await locatorManager.updateLocator(locatorKey, result.selector).catch((persistError: unknown) => {
+                        logger.warn(
+                            `[AutoHealer] Healing succeeded but failed to persist locator '${locatorKey}': ${String(persistError)}`
+                        );
+                    });
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -219,7 +223,11 @@ export class AutoHealer {
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                    await locatorManager.updateLocator(locatorKey, result.selector).catch((persistError: unknown) => {
+                        logger.warn(
+                            `[AutoHealer] Healing succeeded but failed to persist locator '${locatorKey}': ${String(persistError)}`
+                        );
+                    });
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -257,7 +265,11 @@ export class AutoHealer {
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                    await locatorManager.updateLocator(locatorKey, result.selector).catch((persistError: unknown) => {
+                        logger.warn(
+                            `[AutoHealer] Healing succeeded but failed to persist locator '${locatorKey}': ${String(persistError)}`
+                        );
+                    });
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -295,7 +307,11 @@ export class AutoHealer {
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                    await locatorManager.updateLocator(locatorKey, result.selector).catch((persistError: unknown) => {
+                        logger.warn(
+                            `[AutoHealer] Healing succeeded but failed to persist locator '${locatorKey}': ${String(persistError)}`
+                        );
+                    });
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -331,7 +347,11 @@ export class AutoHealer {
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                    await locatorManager.updateLocator(locatorKey, result.selector).catch((persistError: unknown) => {
+                        logger.warn(
+                            `[AutoHealer] Healing succeeded but failed to persist locator '${locatorKey}': ${String(persistError)}`
+                        );
+                    });
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -368,7 +388,11 @@ export class AutoHealer {
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                    await locatorManager.updateLocator(locatorKey, result.selector).catch((persistError: unknown) => {
+                        logger.warn(
+                            `[AutoHealer] Healing succeeded but failed to persist locator '${locatorKey}': ${String(persistError)}`
+                        );
+                    });
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -405,7 +429,11 @@ export class AutoHealer {
 
                 if (locatorKey) {
                     logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                    await locatorManager.updateLocator(locatorKey, result.selector).catch((persistError: unknown) => {
+                        logger.warn(
+                            `[AutoHealer] Healing succeeded but failed to persist locator '${locatorKey}': ${String(persistError)}`
+                        );
+                    });
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
