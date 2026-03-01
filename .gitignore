@@ -3,6 +3,12 @@ node_modules/
 .pnp
 .pnp.js
 
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
 # Testing
 coverage/
 test-results/
@@ -11,9 +17,31 @@ blob-report/
 playwright/.cache/
 test_output.txt
 lint_output.txt
+test.log
 
-# OS
+# OS — macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# OS — Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# IDE / Editor — VS Code (track extensions.json and shared settings explicitly if needed)
+.vscode/
+# IDE / Editor — JetBrains
+.idea/
+*.iml
+# IDE / Editor — Vim
+*.swp
+*.swo
+
+# Claude Code local settings (never commit — may contain personal API keys or machine-specific config)
+.claude/settings.json
+.claude/settings.local.json
 
 # Environment variables (keep .env.example)
 .env
@@ -25,8 +53,26 @@ lint_output.txt
 .env.test.local
 .env.production.local
 
+# npm
+.npmrc
+*.tgz
+
 # Logs
 logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
+
+# Temp / cache
+tmp/
+.tmp/
+.cache/
+
+# Scripts
+scripts
+
+# Local dev/scratch files
+list-models.ts
+OPTIMIZATION_SUMMARY.md
+/agents/
