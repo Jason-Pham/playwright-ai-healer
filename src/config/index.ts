@@ -77,7 +77,8 @@ export const config = {
       CRITICAL INSTRUCTIONS:
       1. Return ONLY the new selector as a plain string.
       2. DO NOT return markdown formatting like backticks (e.g. no \`#selector\`).
-      3. If you cannot find a highly probable replacement, you MUST strictly return "FAIL". Do not guess a random input field if a button was expected.
+      3. Use the original selector name as a semantic clue about the element's purpose, not a literal ID to match.
+      4. Only return "FAIL" if there is genuinely no element in the HTML that could serve the intended purpose.
       
       HTML Snippet:
       ${html}

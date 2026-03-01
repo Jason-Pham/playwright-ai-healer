@@ -700,6 +700,9 @@ export class AutoHealer {
 
             const interactiveEls = document.body.querySelectorAll(INTERACTIVE_SELECTOR);
             interactiveEls.forEach(el => {
+                // Skip elements hidden by CSS (e.g. dismissed cookie banners still in the DOM)
+                if (!(el as HTMLElement).checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return;
+
                 interactiveSet.add(el);
                 let current: Element | null = el;
                 while (current && current !== document.body) {
