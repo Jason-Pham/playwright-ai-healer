@@ -22,6 +22,7 @@ const envSchema = z.object({
     OPENAI_API_KEY: z.string().optional(),
     OPENAI_MODEL: z.string().default('gpt-4o'),
     TEST_TIMEOUT: z.string().default('180000').transform(Number),
+    DOM_SNAPSHOT_CHAR_LIMIT: z.string().default('2000').transform(Number),
     HEADLESS: z
         .string()
         .default('true')
@@ -65,6 +66,7 @@ export const config = {
             maxRetries: 3,
             retryDelay: 5000,
             confidenceThreshold: 0.7,
+            domSnapshotCharLimit: env.DOM_SNAPSHOT_CHAR_LIMIT,
         },
         security: {
             vercelChallengePath: '.well-known/vercel/security/request-challenge',
