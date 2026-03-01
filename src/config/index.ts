@@ -7,7 +7,9 @@ loadEnvironment();
 // Define the schema for environment variables
 const envSchema = z.object({
     ENV: z.enum(['dev', 'staging', 'prod']).default('dev'),
-    BASE_URL: z.string().optional()
+    BASE_URL: z
+        .string()
+        .optional()
         .transform(val => {
             if (!val || val === '/' || val === '') return 'https://www.gigantti.fi/';
             return val;
@@ -20,7 +22,10 @@ const envSchema = z.object({
     OPENAI_API_KEY: z.string().optional(),
     OPENAI_MODEL: z.string().default('gpt-4o'),
     TEST_TIMEOUT: z.string().default('180000').transform(Number),
-    HEADLESS: z.string().default('true').transform(val => val !== 'false'),
+    HEADLESS: z
+        .string()
+        .default('true')
+        .transform(val => val !== 'false'),
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
 });

@@ -177,7 +177,10 @@ describe('AutoHealer Core Logic', () => {
             expect(mockPage.click).toHaveBeenCalledTimes(1);
 
             const { test } = await import('@playwright/test');
-            expect(test.skip).toHaveBeenCalledWith(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+            expect(test.skip).toHaveBeenCalledWith(
+                true,
+                'Test skipped because AutoHealer AI could not find a suitable replacement selector.'
+            );
         });
     });
 
