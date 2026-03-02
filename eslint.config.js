@@ -43,10 +43,6 @@ export default tseslint.config(
             'playwright/expect-expect': 'off',
             'playwright/no-skipped-test': 'off',
             'playwright/no-standalone-expect': 'off',
-            '@typescript-eslint/no-unsafe-assignment': 'off',
-            '@typescript-eslint/no-unsafe-member-access': 'off',
-            '@typescript-eslint/no-unsafe-call': 'off',
-            '@typescript-eslint/no-explicit-any': 'off',
         }
     },
     {
