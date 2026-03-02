@@ -30,3 +30,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `LocatorManager.updateLocator` now rolls back the in-memory state if the disk write fails.
 - Removed dead `TreeWalker` code path from `getSimplifiedDOM()`.
 - Removed unused `popupHandlerRegistered` field from `AutoHealer`.
+- `SiteHandler` unit test coverage raised from 22 % to 84 % — all overlay-dismissal paths, force-hide branches, and the `NoOpHandler` are now covered.
