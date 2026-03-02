@@ -368,4 +368,30 @@ describe('AutoHealer', () => {
             config.ai.openai.apiKeys = originalOpenAiKeys;
         });
     });
+
+    describe('DOM Snapshot', () => {
+        it('should pass config.domSnapshotMaxChars into page.evaluate', async () => {
+            const { config } = await import('./config/index.js');
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+
+            // Trigger healing so getSimplifiedDOM (and therefore page.evaluate) is called
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('not found'))
+                .mockResolvedValueOnce(undefined);
+
+            mockGeminiGenerateContent.mockResolvedValueOnce({
+                response: {
+                    text: () => '#healed',
+                    usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 2, totalTokenCount: 7 },
+                },
+            });
+
+            await healer.click('#broken-selector');
+
+            // page.evaluate is called with (fn, maxChars) — verify the second arg matches config
+            const evaluateMock = mockPage.evaluate as ReturnType<typeof vi.fn>;
+            const healingCall = evaluateMock.mock.calls.find((args: unknown[]) => args.length >= 2);
+            expect(healingCall?.[1]).toBe(config.domSnapshotMaxChars);
+        });
+    });
 });

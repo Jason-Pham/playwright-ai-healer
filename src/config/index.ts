@@ -28,6 +28,7 @@ const envSchema = z.object({
         .transform(val => val !== 'false'),
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
+    DOM_SNAPSHOT_MAX_CHARS: z.string().default('15000').transform(Number),
 });
 
 const env = envSchema.parse(process.env);
@@ -107,6 +108,7 @@ export const config = {
             stabilization: 200,
         },
     },
+    domSnapshotMaxChars: env.DOM_SNAPSHOT_MAX_CHARS,
     logging: {
         level: env.LOG_LEVEL,
         consoleLevel: env.CONSOLE_LOG_LEVEL,
