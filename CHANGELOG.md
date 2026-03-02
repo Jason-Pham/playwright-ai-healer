@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `HealingEvent.tokensUsed` — records prompt, completion, and total token counts from the AI provider when available.
 - `HealingEvent.domSnapshotLength` — records the character length of the DOM snapshot sent to the AI for diagnostics.
 - DOM snapshot char limit is now configurable via the `DOM_SNAPSHOT_CHAR_LIMIT` environment variable.
+- **Pluggable locator storage** — `src/utils/LocatorAdapter.ts` introduces a `LocatorAdapter` interface with two implementations: `FileAdapter` (JSON + file-locking, default) and `SQLiteAdapter` (ACID SQLite via `better-sqlite3`). Select the backend with `LOCATOR_STORE=file|sqlite`.
+- `LocatorManager` is now a thin facade delegating all I/O to the active `LocatorAdapter`; public API (`getLocator`, `updateLocator`, `getAllLocators`) is unchanged.
 
 ### Changed
 
