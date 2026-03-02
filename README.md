@@ -101,6 +101,9 @@ LOG_LEVEL=warn
 # Test Configuration
 TEST_TIMEOUT=120000
 HEADLESS=true
+
+# Locator Storage Backend
+LOCATOR_STORE=file    # 'file' (default, JSON + lockfile) or 'sqlite' (ACID SQLite)
 ```
 
 ## 🐳 Run with Docker
@@ -141,7 +144,8 @@ src/
 └── utils/
     ├── Environment.ts         # Multi-env loader
     ├── Logger.ts              # Winston wrapper
-    ├── LocatorManager.ts      # Selector persistence
+    ├── LocatorAdapter.ts      # Pluggable storage: FileAdapter | SQLiteAdapter
+    ├── LocatorManager.ts      # Selector persistence (facade over LocatorAdapter)
     └── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
 
 tests/

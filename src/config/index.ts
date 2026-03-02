@@ -28,6 +28,7 @@ const envSchema = z.object({
         .transform(val => val !== 'false'),
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
+    LOCATOR_STORE: z.enum(['file', 'sqlite']).default('file'),
 });
 
 const env = envSchema.parse(process.env);
@@ -107,6 +108,7 @@ export const config = {
             stabilization: 200,
         },
     },
+    locatorStore: env.LOCATOR_STORE,
     logging: {
         level: env.LOG_LEVEL,
         consoleLevel: env.CONSOLE_LOG_LEVEL,
