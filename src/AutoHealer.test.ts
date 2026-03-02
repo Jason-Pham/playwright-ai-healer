@@ -9,6 +9,8 @@ const { mockLocatorManager } = vi.hoisted(() => {
         mockLocatorManager: {
             getLocator: vi.fn((key: string) => (key === 'app.btn' ? '#old-selector' : null)),
             updateLocator: vi.fn(),
+            recordSelectorFailure: vi.fn(),
+            recordSelectorHealed: vi.fn(),
         },
     };
 });

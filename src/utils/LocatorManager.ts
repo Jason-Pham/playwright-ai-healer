@@ -3,7 +3,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as lockfile from 'proper-lockfile';
 import { logger } from './Logger.js';
-import type { LocatorStore } from '../types.js';
+import type { LocatorStore, MetricsStore, SelectorMetrics } from '../types.js';
 
 // Get current directory name in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -25,12 +25,16 @@ const __dirname = path.dirname(__filename);
 export class LocatorManager {
     private static instance: LocatorManager;
     private locatorsPath: string;
+    private metricsPath: string;
     private locators: LocatorStore = {};
+    private metrics: MetricsStore = {};
 
     private constructor() {
-        // Resolve path relative to this file (src/utils -> src/config/locators.json)
+        // Resolve paths relative to this file (src/utils → src/config/)
         this.locatorsPath = path.resolve(__dirname, '../config/locators.json');
+        this.metricsPath = path.resolve(__dirname, '../config/metrics.json');
         this.loadLocators();
+        this.loadMetrics();
     }
 
     /**
@@ -152,5 +156,79 @@ export class LocatorManager {
         } catch (error) {
             logger.error(`[LocatorManager] Failed to save locators: ${String(error)}`);
         }
+    }
+
+    // ── Selector Stability Metrics ────────────────────────────────────────────
+
+    private loadMetrics() {
+        try {
+            if (fs.existsSync(this.metricsPath)) {
+                const raw = fs.readFileSync(this.metricsPath, 'utf-8');
+                this.metrics = JSON.parse(raw) as MetricsStore;
+            }
+        } catch (error) {
+            logger.warn(`[LocatorManager] Could not load metrics file: ${String(error)}`);
+            this.metrics = {};
+        }
+    }
+
+    private saveMetrics() {
+        try {
+            fs.writeFileSync(this.metricsPath, JSON.stringify(this.metrics, null, 2), 'utf-8');
+        } catch (error) {
+            logger.error(`[LocatorManager] Failed to save metrics: ${String(error)}`);
+        }
+    }
+
+    /**
+     * Record that a healed selector has failed again.
+     *
+     * Call this when an action fails on a selector that was previously healed,
+     * i.e. the selector exists in the locator store and the action fails. This
+     * closes the feedback loop: we know a healed selector is fragile.
+     *
+     * @param key - Dot-path locator key (e.g. `'gigantti.searchInput'`)
+     */
+    public recordSelectorFailure(key: string): void {
+        const existing = this.metrics[key] ?? { failureCount: 0 };
+        this.metrics[key] = {
+            ...existing,
+            failureCount: existing.failureCount + 1,
+            lastFailedAt: new Date().toISOString(),
+        };
+        logger.warn(
+            `[LocatorManager] Healed selector '${key}' failed again (total failures: ${this.metrics[key].failureCount})`
+        );
+        this.saveMetrics();
+    }
+
+    /**
+     * Record that a locator key was successfully healed.
+     *
+     * Call this immediately after `updateLocator` succeeds so the metrics file
+     * captures the moment of healing.
+     *
+     * @param key - Dot-path locator key (e.g. `'gigantti.searchInput'`)
+     */
+    public recordSelectorHealed(key: string): void {
+        const existing = this.metrics[key] ?? { failureCount: 0 };
+        this.metrics[key] = {
+            ...existing,
+            healedAt: new Date().toISOString(),
+        };
+        this.saveMetrics();
+    }
+
+    /**
+     * Return stability metrics for a specific key or all keys.
+     *
+     * @param key - Optional dot-path locator key. If omitted, returns all metrics.
+     * @returns Metrics for the requested key, or the full metrics store.
+     */
+    public getMetrics(key?: string): SelectorMetrics | MetricsStore {
+        if (key !== undefined) {
+            return this.metrics[key] ?? { failureCount: 0 };
+        }
+        return { ...this.metrics };
     }
 }
