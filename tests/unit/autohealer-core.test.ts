@@ -42,6 +42,8 @@ vi.mock('../../src/utils/LocatorManager.js', () => ({
         getInstance: vi.fn(() => ({
             getLocator: vi.fn(),
             updateLocator: vi.fn(),
+            recordSelectorFailure: vi.fn(),
+            recordSelectorHealed: vi.fn(),
         })),
     },
 }));
@@ -104,6 +106,8 @@ describe('AutoHealer Core Logic', () => {
         (LocatorManager.getInstance as any).mockReturnValue({
             getLocator: vi.fn(),
             updateLocator: mockUpdateLocator,
+            recordSelectorFailure: vi.fn(),
+            recordSelectorHealed: vi.fn(),
         });
 
         autoHealer = new AutoHealer(mockPage, 'mock-key', 'gemini');

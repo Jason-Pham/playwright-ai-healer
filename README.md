@@ -132,7 +132,8 @@ src/
 ├── AutoHealer.ts              # Core AI healing logic
 ├── config/
 │   ├── index.ts               # Centralized configuration
-│   └── locators.json          # Persistent selector storage
+│   ├── locators.json          # Persistent selector storage
+│   └── metrics.json           # Per-key selector failure/heal metrics
 ├── pages/
 │   ├── BasePage.ts            # Abstract base page
 │   ├── GiganttiHomePage.ts    # Entry point
@@ -141,7 +142,7 @@ src/
 └── utils/
     ├── Environment.ts         # Multi-env loader
     ├── Logger.ts              # Winston wrapper
-    ├── LocatorManager.ts      # Selector persistence
+    ├── LocatorManager.ts      # Selector persistence + stability metrics
     └── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
 
 tests/
