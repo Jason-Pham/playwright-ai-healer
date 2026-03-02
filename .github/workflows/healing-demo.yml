@@ -1,0 +1,73 @@
+name: Self-Healing Demo
+
+# Run manually or on a schedule (weekly, Monday 09:00 UTC)
+on:
+  workflow_dispatch:
+    inputs:
+      headless:
+        description: 'Run browser headless'
+        required: false
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+  schedule:
+    - cron: '0 9 * * 1'
+
+concurrency:
+  group: healing-demo
+  cancel-in-progress: true
+
+jobs:
+  demo:
+    name: Record self-healing demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers (Chromium only)
+        run: npx playwright install chromium --with-deps
+
+      # Run the dedicated healing demo spec with video always on
+      - name: Run healing demo (headed video capture)
+        env:
+          AI_PROVIDER: gemini
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_URL: https://www.gigantti.fi/
+          TEST_ENV: prod
+          HEADLESS: ${{ inputs.headless || 'true' }}
+          LOG_LEVEL: info
+        run: |
+          npx playwright test tests/healing-demo.spec.ts \
+            --project=Desktop\ Chrome \
+            --reporter=html \
+            --video=on \
+            --trace=on
+
+      # Upload the HTML report with embedded video
+      - name: Upload demo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: healing-demo-report-${{ github.run_number }}
+          path: playwright-report/
+          retention-days: 30
+
+      # Upload raw videos separately for easy download
+      - name: Upload demo videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: healing-demo-videos-${{ github.run_number }}
+          path: test-results/**/video.webm
+          retention-days: 30
+          if-no-files-found: warn
