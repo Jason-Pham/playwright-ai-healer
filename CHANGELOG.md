@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `HealingEvent.tokensUsed` — records prompt, completion, and total token counts from the AI provider when available.
 - `HealingEvent.domSnapshotLength` — records the character length of the DOM snapshot sent to the AI for diagnostics.
 - DOM snapshot char limit is now configurable via the `DOM_SNAPSHOT_CHAR_LIMIT` environment variable.
+- `.github/workflows/healing-demo.yml` — GitHub Actions workflow that records the self-healing demo on a weekly schedule (Monday 09:00 UTC) and on manual dispatch. Runs `tests/healing-demo.spec.ts` with `--video=on --trace=on` and uploads the HTML report and raw `.webm` videos as 30-day retention artifacts.
 
 ### Changed
 

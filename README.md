@@ -161,6 +161,7 @@ GitHub Actions workflow runs on every push:
 - ✅ E2E tests on **all 9 browser configurations** (matrix strategy)
 - ✅ HTML report artifacts
 - ✅ Automatic retries for flaky tests
+- ✅ **Healing demo workflow** (`.github/workflows/healing-demo.yml`) — runs weekly on Monday 09:00 UTC and on manual dispatch; records the self-healing demo with `--video=on --trace=on` and uploads the HTML report + raw `.webm` files as 30-day artifacts
 
 ## 🧬 Architecture — How Self-Healing Works
 
