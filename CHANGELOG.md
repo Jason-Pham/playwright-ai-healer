@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Multi-stage `Dockerfile` (`deps` → `runner`) reduces rebuild time by caching the `npm ci` layer separately from the Playwright image layer.
+- `docker-compose.yml` now exposes two named services: `unit-tests` (runs `npm run validate`) and `e2e-tests` (runs `npm run test:prod`, mounts `playwright-report/`, `test-results/`, and `logs/` as host volumes).
 - `AutoHealer.hover()` — self-healing hover action with AI fallback on failure.
 - `AutoHealer.type()` — self-healing character-by-character input (`pressSequentially`) with AI fallback.
 - `AutoHealer.selectOption()` — self-healing `<select>` option picker with AI fallback.
