@@ -81,6 +81,7 @@ describe('AutoHealer Core Logic', () => {
             fill: vi.fn(),
             locator: vi.fn().mockReturnValue({
                 waitFor: vi.fn().mockResolvedValue(undefined),
+                count: vi.fn().mockResolvedValue(1),
             }),
         };
 

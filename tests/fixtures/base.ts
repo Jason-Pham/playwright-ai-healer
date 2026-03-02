@@ -2,6 +2,7 @@ import { test as base } from '@playwright/test';
 import { AutoHealer } from '../../src/AutoHealer.js';
 import { GiganttiHomePage } from '../../src/pages/GiganttiHomePage.js';
 import { config } from '../../src/config/index.js';
+import { logger } from '../../src/utils/Logger.js';
 
 // Define custom fixtures
 type MyFixtures = {
@@ -23,14 +24,14 @@ export const test = base.extend<MyFixtures>({
             apiKeys = ai.gemini.apiKey;
             model = ai.gemini.modelName;
         } else if (ai.openai.apiKeys && ai.openai.apiKeys.length > 0) {
-            console.log('DEBUG: Checking openai keys. Length:', ai.openai.apiKeys.length);
+            logger.debug(`[Fixture] Checking openai keys. Length: ${ai.openai.apiKeys.length}`);
             provider = 'openai';
             // Type assertion or minor adjustment needed if AutoHealer constructor expects string | string[]
             // We changed the constructor, so this is fine.
             apiKeys = ai.openai.apiKeys;
             model = ai.openai.modelName;
         } else {
-            console.log('DEBUG: No API keys found for Gemini or OpenAI');
+            logger.error('[Fixture] No API keys found for Gemini or OpenAI');
             throw new Error('❌ API Key missing! Check src/config/index.ts or .env');
         }
 

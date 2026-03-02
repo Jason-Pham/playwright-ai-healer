@@ -178,12 +178,39 @@ export class AutoHealer {
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await retryFn(result.selector);
 
-                // Update locator if we have a key
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                try {
+                    // Pre-validation: verify new selector exists before attempting action
+                    try {
+                        const target = this.page.locator(result.selector);
+                        const count = await target.count();
+                        if (count === 0) {
+                            throw new Error(
+                                `Healed selector '${result.selector}' resulted in 0 matches in the active DOM.`
+                            );
+                        }
+                    } catch (validationErr) {
+                        logger.warn(`[AutoHealer] Healed selector validation failed: ${String(validationErr)}`);
+                        throw validationErr; // Pass to outer catch context for skipping
+                    }
+
+                    await retryFn(result.selector);
+
+                    // Update locator if we have a key
+                    if (locatorKey) {
+                        logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                        await locatorManager.updateLocator(locatorKey, result.selector);
+                    }
+                } catch (retryError) {
+                    logger.error(`[AutoHealer] Failed to interact with healed selector: ${String(retryError)}`);
+                    test.info().annotations.push({
+                        type: 'warning',
+                        description: `Test skipped because healed selector '${result.selector}' failed during interaction.`,
+                    });
+                    test.skip(
+                        true,
+                        `Test skipped because healed selector '${result.selector}' failed during interaction.`
+                    );
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -203,71 +230,37 @@ export class AutoHealer {
         selectorOrKey: string,
         options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
     ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting hover on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Hover failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.hover(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+        await this.executeAction(
+            selectorOrKey,
+            'hover',
+            async selector => {
+                await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.hover(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe type method (pressSequentially) that attempts self-healing on failure
      */
     async type(selectorOrKey: string, text: string, options?: { delay?: number; timeout?: number }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting type on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.locator(selector).pressSequentially(text, {
-                ...(options?.delay !== undefined && { delay: options.delay }),
-                timeout: options?.timeout ?? config.test.timeouts.fill,
-            });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Type failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page
-                    .locator(result.selector)
-                    .pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
+        await this.executeAction(
+            selectorOrKey,
+            'type',
+            async selector => {
+                await this.page.locator(selector).pressSequentially(text, {
+                    ...(options?.delay !== undefined && { delay: options.delay }),
+                    timeout: options?.timeout ?? config.test.timeouts.fill,
                 });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+            },
+            async selector => {
+                await this.page
+                    .locator(selector)
+                    .pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
             }
-        }
+        );
     }
 
     /**
@@ -278,34 +271,16 @@ export class AutoHealer {
         values: string | string[] | { value?: string; label?: string; index?: number },
         options?: { timeout?: number; force?: boolean }
     ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug)
-                logger.info(`[AutoHealer] Attempting selectOption on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] SelectOption failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.selectOption(result.selector, values, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+        await this.executeAction(
+            selectorOrKey,
+            'selectOption',
+            async selector => {
+                await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.selectOption(selector, values, options);
             }
-        }
+        );
     }
 
     /**
@@ -315,33 +290,16 @@ export class AutoHealer {
         selectorOrKey: string,
         options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
     ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting check on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Check failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.check(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+        await this.executeAction(
+            selectorOrKey,
+            'check',
+            async selector => {
+                await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.check(selector, options);
             }
-        }
+        );
     }
 
     /**
@@ -351,34 +309,16 @@ export class AutoHealer {
         selectorOrKey: string,
         options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
     ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug)
-                logger.info(`[AutoHealer] Attempting uncheck on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Uncheck failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.uncheck(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+        await this.executeAction(
+            selectorOrKey,
+            'uncheck',
+            async selector => {
+                await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.uncheck(selector, options);
             }
-        }
+        );
     }
 
     /**
@@ -388,34 +328,16 @@ export class AutoHealer {
         selectorOrKey: string,
         options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }
     ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug)
-                logger.info(`[AutoHealer] Attempting waitForSelector on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] WaitForSelector failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.waitForSelector(result.selector, options ?? {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+        await this.executeAction(
+            selectorOrKey,
+            'waitForSelector',
+            async selector => {
+                await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
+            },
+            async selector => {
+                await this.page.waitForSelector(selector, options ?? {});
             }
-        }
+        );
     }
 
     /**

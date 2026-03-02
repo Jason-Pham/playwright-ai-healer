@@ -13,6 +13,7 @@ test.describe('Self-Healing Demo', () => {
         // Ensure autoHealer is available
         expect(autoHealer).toBeDefined();
         if (!autoHealer) throw new Error('AutoHealer not initialized');
+
         // Use POM to open the page
         await giganttiPage.open();
 
