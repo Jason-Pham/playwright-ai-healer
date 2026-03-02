@@ -46,6 +46,6 @@ export default tseslint.config(
         }
     },
     {
-        ignores: ['node_modules/', 'dist/', '*.js', 'playwright-report/', 'test-results/', 'coverage/'],
+        ignores: ['node_modules/', 'dist/', '*.js', 'playwright-report/', 'test-results/', 'coverage/', '.claude/'],
     }
 );
