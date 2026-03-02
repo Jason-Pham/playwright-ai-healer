@@ -204,6 +204,18 @@ async click(selector: string) {
 
 _Note: If the primary AI Provider (e.g. Gemini) hits a 4xx Rate Limit error, the `AutoHealer` automatically detects the quota failure and falls back to an alternate AI Provider (e.g. OpenAI) if configured!_
 
+### ⚡ Concurrent Healing (`healAll`)
+
+Heal multiple failing selectors in one call — AI requests fire in parallel, Playwright interactions stay sequential:
+
+```typescript
+const results = await healer.healAll([
+    { type: 'click', selector: '#broken-btn', locatorKey: 'home.searchButton' },
+    { type: 'fill', selector: '#broken-input', value: 'laptop', locatorKey: 'home.searchInput' },
+]);
+// results: HealAllResult[] — per-operation outcome, healed selector, and healing event
+```
+
 ### 🎭 Healing Demo
 
 Run the demo test to see self-healing in action:
