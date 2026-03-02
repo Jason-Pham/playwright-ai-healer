@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `AutoHealer.waitForSelector()` — self-healing element wait with AI fallback.
 - `HealingEvent.tokensUsed` — records prompt, completion, and total token counts from the AI provider when available.
 - `HealingEvent.domSnapshotLength` — records the character length of the DOM snapshot sent to the AI for diagnostics.
-- DOM snapshot char limit is now configurable via the `DOM_SNAPSHOT_CHAR_LIMIT` environment variable.
+- `DOM_SNAPSHOT_MAX_CHARS` environment variable — controls the maximum character length of the DOM snapshot sent to the AI (default: `15000`). Lower values reduce token cost; higher values give the AI more context on complex pages.
 
 ### Changed
 

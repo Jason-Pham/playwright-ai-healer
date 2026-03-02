@@ -749,8 +749,8 @@ export class AutoHealer {
      * @private
      */
     private async getSimplifiedDOM(): Promise<string> {
-        return await this.page.evaluate(() => {
-            const MAX_OUTPUT_CHARS = 15000;
+        return await this.page.evaluate((maxChars: number) => {
+            const MAX_OUTPUT_CHARS = maxChars;
 
             const scrubPII = (text: string): string => {
                 const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -964,6 +964,6 @@ export class AutoHealer {
             }
 
             return result;
-        });
+        }, config.domSnapshotMaxChars);
     }
 }
