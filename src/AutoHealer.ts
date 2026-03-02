@@ -152,6 +152,20 @@ export class AutoHealer {
         );
     }
 
+    /**
+     * Shared action executor that handles the full self-healing lifecycle:
+     * 1. Resolves a dot-path locator key to a CSS selector via `LocatorManager`
+     * 2. Pre-validates element visibility with a short timeout (warns on failure)
+     * 3. Executes the primary action via `actionFn`
+     * 4. On failure, invokes AI healing and retries via `retryFn`
+     * 5. Persists the healed selector back to `LocatorManager` when a locator key was used
+     * 6. Skips the test gracefully when healing cannot find a replacement
+     *
+     * @param selectorOrKey - CSS selector or dot-path locator key (e.g. `gigantti.searchInput`)
+     * @param actionName - Human-readable name for logging (e.g. `'click'`, `'fill'`)
+     * @param actionFn - The primary action to attempt (uses a short timeout)
+     * @param retryFn - The retry action to attempt with the healed selector (uses caller's timeout)
+     */
     private async executeAction(
         selectorOrKey: string,
         actionName: string,
@@ -197,7 +211,14 @@ export class AutoHealer {
     }
 
     /**
-     * Safe hover method that attempts self-healing on failure
+     * Safe hover method that attempts self-healing on failure.
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright hover options
+     * @param options.timeout - Maximum time in milliseconds to wait for the element.
+     * @param options.force - Bypass actionability checks.
+     * @param options.position - Hover at this position relative to the element's top-left corner.
+     * @throws Error if healing fails and no alternate provider is available
      */
     async hover(
         selectorOrKey: string,
@@ -233,7 +254,17 @@ export class AutoHealer {
     }
 
     /**
-     * Safe type method (pressSequentially) that attempts self-healing on failure
+     * Safe type method (`pressSequentially`) that attempts self-healing on failure.
+     *
+     * Types text character-by-character into the element. Useful when `fill()` does
+     * not trigger the expected input events.
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param text - Text to type character by character
+     * @param options - Typing options
+     * @param options.delay - Delay in milliseconds between key presses.
+     * @param options.timeout - Maximum time in milliseconds to wait for the element.
+     * @throws Error if healing fails and no alternate provider is available
      */
     async type(selectorOrKey: string, text: string, options?: { delay?: number; timeout?: number }) {
         const locatorManager = LocatorManager.getInstance();
@@ -271,7 +302,14 @@ export class AutoHealer {
     }
 
     /**
-     * Safe selectOption method that attempts self-healing on failure
+     * Safe selectOption method that attempts self-healing on failure.
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param values - Option value(s) to select. Supports string, string array, or object with `value`/`label`/`index`.
+     * @param options - Select options
+     * @param options.timeout - Maximum time in milliseconds to wait for the element.
+     * @param options.force - Bypass actionability checks.
+     * @throws Error if healing fails and no alternate provider is available
      */
     async selectOption(
         selectorOrKey: string,
@@ -309,7 +347,14 @@ export class AutoHealer {
     }
 
     /**
-     * Safe check method that attempts self-healing on failure
+     * Safe check method (checkbox) that attempts self-healing on failure.
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Check options
+     * @param options.timeout - Maximum time in milliseconds to wait for the element.
+     * @param options.force - Bypass actionability checks.
+     * @param options.position - Click at this position relative to the element's top-left corner.
+     * @throws Error if healing fails and no alternate provider is available
      */
     async check(
         selectorOrKey: string,
@@ -345,7 +390,14 @@ export class AutoHealer {
     }
 
     /**
-     * Safe uncheck method that attempts self-healing on failure
+     * Safe uncheck method (checkbox) that attempts self-healing on failure.
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Uncheck options
+     * @param options.timeout - Maximum time in milliseconds to wait for the element.
+     * @param options.force - Bypass actionability checks.
+     * @param options.position - Click at this position relative to the element's top-left corner.
+     * @throws Error if healing fails and no alternate provider is available
      */
     async uncheck(
         selectorOrKey: string,
@@ -382,7 +434,16 @@ export class AutoHealer {
     }
 
     /**
-     * Safe waitForSelector method that attempts self-healing on failure
+     * Safe waitForSelector method that attempts self-healing on failure.
+     *
+     * Waits for an element matching the selector to reach the specified state.
+     * If the wait fails, uses AI healing to find a replacement selector.
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - WaitForSelector options
+     * @param options.state - Expected element state: `'attached'`, `'detached'`, `'visible'`, or `'hidden'`.
+     * @param options.timeout - Maximum time in milliseconds to wait.
+     * @throws Error if healing fails and no alternate provider is available
      */
     async waitForSelector(
         selectorOrKey: string,
@@ -419,7 +480,13 @@ export class AutoHealer {
     }
 
     /**
-     * Get all healing events recorded during the current session
+     * Returns all healing events recorded during the current session.
+     *
+     * Each event includes the original selector, the AI result (or null on failure),
+     * duration, token usage, and DOM snapshot length. Useful for reporting and
+     * attaching diagnostics to Playwright HTML reports.
+     *
+     * @returns Read-only array of healing events
      */
     getHealingEvents(): readonly HealingEvent[] {
         return this.healingEvents;
@@ -723,7 +790,13 @@ export class AutoHealer {
     }
 
     /**
-     * Wraps a promise with a timeout to prevent hanging API calls
+     * Wraps a promise with a timeout to prevent hanging API calls.
+     *
+     * @param promise - The promise to race against the timeout.
+     * @param ms - Timeout duration in milliseconds.
+     * @param label - Human-readable label for the timeout error message (e.g. `'OpenAI'`, `'Gemini'`).
+     * @returns The resolved value of the original promise.
+     * @throws Error with a descriptive message if the timeout expires first.
      */
     private async withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
         let timeoutId: ReturnType<typeof setTimeout>;

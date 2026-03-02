@@ -47,24 +47,27 @@ This is a **self-healing Playwright test automation framework**. When a selector
 ```
 Test → BasePage.safeClick/safeFill
      → AutoHealer.click/fill
-     → page.click(selector)  ← if fails →
-     → getSimplifiedDOM() → AI provider (Gemini/OpenAI)
-     → AI returns new selector
-     → retry action with new selector
-     → LocatorManager.updateLocator() persists new selector
+     → executeAction():
+         1. LocatorManager resolves dot-path key → CSS selector
+         2. Pre-validate: waitFor(visible) with short timeout (warn if not visible)
+         3. Attempt action → page.click(selector)
+         4. If fails → getSimplifiedDOM() → AI provider (Gemini/OpenAI)
+         5. AI returns new selector → retry action
+         6. LocatorManager.updateLocator() persists healed selector
+         7. If AI returns FAIL/null → test.skip() with annotation
 ```
 
 ### Key Files
 
-| File                          | Role                                                                                                                                            |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/AutoHealer.ts`           | Core healing logic: wraps Playwright actions, queries AI, handles retries/key rotation, records `HealingEvent[]`                                |
-| `src/config/index.ts`         | Centralized config validated with Zod; exports `config` object; loads `.env.{TEST_ENV}` via `Environment.ts`                                    |
-| `src/config/locators.json`    | Persistent selector store; updated at runtime by `LocatorManager` when healing succeeds                                                         |
-| `src/utils/LocatorManager.ts` | Singleton; reads/writes `locators.json` with file locking (`proper-lockfile`); dot-path key access (e.g., `gigantti.searchInput`)               |
-| `src/utils/SiteHandler.ts`    | Strategy pattern for site-specific overlay dismissal; `GiganttiHandler` handles cookie banners; `NoOpHandler` is a no-op                        |
-| `src/pages/BasePage.ts`       | Abstract base for all page objects; wraps interactions with overlay dismissal, `AutoHealer` delegation, and Vercel security challenge detection |
-| `tests/fixtures/base.ts`      | Playwright fixtures providing `autoHealer` and `giganttiPage` to E2E tests                                                                      |
+| File                          | Role                                                                                                                                                                            |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/AutoHealer.ts`           | Core healing logic: `executeAction()` pattern for click/fill; wraps Playwright actions with pre-validation, AI healing, skip-on-failure, key rotation; records `HealingEvent[]` |
+| `src/config/index.ts`         | Centralized config validated with Zod; exports `config` object; loads `.env.{TEST_ENV}` via `Environment.ts`                                                                    |
+| `src/config/locators.json`    | Persistent selector store; updated at runtime by `LocatorManager` when healing succeeds                                                                                         |
+| `src/utils/LocatorManager.ts` | Singleton; reads/writes `locators.json` with file locking (`proper-lockfile`); dot-path key access (e.g., `gigantti.searchInput`)                                               |
+| `src/utils/SiteHandler.ts`    | Strategy pattern for site-specific overlay dismissal; `GiganttiHandler` handles cookie banners; `NoOpHandler` is a no-op                                                        |
+| `src/pages/BasePage.ts`       | Abstract base for all page objects; wraps interactions with overlay dismissal, `AutoHealer` delegation, and Vercel security challenge detection                                 |
+| `tests/fixtures/base.ts`      | Playwright fixtures providing `autoHealer` and `giganttiPage` to E2E tests                                                                                                      |
 
 ### Environment Configuration
 
@@ -73,7 +76,7 @@ Environment is selected by `TEST_ENV` variable (`dev`/`staging`/`prod`). The con
 - `AI_PROVIDER=gemini|openai` (default: `gemini`)
 - `GEMINI_API_KEY` — required if provider is `gemini`
 - `OPENAI_API_KEY` / `OPENAI_API_KEYS` (comma-separated for rotation) — required if provider is `openai`
-- `BASE_URL`, `LOG_LEVEL`, `HEADLESS`, `TEST_TIMEOUT`
+- `BASE_URL`, `LOG_LEVEL`, `CONSOLE_LOG_LEVEL`, `HEADLESS`, `TEST_TIMEOUT`
 
 ### TypeScript Conventions
 

@@ -15,8 +15,8 @@ Thank you for your interest in contributing to the Self-Healing Playwright Agent
 1. Fork the repository
 2. Clone your fork:
     ```bash
-    git clone https://github.com/your-username/playwright-ai-healer.git
-    cd playwright-ai-healer
+    git clone https://github.com/your-username/self-healing-agent.git
+    cd self-healing-agent
     ```
 3. Install dependencies:
     ```bash
@@ -123,7 +123,7 @@ Example:
 it('should heal broken selector using AI', async () => {
     // Arrange
     const mockPage = createMockPage();
-    const healer = new AutoHealer(mockPage, 'api-key');
+    const healer = new AutoHealer(mockPage, 'api-key', 'gemini');
 
     // Act
     await healer.click('#broken-selector');

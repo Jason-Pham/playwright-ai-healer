@@ -78,8 +78,12 @@ export abstract class BasePage {
     /**
      * Wait for the page to reach `load` and `domcontentloaded` states.
      *
+     * **Note:** The `networking` option is accepted for call-site consistency but
+     * does not currently trigger a `networkidle` wait. Only `load` and
+     * `domcontentloaded` states are awaited.
+     *
      * @param options.timeout - Maximum wait time in milliseconds.
-     * @param options.networking - When `true`, also waits for `networkidle` after load states.
+     * @param options.networking - Reserved for future use. Currently has no effect.
      */
     async waitForPageLoad(options?: { timeout?: number; networking?: boolean }): Promise<void> {
         await this.page.waitForLoadState('load', options);

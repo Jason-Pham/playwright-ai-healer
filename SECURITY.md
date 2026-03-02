@@ -40,11 +40,16 @@ const apiKey = "sk-abc123...";
 The framework supports multiple API keys for automatic rotation:
 
 ```typescript
-// Single key
-const healer = new AutoHealer(page, process.env.API_KEY, 'gemini');
+// Single key — provider and model are required constructor arguments
+const healer = new AutoHealer(page, process.env['GEMINI_API_KEY']!, 'gemini');
 
-// Multiple keys for rotation (recommended)
-const healer = new AutoHealer(page, [process.env.API_KEY_1, process.env.API_KEY_2], 'gemini');
+// Multiple keys for rotation (recommended for OpenAI)
+const healer = new AutoHealer(
+    page,
+    [process.env['OPENAI_API_KEY_1']!, process.env['OPENAI_API_KEY_2']!],
+    'openai',
+    'gpt-4o'
+);
 ```
 
 ## Input Validation
@@ -106,11 +111,13 @@ Set appropriate timeouts to prevent hanging:
 
 ```typescript
 test: {
-    timeout: 120000, // Global test timeout
+    timeout: 180000,  // Global test timeout (from TEST_TIMEOUT env var)
     timeouts: {
-        click: 5000,
-        fill: 5000,
+        default: 60000,
         cookie: 10000,
+        click: 10000,
+        fill: 10000,
+        short: 5000,   // Pre-validation and initial action attempts
     }
 }
 ```

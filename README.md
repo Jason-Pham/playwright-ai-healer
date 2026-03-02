@@ -9,15 +9,17 @@
 
 ## ✨ Features
 
-| Feature                   | Description                                                 |
-| ------------------------- | ----------------------------------------------------------- |
-| 🔧 **AI Self-Healing**    | Automatically fixes broken selectors using OpenAI or Gemini |
-| 🔄 **Provider Fallback**  | Automatically switches between Gemini/OpenAI on rate limits |
-| 🌐 **Multi-Browser**      | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices    |
-| 🌍 **Multi-Environment**  | Dev, Staging, Prod configs with `.env.{env}` files          |
-| 📊 **Structured Logging** | Winston logger with console + file output                   |
-| 📄 **Page Object Model**  | Clean POM architecture with proper page flows               |
-| 🔄 **CI/CD Ready**        | GitHub Actions with retries and HTML reports                |
+| Feature                        | Description                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| 🔧 **AI Self-Healing**         | Automatically fixes broken selectors using OpenAI or Gemini                 |
+| 🔄 **Provider Fallback**       | Automatically switches between Gemini/OpenAI on rate limits                 |
+| ⏭️ **Skip on Healing Failure** | Gracefully skips tests when AI cannot find a replacement selector           |
+| 👁️ **Pre-Validation**          | Checks element visibility before attempting actions to fail fast            |
+| 🌐 **Multi-Browser**           | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices                    |
+| 🌍 **Multi-Environment**       | Dev, Staging, Prod configs with `.env.{env}` files                          |
+| 📊 **Structured Logging**      | Winston logger with console + file output and Playwright report integration |
+| 📄 **Page Object Model**       | Clean POM architecture with proper page flows                               |
+| 🔄 **CI/CD Ready**             | GitHub Actions with retries and HTML reports                                |
 
 ## 🚀 Quick Start
 
@@ -97,9 +99,10 @@ OPENAI_MODEL=gpt-4o
 
 # Logging
 LOG_LEVEL=warn
+CONSOLE_LOG_LEVEL=warn
 
 # Test Configuration
-TEST_TIMEOUT=120000
+TEST_TIMEOUT=180000
 HEADLESS=true
 ```
 
@@ -129,26 +132,36 @@ npx playwright show-report playwright-report
 
 ```
 src/
-├── AutoHealer.ts              # Core AI healing logic
+├── AutoHealer.ts              # Core AI healing logic (executeAction pattern)
+├── AutoHealer.test.ts         # Unit tests for AutoHealer
+├── test-setup.ts              # Global mocks for Vitest (LocatorManager, winston)
+├── types.ts                   # Shared TypeScript types
 ├── config/
-│   ├── index.ts               # Centralized configuration
+│   ├── index.ts               # Centralized Zod-validated configuration
 │   └── locators.json          # Persistent selector storage
 ├── pages/
-│   ├── BasePage.ts            # Abstract base page
-│   ├── GiganttiHomePage.ts    # Entry point
-│   ├── CategoryPage.ts        # Product listings
-│   └── ProductDetailPage.ts   # Product details
+│   ├── BasePage.ts            # Abstract base page with overlay dismissal
+│   ├── BasePage.test.ts       # Unit tests for BasePage
+│   ├── PageObjects.test.ts    # Unit tests for page objects
+│   ├── GiganttiHomePage.ts    # Home page (search, category navigation)
+│   ├── CategoryPage.ts        # Product listings / search results
+│   └── ProductDetailPage.ts   # Product detail page
 └── utils/
-    ├── Environment.ts         # Multi-env loader
-    ├── Logger.ts              # Winston wrapper
-    ├── LocatorManager.ts      # Selector persistence
-    └── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
+    ├── Environment.ts         # Multi-env .env loader
+    ├── Environment.test.ts    # Unit tests for Environment
+    ├── Logger.ts              # Winston wrapper with Playwright report integration
+    ├── Logger.test.ts         # Unit tests for Logger
+    ├── LocatorManager.ts      # Singleton selector persistence with file locking
+    ├── LocatorManager.test.ts              # Unit tests
+    ├── LocatorManager.integration.test.ts  # Integration tests
+    ├── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
+    └── SiteHandler.test.ts    # Unit tests for SiteHandler
 
 tests/
 ├── gigantti.spec.ts           # E2E tests
 ├── healing-demo.spec.ts       # Self-healing demo tests
-├── fixtures/base.ts           # Playwright fixtures
-└── unit/                      # Unit tests
+├── fixtures/base.ts           # Playwright fixtures (autoHealer, giganttiPage)
+└── unit/                      # Additional unit tests
     ├── autohealer-core.test.ts
     └── autohealer-error-handling.test.ts
 ```
@@ -186,19 +199,24 @@ sequenceDiagram
 ## 📝 How It Works
 
 ```typescript
-// AutoHealer intercepts failures and uses AI to recover
-// The AI returns the plain CSS selector as a string
-async click(selector: string) {
-  try {
-    await this.page.click(selector);
-  } catch (error) {
-    // Ask AI for a new replacement selector
-    const result = await this.heal(selector, error);
-    if (result && result.selector !== 'FAIL') {
-      await this.page.click(result.selector);
-      this.healingEvents.push(event); // Stored internally; accessible via getHealingEvents()
-    }
-  }
+// AutoHealer intercepts failures and uses AI to recover.
+// Actions go through a shared executeAction() helper that:
+//   1. Resolves dot-path locator keys via LocatorManager
+//   2. Pre-validates element visibility before attempting the action
+//   3. Falls back to AI healing if the action still fails
+//   4. Skips the test gracefully when healing cannot find a replacement
+
+async click(selectorOrKey: string, options?: ClickOptions) {
+    await this.executeAction(
+        selectorOrKey,
+        'click',
+        async (selector) => {
+            await this.page.click(selector, { timeout: config.test.timeouts.short, ...options });
+        },
+        async (selector) => {
+            await this.page.click(selector, options);
+        }
+    );
 }
 ```
 
@@ -230,11 +248,12 @@ This project demonstrates:
 The framework uses strict TypeScript with comprehensive type definitions:
 
 ```typescript
-import { AutoHealer, type ClickOptions, type FillOptions } from './AutoHealer';
+import { AutoHealer } from './AutoHealer.js';
+import type { ClickOptions, FillOptions } from './types.js';
 
-// Fully typed interactions
+// Fully typed interactions — accepts CSS selectors or locator keys
 await healer.click('#button', { timeout: 3000 });
-await healer.fill('#input', 'value', { force: true });
+await healer.fill('gigantti.searchInput', 'laptop', { force: true });
 ```
 
 ### Code Quality
