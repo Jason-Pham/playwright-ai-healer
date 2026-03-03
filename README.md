@@ -9,15 +9,17 @@
 
 ## ✨ Features
 
-| Feature                   | Description                                                 |
-| ------------------------- | ----------------------------------------------------------- |
-| 🔧 **AI Self-Healing**    | Automatically fixes broken selectors using OpenAI or Gemini |
-| 🔄 **Provider Fallback**  | Automatically switches between Gemini/OpenAI on rate limits |
-| 🌐 **Multi-Browser**      | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices    |
-| 🌍 **Multi-Environment**  | Dev, Staging, Prod configs with `.env.{env}` files          |
-| 📊 **Structured Logging** | Winston logger with console + file output                   |
-| 📄 **Page Object Model**  | Clean POM architecture with proper page flows               |
-| 🔄 **CI/CD Ready**        | GitHub Actions with retries and HTML reports                |
+| Feature                     | Description                                                                       |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| 🔧 **AI Self-Healing**      | Automatically fixes broken selectors using OpenAI or Gemini                       |
+| 🔒 **Selector Validation**  | Denylist/allowlist guards reject dangerous or malformed AI-returned selectors     |
+| ✅ **Confidence Threshold** | Healed selectors are verified against the live DOM before use (element count > 0) |
+| 🔄 **Provider Fallback**    | Automatically switches between Gemini/OpenAI on rate limits                       |
+| 🌐 **Multi-Browser**        | Chromium, Chrome, Firefox, Safari, Edge + Mobile devices                          |
+| 🌍 **Multi-Environment**    | Dev, Staging, Prod configs with `.env.{env}` files                                |
+| 📊 **Structured Logging**   | Winston logger with console + file output                                         |
+| 📄 **Page Object Model**    | Clean POM architecture with proper page flows                                     |
+| 🔄 **CI/CD Ready**          | GitHub Actions with retries and HTML reports                                      |
 
 ## 🚀 Quick Start
 
@@ -178,6 +180,9 @@ sequenceDiagram
     Page-->>AutoHealer: cleaned HTML
     AutoHealer->>AI: Find new selector
     AI-->>AutoHealer: "#new-btn"
+    AutoHealer->>AutoHealer: validateSelector("#new-btn") 🔒
+    AutoHealer->>Page: locator("#new-btn").count()
+    Page-->>AutoHealer: 1 (confidence ✅)
     AutoHealer->>Page: page.click("#new-btn")
     Page-->>AutoHealer: ✅ Success
     AutoHealer->>AutoHealer: updateLocator
@@ -187,16 +192,18 @@ sequenceDiagram
 
 ```typescript
 // AutoHealer intercepts failures and uses AI to recover
-// The AI returns the plain CSS selector as a string
 async click(selector: string) {
   try {
     await this.page.click(selector);
   } catch (error) {
-    // Ask AI for a new replacement selector
+    // 1. Ask AI for a replacement selector
     const result = await this.heal(selector, error);
-    if (result && result.selector !== 'FAIL') {
+    // heal() internally:
+    //   a) validateSelector() — denylist/allowlist guards against dangerous patterns
+    //   b) page.locator(result).count() — confidence threshold (must be > 0 in live DOM)
+    if (result) {
       await this.page.click(result.selector);
-      this.healingEvents.push(event); // Stored internally; accessible via getHealingEvents()
+      this.healingEvents.push(event); // accessible via getHealingEvents()
     }
   }
 }
@@ -230,11 +237,22 @@ This project demonstrates:
 The framework uses strict TypeScript with comprehensive type definitions:
 
 ```typescript
-import { AutoHealer, type ClickOptions, type FillOptions } from './AutoHealer';
+import {
+    AutoHealer,
+    type ClickOptions,
+    type FillOptions,
+    type HoverOptions,
+    type TypeOptions,
+    type CheckOptions,
+    type WaitForSelectorOptions,
+} from './AutoHealer';
 
 // Fully typed interactions
 await healer.click('#button', { timeout: 3000 });
 await healer.fill('#input', 'value', { force: true });
+await healer.hover('#tooltip-trigger');
+await healer.check('#agree-checkbox');
+await healer.waitForSelector('#modal', { state: 'visible' });
 ```
 
 ### Code Quality

@@ -4,7 +4,20 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
-import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
+import type {
+    AIProvider,
+    ClickOptions,
+    FillOptions,
+    HoverOptions,
+    TypeOptions,
+    SelectOptionOptions,
+    SelectOptionValues,
+    CheckOptions,
+    WaitForSelectorOptions,
+    AIError,
+    HealingResult,
+    HealingEvent,
+} from './types.js';
 
 /**
  * AutoHealer - Self-healing test automation agent
@@ -180,20 +193,6 @@ export class AutoHealer {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
 
                 try {
-                    // Pre-validation: verify new selector exists before attempting action
-                    try {
-                        const target = this.page.locator(result.selector);
-                        const count = await target.count();
-                        if (count === 0) {
-                            throw new Error(
-                                `Healed selector '${result.selector}' resulted in 0 matches in the active DOM.`
-                            );
-                        }
-                    } catch (validationErr) {
-                        logger.warn(`[AutoHealer] Healed selector validation failed: ${String(validationErr)}`);
-                        throw validationErr; // Pass to outer catch context for skipping
-                    }
-
                     await retryFn(result.selector);
 
                     // Update locator if we have a key
@@ -225,11 +224,12 @@ export class AutoHealer {
 
     /**
      * Safe hover method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright hover options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async hover(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
+    async hover(selectorOrKey: string, options?: HoverOptions) {
         await this.executeAction(
             selectorOrKey,
             'hover',
@@ -244,8 +244,13 @@ export class AutoHealer {
 
     /**
      * Safe type method (pressSequentially) that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param text - Text to type character by character
+     * @param options - Delay between keystrokes and timeout
+     * @throws Error if healing fails or element still cannot be found
      */
-    async type(selectorOrKey: string, text: string, options?: { delay?: number; timeout?: number }) {
+    async type(selectorOrKey: string, text: string, options?: TypeOptions) {
         await this.executeAction(
             selectorOrKey,
             'type',
@@ -265,12 +270,13 @@ export class AutoHealer {
 
     /**
      * Safe selectOption method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param values - Option value(s) to select
+     * @param options - Playwright selectOption options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async selectOption(
-        selectorOrKey: string,
-        values: string | string[] | { value?: string; label?: string; index?: number },
-        options?: { timeout?: number; force?: boolean }
-    ) {
+    async selectOption(selectorOrKey: string, values: SelectOptionValues, options?: SelectOptionOptions) {
         await this.executeAction(
             selectorOrKey,
             'selectOption',
@@ -285,11 +291,12 @@ export class AutoHealer {
 
     /**
      * Safe check method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright check options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async check(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
+    async check(selectorOrKey: string, options?: CheckOptions) {
         await this.executeAction(
             selectorOrKey,
             'check',
@@ -304,11 +311,12 @@ export class AutoHealer {
 
     /**
      * Safe uncheck method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright uncheck options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async uncheck(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
+    async uncheck(selectorOrKey: string, options?: CheckOptions) {
         await this.executeAction(
             selectorOrKey,
             'uncheck',
@@ -323,11 +331,12 @@ export class AutoHealer {
 
     /**
      * Safe waitForSelector method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright waitForSelector options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async waitForSelector(
-        selectorOrKey: string,
-        options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }
-    ) {
+    async waitForSelector(selectorOrKey: string, options?: WaitForSelectorOptions) {
         await this.executeAction(
             selectorOrKey,
             'waitForSelector',
@@ -595,14 +604,32 @@ export class AutoHealer {
             }
 
             if (result && result !== 'FAIL') {
-                healingSuccess = true;
-                healingResult = {
-                    selector: result,
-                    confidence: 1.0,
-                    reasoning: 'AI found replacement selector.',
-                    strategy: 'css',
-                };
-                logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                // Validate the selector before using or persisting it
+                if (!this.validateSelector(result)) {
+                    logger.warn(
+                        `[AutoHealer:heal] ❌ HEALING REJECTED. AI-returned selector failed validation: "${result}"`
+                    );
+                } else {
+                    // Verify the healed selector actually matches an element on the page
+                    const elementCount = await this.page.locator(result).count();
+                    // TODO: extend to a continuous score (e.g. penalise elementCount > 5 as ambiguous)
+                    // Currently binary: 1.0 if count > 0, 0.0 if count === 0
+                    const confidence = elementCount > 0 ? 1.0 : 0.0;
+                    if (confidence < config.ai.healing.confidenceThreshold) {
+                        logger.warn(
+                            `[AutoHealer:heal] ❌ HEALING REJECTED. Healed selector "${result}" matched 0 elements (confidence=${confidence} < threshold=${config.ai.healing.confidenceThreshold})`
+                        );
+                    } else {
+                        healingSuccess = true;
+                        healingResult = {
+                            selector: result,
+                            confidence,
+                            reasoning: 'AI found replacement selector.',
+                            strategy: 'css',
+                        };
+                        logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                    }
+                }
             } else {
                 logger.warn(`[AutoHealer:heal] ❌ HEALING FAILED. Result was: "${result}" (FAIL or empty)`);
             }
@@ -642,6 +669,95 @@ export class AutoHealer {
         }
 
         return healingResult;
+    }
+
+    /**
+     * Validates an AI-returned selector against an allowlist of safe patterns and a
+     * denylist of dangerous payloads before the selector is used in any page interaction
+     * or persisted to locators.json.
+     *
+     * Allowed patterns:
+     * - XPath expressions starting with `//` or `./`
+     * - Playwright built-in text engines: `text=`, `role=`, `label=`, `placeholder=`,
+     *   `alt=`, `title=`, `testid=`, `data-testid=`
+     * - Attribute selectors starting with `[`
+     * - Standard CSS selectors matching only known-safe characters
+     *
+     * Rejected patterns (denylist takes precedence):
+     * - Strings starting with `javascript:` or `data:`
+     * - Strings containing HTML tags or angle brackets (`<`, `>`)
+     * - Strings containing JS execution primitives: `eval(`, `document.`, `window.`
+     *
+     * @param selector - The selector string returned by the AI provider
+     * @returns `true` when the selector is considered safe, `false` otherwise
+     */
+    private validateSelector(selector: string): boolean {
+        if (!selector || selector.trim().length === 0) {
+            return false;
+        }
+
+        const trimmed = selector.trim();
+
+        // Denylist: dangerous prefixes (case-insensitive)
+        // 'data:' (colon) does NOT match 'data-testid=' (hyphen) — keep these distinct
+        const dangerousPrefixes = ['javascript:', 'data:'];
+        for (const prefix of dangerousPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous prefix "${prefix}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Denylist: dangerous substrings that indicate HTML or JS injection.
+        // Note: standalone `<` and `>` are NOT in the denylist because `>` is a valid
+        // CSS child combinator and XPath uses `<`/`>` in comparisons.  We only block
+        // patterns that unambiguously indicate injection payloads.
+        const dangerousSubstrings = ['<script', '</', '<!--', 'eval(', 'document.', 'window.'];
+        for (const pattern of dangerousSubstrings) {
+            if (trimmed.toLowerCase().includes(pattern.toLowerCase())) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous pattern "${pattern}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Allowlist: Playwright text engine prefixes
+        const playwrightPrefixes = [
+            'text=',
+            'role=',
+            'label=',
+            'placeholder=',
+            'alt=',
+            'title=',
+            'testid=',
+            'data-testid=',
+        ];
+        for (const prefix of playwrightPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        // Allowlist: XPath expressions
+        if (trimmed.startsWith('//') || trimmed.startsWith('./')) {
+            return true;
+        }
+
+        // Allowlist: CSS attribute selectors starting with `[`
+        if (trimmed.startsWith('[')) {
+            return true;
+        }
+
+        // Allowlist: Standard CSS selector characters only
+        // Permits: alphanumeric, whitespace, and common CSS selector syntax tokens
+        // (#id, .class, tag, [attr], :pseudo, >, +, ~, *, comma, quotes, =, ^, $, |, -, !, @, /)
+        const safeCssPattern = /^[a-zA-Z0-9\s\-_#.:,[\]()="'^$*|>+~!@/\\]+$/;
+        if (safeCssPattern.test(trimmed)) {
+            return true;
+        }
+
+        // Default deny: selector did not match any known-safe pattern
+        logger.warn(`[AutoHealer:validateSelector] Rejected — selector does not match any safe pattern: "${trimmed}"`);
+        return false;
     }
 
     /**
