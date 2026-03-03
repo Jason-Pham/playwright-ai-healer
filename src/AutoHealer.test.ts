@@ -24,6 +24,7 @@ vi.mock('./utils/LocatorManager.js', () => ({
 const createMockPage = (): Partial<Page> => {
     const mockLocator = {
         waitFor: vi.fn().mockResolvedValue(undefined),
+        count: vi.fn().mockResolvedValue(1),
     };
     return {
         click: vi.fn(),
