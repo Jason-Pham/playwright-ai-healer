@@ -48,8 +48,8 @@ This is a **self-healing Playwright test automation framework**. When a selector
 Test → BasePage.safeClick/safeFill
      → AutoHealer.click/fill
      → page.click(selector)  ← if fails →
-     → getSimplifiedDOM() → AI provider (Gemini/OpenAI)
-     → AI returns new selector
+     → DOMSerializer.getSimplifiedDOM() → AIClientManager.makeRequest() → AI provider (Gemini/OpenAI)
+     → ResponseParser.parseAIResponse() cleans raw output
      → retry action with new selector
      → LocatorManager.updateLocator() persists new selector
 ```
@@ -58,7 +58,10 @@ Test → BasePage.safeClick/safeFill
 
 | File                          | Role                                                                                                                                            |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/AutoHealer.ts`           | Core healing logic: wraps Playwright actions, queries AI, handles retries/key rotation, records `HealingEvent[]`                                |
+| `src/AutoHealer.ts`           | Public healing API (`click`, `fill`, `hover`…) + `heal()` orchestration; records `HealingEvent[]`                                               |
+| `src/ai/AIClientManager.ts`   | Owns AI client lifecycle (OpenAI/Gemini), API key rotation, provider failover, and raw `makeRequest()` with timeout                             |
+| `src/ai/DOMSerializer.ts`     | `getSimplifiedDOM(page)` — focused snapshot of interactive elements for the AI prompt                                                           |
+| `src/ai/ResponseParser.ts`    | `parseAIResponse()` — strips markdown fences, backticks, and quotes from raw AI output                                                          |
 | `src/config/index.ts`         | Centralized config validated with Zod; exports `config` object; loads `.env.{TEST_ENV}` via `Environment.ts`                                    |
 | `src/config/locators.json`    | Persistent selector store; updated at runtime by `LocatorManager` when healing succeeds                                                         |
 | `src/utils/LocatorManager.ts` | Singleton; reads/writes `locators.json` with file locking (`proper-lockfile`); dot-path key access (e.g., `gigantti.searchInput`)               |
