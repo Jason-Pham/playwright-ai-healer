@@ -191,12 +191,39 @@ export class AutoHealer {
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await retryFn(result.selector);
 
-                // Update locator if we have a key
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                try {
+                    // Pre-validation: verify new selector exists before attempting action
+                    try {
+                        const target = this.page.locator(result.selector);
+                        const count = await target.count();
+                        if (count === 0) {
+                            throw new Error(
+                                `Healed selector '${result.selector}' resulted in 0 matches in the active DOM.`
+                            );
+                        }
+                    } catch (validationErr) {
+                        logger.warn(`[AutoHealer] Healed selector validation failed: ${String(validationErr)}`);
+                        throw validationErr; // Pass to outer catch context for skipping
+                    }
+
+                    await retryFn(result.selector);
+
+                    // Update locator if we have a key
+                    if (locatorKey) {
+                        logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                        await locatorManager.updateLocator(locatorKey, result.selector);
+                    }
+                } catch (retryError) {
+                    logger.error(`[AutoHealer] Failed to interact with healed selector: ${String(retryError)}`);
+                    test.info().annotations.push({
+                        type: 'warning',
+                        description: `Test skipped because healed selector '${result.selector}' failed during interaction.`,
+                    });
+                    test.skip(
+                        true,
+                        `Test skipped because healed selector '${result.selector}' failed during interaction.`
+                    );
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);

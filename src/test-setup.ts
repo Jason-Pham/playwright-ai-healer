@@ -38,10 +38,10 @@ vi.mock('@playwright/test', () => ({
         info: vi.fn().mockReturnValue({ annotations: [], project: { name: 'unit-test' } }),
         skip: vi.fn(),
     },
-    expect: vi.fn().mockImplementation(actual => ({
+    expect: vi.fn().mockImplementation((actual: unknown) => ({
         toPass: vi.fn().mockImplementation(async () => {
             if (typeof actual === 'function') {
-                await actual();
+                await (actual as () => Promise<void>)();
             }
         }),
         toHaveURL: vi.fn(),
