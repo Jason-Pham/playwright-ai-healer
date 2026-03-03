@@ -557,8 +557,9 @@ describe('AutoHealer', () => {
 
                 const healerInstance = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
 
-                // executeAction re-throws the original error when heal() returns null
-                await expect(healerInstance.click('#any-selector')).rejects.toThrow('Element not found');
+                // When heal() returns null, executeAction calls test.skip() — not re-throw.
+                // So the promise resolves rather than rejects.
+                await healerInstance.click('#any-selector');
 
                 // The retry click must NOT have been called with the malicious selector
                 const clickCalls = (mockPage.click as ReturnType<typeof vi.fn>).mock.calls;
