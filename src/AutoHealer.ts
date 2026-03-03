@@ -179,7 +179,7 @@ export class AutoHealer {
             if (this.debug)
                 logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
-                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
+                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.short });
             } catch {
                 logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
             }
@@ -193,20 +193,6 @@ export class AutoHealer {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
 
                 try {
-                    // Pre-validation: verify new selector exists before attempting action
-                    try {
-                        const target = this.page.locator(result.selector);
-                        const count = await target.count();
-                        if (count === 0) {
-                            throw new Error(
-                                `Healed selector '${result.selector}' resulted in 0 matches in the active DOM.`
-                            );
-                        }
-                    } catch (validationErr) {
-                        logger.warn(`[AutoHealer] Healed selector validation failed: ${String(validationErr)}`);
-                        throw validationErr; // Pass to outer catch context for skipping
-                    }
-
                     await retryFn(result.selector);
 
                     // Update locator if we have a key
@@ -626,6 +612,8 @@ export class AutoHealer {
                 } else {
                     // Verify the healed selector actually matches an element on the page
                     const elementCount = await this.page.locator(result).count();
+                    // TODO: extend to a continuous score (e.g. penalise elementCount > 5 as ambiguous)
+                    // Currently binary: 1.0 if count > 0, 0.0 if count === 0
                     const confidence = elementCount > 0 ? 1.0 : 0.0;
                     if (confidence < config.ai.healing.confidenceThreshold) {
                         logger.warn(
@@ -711,6 +699,7 @@ export class AutoHealer {
         const trimmed = selector.trim();
 
         // Denylist: dangerous prefixes (case-insensitive)
+        // 'data:' (colon) does NOT match 'data-testid=' (hyphen) — keep these distinct
         const dangerousPrefixes = ['javascript:', 'data:'];
         for (const prefix of dangerousPrefixes) {
             if (trimmed.toLowerCase().startsWith(prefix)) {
