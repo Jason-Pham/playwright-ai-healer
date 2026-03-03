@@ -1,17 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import dotenv from 'dotenv';
-import { loadEnvironment, getEnvironment, isDev, isProd } from './Environment.js';
+import { loadEnvironment, getEnvironment, isDev, isProd, resetEnvironmentForTesting } from './Environment.js';
 
-// Mock fs, path, and dotenv
+// Mock fs and dotenv — path is NOT mocked: fs is fully mocked so the
+// actual resolved path values are irrelevant.
 vi.mock('fs');
-vi.mock('path', async () => {
-    const actual = await vi.importActual('path');
-    return {
-        ...actual,
-        resolve: vi.fn(),
-    };
-});
 vi.mock('dotenv', async () => {
     const actual = await vi.importActual<typeof import('dotenv')>('dotenv');
     return {
@@ -26,9 +20,9 @@ describe('Environment', () => {
     const originalEnv = process.env;
 
     beforeEach(() => {
-        vi.resetModules();
         process.env = { ...originalEnv };
         vi.clearAllMocks();
+        resetEnvironmentForTesting();
     });
 
     afterEach(() => {
@@ -99,7 +93,7 @@ describe('Environment', () => {
             // Both .env.staging and .env exist
             vi.mocked(fs.existsSync).mockReturnValue(true);
             // env-specific file sets MY_TEST_VAR=staging-value
-            vi.mocked(fs.readFileSync).mockReturnValue('MY_TEST_VAR=staging-value' as never);
+            vi.mocked(fs.readFileSync).mockImplementation(() => 'MY_TEST_VAR=staging-value');
             // base .env loading overrides with MY_TEST_VAR=local-value
             vi.mocked(dotenv.config).mockImplementation(() => {
                 process.env['MY_TEST_VAR'] = 'local-value';
@@ -111,13 +105,26 @@ describe('Environment', () => {
             expect(process.env['MY_TEST_VAR']).toBe('local-value');
         });
 
+        it('should be idempotent — fs is not read on subsequent calls', () => {
+            process.env['TEST_ENV'] = 'prod';
+            vi.mocked(fs.existsSync).mockReturnValue(false);
+
+            loadEnvironment();
+            loadEnvironment(); // second call should be a no-op
+
+            // existsSync is called twice per loadEnvironment invocation (env-specific + base),
+            // so it must NOT have been called a second time.
+            expect(vi.mocked(fs.existsSync).mock.calls.length).toBeLessThanOrEqual(2);
+            expect(process.env['ENV']).toBe('prod');
+        });
+
         it('should not apply empty values from env-specific file', () => {
             process.env['TEST_ENV'] = 'staging';
             process.env['MY_TEST_VAR'] = 'existing-value';
 
             vi.mocked(fs.existsSync).mockReturnValue(true);
             // env-specific file has MY_TEST_VAR with an empty value
-            vi.mocked(fs.readFileSync).mockReturnValue('MY_TEST_VAR=' as never);
+            vi.mocked(fs.readFileSync).mockImplementation(() => 'MY_TEST_VAR=');
             // base .env doesn't touch MY_TEST_VAR
             vi.mocked(dotenv.config).mockReturnValue({ parsed: {} });
 
