@@ -70,7 +70,7 @@ tmp/
 .cache/
 
 # Scripts
-scripts
+scripts/
 
 # Local dev/scratch files
 list-models.ts
