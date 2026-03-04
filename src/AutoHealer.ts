@@ -408,11 +408,17 @@ export class AutoHealer {
                     try {
                         if (this.provider === 'openai' && this.openai) {
                             logger.info(`[AutoHealer:heal] Sending request to OpenAI (model: ${this.modelName})...`);
+                            const openai = this.openai;
                             const completion = await this.withTimeout(
-                                this.openai.chat.completions.create({
-                                    messages: [{ role: 'user', content: promptText }],
-                                    model: this.modelName,
-                                }),
+                                signal =>
+                                    openai.chat.completions.create(
+                                        {
+                                            messages: [{ role: 'user', content: promptText }],
+                                            model: this.modelName,
+                                            stream: false,
+                                        },
+                                        { signal }
+                                    ),
                                 config.test.timeouts.default,
                                 'OpenAI'
                             );
@@ -436,7 +442,7 @@ export class AutoHealer {
                             logger.info(`[AutoHealer:heal] Sending request to Gemini (model: ${this.modelName})...`);
                             const model = this.gemini.getGenerativeModel({ model: this.modelName });
                             const resultResult = await this.withTimeout(
-                                model.generateContent(promptText),
+                                signal => model.generateContent(promptText, { signal }),
                                 config.test.timeouts.default,
                                 'Gemini'
                             );
@@ -699,7 +705,6 @@ export class AutoHealer {
         const trimmed = selector.trim();
 
         // Denylist: dangerous prefixes (case-insensitive)
-        // 'data:' (colon) does NOT match 'data-testid=' (hyphen) — keep these distinct
         const dangerousPrefixes = ['javascript:', 'data:'];
         for (const prefix of dangerousPrefixes) {
             if (trimmed.toLowerCase().startsWith(prefix)) {
@@ -761,17 +766,24 @@ export class AutoHealer {
     }
 
     /**
-     * Wraps a promise with a timeout to prevent hanging API calls
+     * Wraps an API call factory with a timeout and AbortController so the underlying
+     * HTTP request is cancelled when the deadline is reached.
+     *
+     * @param factory - A function that receives an AbortSignal and returns a Promise
+     * @param ms - Timeout in milliseconds
+     * @param label - Human-readable label for the error message
      */
-    private async withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    private async withTimeout<T>(factory: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {
+        const controller = new AbortController();
         let timeoutId: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {
             timeoutId = setTimeout(() => {
+                controller.abort();
                 reject(new Error(`[AutoHealer] ${label} API request timed out after ${ms / 1000}s`));
             }, ms);
         });
         try {
-            return await Promise.race([promise, timeoutPromise]);
+            return await Promise.race([factory(controller.signal), timeoutPromise]);
         } finally {
             clearTimeout(timeoutId!);
         }
