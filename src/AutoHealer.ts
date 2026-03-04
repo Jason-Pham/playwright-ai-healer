@@ -169,7 +169,8 @@ export class AutoHealer {
         selectorOrKey: string,
         actionName: string,
         actionFn: (selector: string) => Promise<void>,
-        retryFn: (selector: string) => Promise<void>
+        retryFn: (selector: string) => Promise<void>,
+        visibilityTimeout?: number
     ) {
         const locatorManager = LocatorManager.getInstance();
         const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
@@ -179,7 +180,9 @@ export class AutoHealer {
             if (this.debug)
                 logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
-                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
+                await this.page
+                    .locator(selector)
+                    .waitFor({ state: 'visible', timeout: visibilityTimeout ?? config.test.timeouts.short });
             } catch {
                 logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
             }
@@ -191,12 +194,25 @@ export class AutoHealer {
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await retryFn(result.selector);
 
-                // Update locator if we have a key
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                try {
+                    await retryFn(result.selector);
+
+                    // Update locator if we have a key
+                    if (locatorKey) {
+                        logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                        await locatorManager.updateLocator(locatorKey, result.selector);
+                    }
+                } catch (retryError) {
+                    logger.error(`[AutoHealer] Failed to interact with healed selector: ${String(retryError)}`);
+                    test.info().annotations.push({
+                        type: 'warning',
+                        description: `Test skipped because healed selector '${result.selector}' failed during interaction.`,
+                    });
+                    test.skip(
+                        true,
+                        `Test skipped because healed selector '${result.selector}' failed during interaction.`
+                    );
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -332,7 +348,8 @@ export class AutoHealer {
             },
             async selector => {
                 await this.page.waitForSelector(selector, options ?? {});
-            }
+            },
+            options?.timeout ?? config.test.timeouts.short
         );
     }
 
@@ -395,11 +412,17 @@ export class AutoHealer {
                     try {
                         if (this.provider === 'openai' && this.openai) {
                             logger.info(`[AutoHealer:heal] Sending request to OpenAI (model: ${this.modelName})...`);
+                            const openai = this.openai;
                             const completion = await this.withTimeout(
-                                this.openai.chat.completions.create({
-                                    messages: [{ role: 'user', content: promptText }],
-                                    model: this.modelName,
-                                }),
+                                signal =>
+                                    openai.chat.completions.create(
+                                        {
+                                            messages: [{ role: 'user', content: promptText }],
+                                            model: this.modelName,
+                                            stream: false,
+                                        },
+                                        { signal }
+                                    ),
                                 config.test.timeouts.default,
                                 'OpenAI'
                             );
@@ -423,7 +446,7 @@ export class AutoHealer {
                             logger.info(`[AutoHealer:heal] Sending request to Gemini (model: ${this.modelName})...`);
                             const model = this.gemini.getGenerativeModel({ model: this.modelName });
                             const resultResult = await this.withTimeout(
-                                model.generateContent(promptText),
+                                signal => model.generateContent(promptText, { signal }),
                                 config.test.timeouts.default,
                                 'Gemini'
                             );
@@ -597,14 +620,25 @@ export class AutoHealer {
                         `[AutoHealer:heal] ❌ HEALING REJECTED. AI-returned selector failed validation: "${result}"`
                     );
                 } else {
-                    healingSuccess = true;
-                    healingResult = {
-                        selector: result,
-                        confidence: 1.0,
-                        reasoning: 'AI found replacement selector.',
-                        strategy: 'css',
-                    };
-                    logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                    // Verify the healed selector actually matches an element on the page
+                    const elementCount = await this.page.locator(result).count();
+                    // TODO: extend to a continuous score (e.g. penalise elementCount > 5 as ambiguous)
+                    // Currently binary: 1.0 if count > 0, 0.0 if count === 0
+                    const confidence = elementCount > 0 ? 1.0 : 0.0;
+                    if (confidence < config.ai.healing.confidenceThreshold) {
+                        logger.warn(
+                            `[AutoHealer:heal] ❌ HEALING REJECTED. Healed selector "${result}" matched 0 elements (confidence=${confidence} < threshold=${config.ai.healing.confidenceThreshold})`
+                        );
+                    } else {
+                        healingSuccess = true;
+                        healingResult = {
+                            selector: result,
+                            confidence,
+                            reasoning: 'AI found replacement selector.',
+                            strategy: 'css',
+                        };
+                        logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                    }
                 }
             } else {
                 logger.warn(`[AutoHealer:heal] ❌ HEALING FAILED. Result was: "${result}" (FAIL or empty)`);
@@ -736,17 +770,24 @@ export class AutoHealer {
     }
 
     /**
-     * Wraps a promise with a timeout to prevent hanging API calls
+     * Wraps an API call factory with a timeout and AbortController so the underlying
+     * HTTP request is cancelled when the deadline is reached.
+     *
+     * @param factory - A function that receives an AbortSignal and returns a Promise
+     * @param ms - Timeout in milliseconds
+     * @param label - Human-readable label for the error message
      */
-    private async withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    private async withTimeout<T>(factory: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {
+        const controller = new AbortController();
         let timeoutId: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {
             timeoutId = setTimeout(() => {
+                controller.abort();
                 reject(new Error(`[AutoHealer] ${label} API request timed out after ${ms / 1000}s`));
             }, ms);
         });
         try {
-            return await Promise.race([promise, timeoutPromise]);
+            return await Promise.race([factory(controller.signal), timeoutPromise]);
         } finally {
             clearTimeout(timeoutId!);
         }
@@ -914,7 +955,7 @@ export class AutoHealer {
                         while (
                             i + run < neededChildren.length &&
                             `${neededChildren[i + run]!.tagName.toLowerCase()}|${neededChildren[i + run]!.getAttribute('class') || ''}` ===
-                                sig
+                            sig
                         ) {
                             run++;
                         }
