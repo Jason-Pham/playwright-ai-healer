@@ -191,12 +191,25 @@ export class AutoHealer {
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await retryFn(result.selector);
 
-                // Update locator if we have a key
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
+                try {
+                    await retryFn(result.selector);
+
+                    // Update locator if we have a key
+                    if (locatorKey) {
+                        logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                        await locatorManager.updateLocator(locatorKey, result.selector);
+                    }
+                } catch (retryError) {
+                    logger.error(`[AutoHealer] Failed to interact with healed selector: ${String(retryError)}`);
+                    test.info().annotations.push({
+                        type: 'warning',
+                        description: `Test skipped because healed selector '${result.selector}' failed during interaction.`,
+                    });
+                    test.skip(
+                        true,
+                        `Test skipped because healed selector '${result.selector}' failed during interaction.`
+                    );
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -603,14 +616,25 @@ export class AutoHealer {
                         `[AutoHealer:heal] ❌ HEALING REJECTED. AI-returned selector failed validation: "${result}"`
                     );
                 } else {
-                    healingSuccess = true;
-                    healingResult = {
-                        selector: result,
-                        confidence: 1.0,
-                        reasoning: 'AI found replacement selector.',
-                        strategy: 'css',
-                    };
-                    logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                    // Verify the healed selector actually matches an element on the page
+                    const elementCount = await this.page.locator(result).count();
+                    // TODO: extend to a continuous score (e.g. penalise elementCount > 5 as ambiguous)
+                    // Currently binary: 1.0 if count > 0, 0.0 if count === 0
+                    const confidence = elementCount > 0 ? 1.0 : 0.0;
+                    if (confidence < config.ai.healing.confidenceThreshold) {
+                        logger.warn(
+                            `[AutoHealer:heal] ❌ HEALING REJECTED. Healed selector "${result}" matched 0 elements (confidence=${confidence} < threshold=${config.ai.healing.confidenceThreshold})`
+                        );
+                    } else {
+                        healingSuccess = true;
+                        healingResult = {
+                            selector: result,
+                            confidence,
+                            reasoning: 'AI found replacement selector.',
+                            strategy: 'css',
+                        };
+                        logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                    }
                 }
             } else {
                 logger.warn(`[AutoHealer:heal] ❌ HEALING FAILED. Result was: "${result}" (FAIL or empty)`);

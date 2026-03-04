@@ -25,6 +25,7 @@ const createMockPage = (): Partial<Page> => {
     const mockLocatorHandle = {
         waitFor: vi.fn().mockResolvedValue(undefined),
         pressSequentially: vi.fn().mockResolvedValue(undefined),
+        count: vi.fn().mockResolvedValue(1),
     };
     return {
         click: vi.fn(),
@@ -375,6 +376,41 @@ describe('AutoHealer', () => {
         });
     });
 
+    describe('Confidence Threshold', () => {
+        it('should skip test when healed selector matches 0 DOM elements', async () => {
+            // First click fails, triggering healing
+            (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+                new Error('TimeoutError: Element not found')
+            );
+
+            // AI returns a valid-looking selector
+            mockGeminiGenerateContent.mockResolvedValue({
+                response: { text: () => '#valid-but-absent' },
+            });
+
+            // The locator().count() returns 0 — element not in DOM
+            const mockLocatorHandle = {
+                waitFor: vi.fn().mockResolvedValue(undefined),
+                count: vi.fn().mockResolvedValue(0),
+            };
+            (mockPage.locator as ReturnType<typeof vi.fn>).mockReturnValue(mockLocatorHandle);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.click('#broken-selector');
+
+            // heal() should reject the selector and executeAction should skip the test
+            const { test } = await import('@playwright/test');
+            expect(test.skip).toHaveBeenCalledWith(
+                true,
+                expect.stringContaining('could not find a suitable replacement selector')
+            );
+
+            // The retry click must NOT have been attempted with the healed selector
+            const clickCalls = (mockPage.click as ReturnType<typeof vi.fn>).mock.calls;
+            expect(clickCalls).toHaveLength(1); // Only the original failed call
+        });
+    });
+
     describe('validateSelector()', () => {
         // Access the private method via a typed cast — avoids `any`
         type WithValidate = { validateSelector: (selector: string) => boolean };
@@ -557,13 +593,13 @@ describe('AutoHealer', () => {
 
                 const healerInstance = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
 
-                // executeAction calls test.skip() when heal() returns null (does not re-throw)
+                // heal() returns null for invalid selectors; executeAction then calls test.skip()
                 await healerInstance.click('#any-selector');
 
                 const { test } = await import('@playwright/test');
                 expect(test.skip).toHaveBeenCalledWith(
                     true,
-                    expect.stringContaining('AutoHealer AI could not find a suitable replacement selector')
+                    expect.stringContaining('could not find a suitable replacement selector')
                 );
 
                 // The retry click must NOT have been called with the malicious selector
