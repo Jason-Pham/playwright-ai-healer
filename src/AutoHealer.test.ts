@@ -557,8 +557,14 @@ describe('AutoHealer', () => {
 
                 const healerInstance = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
 
-                // executeAction re-throws the original error when heal() returns null
-                await expect(healerInstance.click('#any-selector')).rejects.toThrow('Element not found');
+                // executeAction calls test.skip() when heal() returns null (does not re-throw)
+                await healerInstance.click('#any-selector');
+
+                const { test } = await import('@playwright/test');
+                expect(test.skip).toHaveBeenCalledWith(
+                    true,
+                    expect.stringContaining('AutoHealer AI could not find a suitable replacement selector')
+                );
 
                 // The retry click must NOT have been called with the malicious selector
                 const clickCalls = (mockPage.click as ReturnType<typeof vi.fn>).mock.calls;
