@@ -955,7 +955,7 @@ export class AutoHealer {
                         while (
                             i + run < neededChildren.length &&
                             `${neededChildren[i + run]!.tagName.toLowerCase()}|${neededChildren[i + run]!.getAttribute('class') || ''}` ===
-                            sig
+                                sig
                         ) {
                             run++;
                         }
