@@ -25,7 +25,7 @@ test.describe('Self-Healing Demo', () => {
         await giganttiPage.safeClick('#nonexistent-search-button-xyz-12345', { timeout: config.test.timeouts.short });
 
         // Verify the results using the POM's page instance
-        await expect(giganttiPage.page).toHaveURL(/search|haku|query/, { timeout: config.test.timeouts.default });
+        await expect(giganttiPage.page).toHaveURL(/search|haku|query/, { timeout: config.test.timeouts.short });
 
         // Verify the healing events were recorded
         const events = autoHealer.getHealingEvents();

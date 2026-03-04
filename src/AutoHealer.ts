@@ -169,7 +169,8 @@ export class AutoHealer {
         selectorOrKey: string,
         actionName: string,
         actionFn: (selector: string) => Promise<void>,
-        retryFn: (selector: string) => Promise<void>
+        retryFn: (selector: string) => Promise<void>,
+        visibilityTimeout?: number
     ) {
         const locatorManager = LocatorManager.getInstance();
         const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
@@ -179,7 +180,9 @@ export class AutoHealer {
             if (this.debug)
                 logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
-                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.default });
+                await this.page
+                    .locator(selector)
+                    .waitFor({ state: 'visible', timeout: visibilityTimeout ?? config.test.timeouts.short });
             } catch {
                 logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
             }
@@ -345,7 +348,8 @@ export class AutoHealer {
             },
             async selector => {
                 await this.page.waitForSelector(selector, options ?? {});
-            }
+            },
+            options?.timeout ?? config.test.timeouts.short
         );
     }
 
@@ -951,7 +955,7 @@ export class AutoHealer {
                         while (
                             i + run < neededChildren.length &&
                             `${neededChildren[i + run]!.tagName.toLowerCase()}|${neededChildren[i + run]!.getAttribute('class') || ''}` ===
-                                sig
+                            sig
                         ) {
                             run++;
                         }
