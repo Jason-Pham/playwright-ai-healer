@@ -88,8 +88,12 @@ export abstract class BasePage {
         await this.page.waitForLoadState('domcontentloaded', pwOptions);
         if (networking) {
             // networkidle can fail on pages with continuous polling; treat as best-effort
-            await this.page.waitForLoadState('networkidle', pwOptions).catch(() => {
-                logger.debug('[BasePage] networkidle timed out; proceeding without full network quiesce');
+            await this.page.waitForLoadState('networkidle', pwOptions).catch((error: unknown) => {
+                if (error instanceof Error && (error.name === 'TimeoutError' || error.message.includes('Timeout'))) {
+                    logger.debug('[BasePage] networkidle timed out; proceeding without full network quiesce');
+                } else {
+                    throw error;
+                }
             });
         }
     }
