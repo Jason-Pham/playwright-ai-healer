@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Confidence threshold** — healed selectors are now verified against the live DOM before use; selectors matching zero elements are rejected (confidence below `config.ai.healing.confidenceThreshold`). Scoring is currently binary (0.0 or 1.0) with a TODO to extend to continuous scoring.
+- Unit test covering the confidence-threshold rejection path (healed selector passes validation but matches 0 DOM elements).
+- **Selector validation** — AI-returned selectors are checked against an allowlist of safe patterns (CSS, XPath, Playwright text engines) and a denylist of dangerous payloads (`javascript:`, `<script>`, `eval(`, etc.) before being used or persisted.
+- `HoverOptions`, `TypeOptions`, `SelectOptionOptions`, `SelectOptionValues`, `CheckOptions`, `WaitForSelectorOptions` — dedicated option types in `src/types.ts` replacing inline type literals.
 - `AutoHealer.hover()` — self-healing hover action with AI fallback on failure.
 - `AutoHealer.type()` — self-healing character-by-character input (`pressSequentially`) with AI fallback.
 - `AutoHealer.selectOption()` — self-healing `<select>` option picker with AI fallback.
@@ -19,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `AutoHealer` action methods (`hover`, `type`, `selectOption`, `check`, `uncheck`, `waitForSelector`) refactored to use a shared `executeAction` helper, eliminating duplicated healing/retry/skip logic.
 - `AutoHealer` automatically switches AI provider (Gemini ↔ OpenAI) when a 4xx client error is received from the active provider, provided credentials for the alternate provider are configured.
 - `BasePage.waitForPageLoad` now correctly honours the `networking` option; previously the `networkidle` wait was silently skipped regardless of the flag value.
 - Config singleton is now lazily initialised and deduplicates environment loading to prevent double-loading on import.
@@ -26,6 +31,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **AbortController for API timeouts** — `withTimeout` now creates an `AbortController` and passes its signal to the AI provider HTTP call; when the timeout fires, the underlying network request is properly cancelled instead of being left to run in the background.
+- Removed redundant `count()` check from `executeAction()` — `heal()` is now the single authority for DOM element verification; the duplicate check in `executeAction()` produced a confusing `"healed selector validation failed"` message instead of the canonical `"HEALING REJECTED"` from `heal()`.
+- Reverted `executeAction()` visibility pre-check timeout from `config.test.timeouts.default` (60 s) back to `config.test.timeouts.short` (5 s) — a non-blocking pre-check should not delay test execution by up to 60 seconds on timeout.
 - Cookie banner dismissal no longer fails when the banner is hidden at the time of the DOM snapshot — `GiganttiHandler` now waits for the banner to become visible before attempting dismissal, swallowing the timeout if it never appears.
 - `LocatorManager.updateLocator` now rolls back the in-memory state if the disk write fails.
 - Removed dead `TreeWalker` code path from `getSimplifiedDOM()`.

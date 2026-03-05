@@ -96,6 +96,65 @@ export interface FillOptions {
 }
 
 /**
+ * Hover options extending Playwright's native options
+ */
+export interface HoverOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+    /** Bypass actionability checks and force the hover. */
+    force?: boolean;
+    /** Hover at this position relative to the element's top-left corner. */
+    position?: { x: number; y: number };
+}
+
+/**
+ * Type (pressSequentially) options
+ */
+export interface TypeOptions {
+    /** Delay in milliseconds between consecutive key presses. */
+    delay?: number;
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+}
+
+/**
+ * SelectOption options extending Playwright's native options
+ */
+export interface SelectOptionOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+    /** Bypass actionability checks and force the selection. */
+    force?: boolean;
+}
+
+/**
+ * SelectOption value argument — mirrors Playwright's overload
+ */
+export type SelectOptionValues = string | string[] | { value?: string; label?: string; index?: number };
+
+/**
+ * Check/uncheck options extending Playwright's native options
+ */
+export interface CheckOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+    /** Bypass actionability checks and force the check/uncheck. */
+    force?: boolean;
+    /** Click at this position relative to the element's top-left corner. */
+    position?: { x: number; y: number };
+}
+
+/**
+ * WaitForSelector options extending Playwright's native options
+ */
+export interface WaitForSelectorOptions {
+    /** Expected element state to wait for. Defaults to `'visible'`. */
+    state?: 'attached' | 'detached' | 'visible' | 'hidden';
+    /** Maximum time in milliseconds to wait for the selector to satisfy the `state` condition. */
+    timeout?: number;
+}
+
+/**
  * Timeout configuration used across the test framework (all values in milliseconds)
  */
 export interface TimeoutConfig {
