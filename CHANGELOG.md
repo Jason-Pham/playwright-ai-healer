@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `HealingEvent.tokensUsed` — records prompt, completion, and total token counts from the AI provider when available.
 - `HealingEvent.domSnapshotLength` — records the character length of the DOM snapshot sent to the AI for diagnostics.
 - DOM snapshot char limit is now configurable via the `DOM_SNAPSHOT_CHAR_LIMIT` environment variable.
+- `LocatorManager.resetInstance()` — static method to clear the singleton for clean unit-test isolation.
 
 ### Changed
 
@@ -36,5 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Reverted `executeAction()` visibility pre-check timeout from `config.test.timeouts.default` (60 s) back to `config.test.timeouts.short` (5 s) — a non-blocking pre-check should not delay test execution by up to 60 seconds on timeout.
 - Cookie banner dismissal no longer fails when the banner is hidden at the time of the DOM snapshot — `GiganttiHandler` now waits for the banner to become visible before attempting dismissal, swallowing the timeout if it never appears.
 - `LocatorManager.updateLocator` now rolls back the in-memory state if the disk write fails.
+- `LocatorManager.updateLocator` now re-throws errors instead of silently swallowing them, allowing callers (e.g. `AutoHealer.executeAction`) to handle persistence failures.
+- Updated `updateLocator` test mocks to return `Promise<void>` (`.mockResolvedValue(undefined)`) to match the real async signature.
 - Removed dead `TreeWalker` code path from `getSimplifiedDOM()`.
 - Removed unused `popupHandlerRegistered` field from `AutoHealer`.
