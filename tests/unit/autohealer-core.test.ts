@@ -42,7 +42,7 @@ vi.mock('../../src/utils/LocatorManager.js', () => ({
     LocatorManager: {
         getInstance: vi.fn(() => ({
             getLocator: vi.fn(),
-            updateLocator: vi.fn(),
+            updateLocator: vi.fn().mockResolvedValue(undefined),
         })),
     },
 }));
@@ -102,7 +102,7 @@ describe('AutoHealer Core Logic', () => {
         mockGenerateContent = mockModel.generateContent;
 
         // Setup LocatorManager mock
-        mockUpdateLocator = vi.fn();
+        mockUpdateLocator = vi.fn().mockResolvedValue(undefined);
         (LocatorManager.getInstance as any).mockReturnValue({
             getLocator: vi.fn(),
             updateLocator: mockUpdateLocator,
