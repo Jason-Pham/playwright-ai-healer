@@ -25,6 +25,7 @@ const createMockPage = (): Partial<Page> => {
     const mockLocatorHandle = {
         waitFor: vi.fn().mockResolvedValue(undefined),
         pressSequentially: vi.fn().mockResolvedValue(undefined),
+        count: vi.fn().mockResolvedValue(1),
     };
     return {
         click: vi.fn(),
@@ -557,8 +558,13 @@ describe('AutoHealer', () => {
 
                 const healerInstance = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
 
-                // executeAction re-throws the original error when heal() returns null
-                await expect(healerInstance.click('#any-selector')).rejects.toThrow('Element not found');
+                // executeAction calls test.skip() when heal() returns null (validation rejected the selector)
+                await healerInstance.click('#any-selector');
+                const { test } = await import('@playwright/test');
+                expect(test.skip).toHaveBeenCalledWith(
+                    true,
+                    'Test skipped because AutoHealer AI could not find a suitable replacement selector.'
+                );
 
                 // The retry click must NOT have been called with the malicious selector
                 const clickCalls = (mockPage.click as ReturnType<typeof vi.fn>).mock.calls;
