@@ -409,7 +409,7 @@ export class AutoHealer {
             // Outer loop for key rotation
             keyLoop: for (let k = 0; k < maxKeyRotations; k++) {
                 let retryCount = 0;
-                const maxRetries = 3;
+                const maxRetries = config.ai.healing.maxRetries;
                 logger.info(`[AutoHealer:heal] Key rotation iteration k=${k}, using key index ${this.currentKeyIndex}`);
 
                 while (retryCount <= maxRetries) {
@@ -511,9 +511,13 @@ export class AutoHealer {
                         if (isServerError) {
                             if (retryCount < maxRetries) {
                                 retryCount++;
-                                const delay = Math.pow(2, retryCount) * 1000;
+                                // Exponential backoff with full jitter: avoids retry storms
+                                // under load against rate-limited or overloaded AI endpoints.
+                                const base = Math.pow(2, retryCount) * config.ai.healing.retryDelay;
+                                const jitter = Math.floor(Math.random() * base * 0.5);
+                                const delay = base + jitter;
                                 logger.warn(
-                                    `[AutoHealer:heal] AI Server Error (${reqErrorTyped.status}). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${maxRetries})`
+                                    `[AutoHealer:heal] AI Server Error (${reqErrorTyped.status}). Retrying in ${(delay / 1000).toFixed(1)}s (base=${base / 1000}s + jitter=${jitter}ms)... (Attempt ${retryCount}/${maxRetries})`
                                 );
                                 await new Promise(resolve => setTimeout(resolve, delay));
                                 continue;
