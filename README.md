@@ -103,6 +103,9 @@ LOG_LEVEL=warn
 # Test Configuration
 TEST_TIMEOUT=120000
 HEADLESS=true
+
+# AI Healing (optional — defaults shown)
+DOM_SNAPSHOT_CHAR_LIMIT=2000   # Max chars of DOM sent to AI; must be >= 100
 ```
 
 ## 🐳 Run with Docker
