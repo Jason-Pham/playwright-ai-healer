@@ -563,6 +563,88 @@ describe('AutoHealer', () => {
             });
         });
 
+        describe('adversarial bypass attempts', () => {
+            // ── Protocol bypasses ──────────────────────────────────────────
+            it('should reject vbscript: URI (code path: denylist prefix)', () => {
+                // vbscript:alert(1) passes the CSS safe-char regex because all its
+                // characters are alphanumeric or in the allowed set (:, (, ), digits).
+                // The denylist prefix check must fire before the regex allowlist.
+                expect(getValidator(healer)('vbscript:alert(1)')).toBe(false);
+            });
+
+            it('should reject VBSCRIPT: URI (case-insensitive prefix check)', () => {
+                expect(getValidator(healer)('VBSCRIPT:alert(1)')).toBe(false);
+            });
+
+            it('should reject vbscript: URI with mixed case', () => {
+                expect(getValidator(healer)('VbScRiPt:msgbox(1)')).toBe(false);
+            });
+
+            it('should reject javascript: URI with leading BOM character (U+FEFF)', () => {
+                // trim() strips BOM — the prefix check must still fire after trim
+                expect(getValidator(healer)('\ufeffjavascript:alert(1)')).toBe(false);
+            });
+
+            it('should reject data: URI with leading whitespace', () => {
+                expect(getValidator(healer)('  data:text/html,<h1>hi</h1>')).toBe(false);
+            });
+
+            // ── Injection via newline / control characters ─────────────────
+            it('should reject a selector containing a newline before a dangerous keyword', () => {
+                // The CSS safe-char regex does not allow \n; this must be rejected
+                expect(getValidator(healer)('#id\nwindow.location')).toBe(false);
+            });
+
+            it('should reject a selector containing a carriage return', () => {
+                expect(getValidator(healer)('#id\reval(x)')).toBe(false);
+            });
+
+            it('should reject a selector containing a null byte', () => {
+                // Null byte cannot appear in the safe CSS char class
+                expect(getValidator(healer)('#id\x00evil')).toBe(false);
+            });
+
+            // ── Unicode / lookalike bypasses ───────────────────────────────
+            it('should reject a selector with Cyrillic lookalike characters mixed into dangerous payload', () => {
+                // Cyrillic 'а' (U+0430) vs ASCII 'a' — not in [a-zA-Z] range so safeCssPattern rejects
+                expect(getValidator(healer)('еvаl(аlert(1))')).toBe(false);
+            });
+
+            // ── eval() variants ────────────────────────────────────────────
+            it('should reject eval( in uppercase (case-insensitive substring check)', () => {
+                expect(getValidator(healer)('#id EVAL(alert(1))')).toBe(false);
+            });
+
+            it('should reject eval( embedded mid-selector after a valid prefix', () => {
+                expect(getValidator(healer)('#btn eval(document.cookie)')).toBe(false);
+            });
+
+            // ── document. / window. injection ─────────────────────────────
+            it('should reject document. in an XPath string literal', () => {
+                // Even inside a valid-looking XPath the denylist must fire
+                expect(getValidator(healer)('//div[contains(document.cookie,"x")]')).toBe(false);
+            });
+
+            it('should reject window. inside a Playwright text= selector', () => {
+                expect(getValidator(healer)('text=window.location')).toBe(false);
+            });
+
+            // ── CSS construct bypasses ─────────────────────────────────────
+            it('should reject a CSS block with expression() injection', () => {
+                // Braces are not in the safe CSS char class
+                expect(getValidator(healer)('*{expression(alert(1))}')).toBe(false);
+            });
+
+            // ── Chained / multi-payload ────────────────────────────────────
+            it('should reject a selector with multiple chained dangerous patterns', () => {
+                expect(getValidator(healer)('javascript:eval(document.write("<script>"))')).toBe(false);
+            });
+
+            it('should reject a selector that is only dangerous characters with no safe prefix', () => {
+                expect(getValidator(healer)('{}[];')).toBe(false);
+            });
+        });
+
         describe('edge cases', () => {
             it('should reject an empty string', () => {
                 expect(getValidator(healer)('')).toBe(false);
