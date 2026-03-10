@@ -8,6 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Coverage thresholds gate** — `vitest.config.ts` now enforces minimum coverage (lines 80 %, branches 70 %, functions 80 %, statements 80 %); the `test:coverage` step fails the build when coverage regresses.
+- **CI quality gates** — GitHub Actions unit-tests job now runs `npm audit --audit-level=high` (blocks high-severity CVEs) and `npm run lint` (blocks linting regressions) before the test step.
+- **Playwright browser cache in CI** — E2E matrix jobs cache `~/.cache/ms-playwright` keyed on OS + browser group + lock-file hash, saving ~2 min per job on cache hits.
+- **Exponential backoff with jitter** — The AI retry loop now adds ±50 % random jitter on top of the exponential base delay (`Math.random() * base * 0.5`) to prevent retry storms when multiple workers hit a rate-limited endpoint simultaneously. The base unit and max-retries are now read from `config.ai.healing.retryDelay` and `config.ai.healing.maxRetries` respectively instead of being hardcoded.
+- **Per-provider circuit breaker** (`src/utils/CircuitBreaker.ts`) — `AutoHealer` now maintains one `CircuitBreaker` per AI provider. After 5 consecutive server-error exhaustions the circuit opens and healing fast-fails with a clear log line instead of hammering the endpoint. The circuit transitions to `HALF_OPEN` after 60 s and closes on the next successful response. 11 unit tests cover all state transitions.
+- **`vbscript:` in selector denylist** — `vbscript:alert(1)` previously passed the CSS safe-character regex; the prefix is now explicitly blocked before the regex allowlist runs.
+- **Adversarial selector-validator test suite** — 16 new tests covering protocol bypasses (`vbscript:`, BOM-prefix `javascript:`), control-character injection (newline, CR, null byte), Unicode lookalike characters, `eval()` variants, `document.`/`window.` inside XPath and Playwright prefixes, CSS `expression()` blocks, and chained multi-payload selectors.
+- **`DomSimplifier` class** (`src/utils/DomSimplifier.ts`) — DOM snapshot logic extracted from `AutoHealer` into a dedicated class, satisfying the Single Responsibility Principle and enabling isolated unit testing of the snapshot algorithm.
+- **`docs` script** — `npm run docs` generates a TypeDoc HTML API reference into `docs/` from JSDoc annotations in `src/`.
+
+### Changed
+
+- `AutoHealer` now delegates DOM snapshot capture to `DomSimplifier` via a constructor-injected instance.
+
+### Fixed
+
 - **Confidence threshold** — healed selectors are now verified against the live DOM before use; selectors matching zero elements are rejected (confidence below `config.ai.healing.confidenceThreshold`). Scoring is currently binary (0.0 or 1.0) with a TODO to extend to continuous scoring.
 - Unit test covering the confidence-threshold rejection path (healed selector passes validation but matches 0 DOM elements).
 - **Selector validation** — AI-returned selectors are checked against an allowlist of safe patterns (CSS, XPath, Playwright text engines) and a denylist of dangerous payloads (`javascript:`, `<script>`, `eval(`, etc.) before being used or persisted.
