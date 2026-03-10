@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
+import { CircuitBreaker } from './utils/CircuitBreaker.js';
 import type {
     AIProvider,
     ClickOptions,
@@ -43,6 +44,9 @@ export class AutoHealer {
 
     private apiKeys: string[];
     private currentKeyIndex = 0;
+
+    /** Per-provider circuit breakers to fast-fail when a provider is persistently down */
+    private readonly circuitBreakers: Map<string, CircuitBreaker> = new Map();
 
     /**
      * Creates an AutoHealer instance
@@ -116,6 +120,14 @@ export class AutoHealer {
             }
         }
         return false;
+    }
+
+    /** Returns the CircuitBreaker for the given provider, creating it on first access. */
+    private getCircuitBreaker(provider: string): CircuitBreaker {
+        if (!this.circuitBreakers.has(provider)) {
+            this.circuitBreakers.set(provider, new CircuitBreaker());
+        }
+        return this.circuitBreakers.get(provider)!;
     }
 
     /**
@@ -406,6 +418,16 @@ export class AutoHealer {
             let maxKeyRotations = this.apiKeys.length;
             logger.info(`[AutoHealer:heal] Step 3: Starting AI request loop (maxKeyRotations=${maxKeyRotations})`);
 
+            // Fast-fail if the current provider's circuit breaker is open
+            const breaker = this.getCircuitBreaker(this.provider);
+            if (breaker.isOpen()) {
+                logger.warn(
+                    `[AutoHealer:heal] ⚡ Circuit breaker OPEN for provider "${this.provider}" ` +
+                        `(${breaker.getConsecutiveFailures()} consecutive failures). Fast-failing healing.`
+                );
+                return null;
+            }
+
             // Outer loop for key rotation
             keyLoop: for (let k = 0; k < maxKeyRotations; k++) {
                 let retryCount = 0;
@@ -482,8 +504,9 @@ export class AutoHealer {
                                 `[AutoHealer] No AI client initialized for provider "${this.provider}". Check API key configuration.`
                             );
                         }
-                        // If success, break loop
+                        // If success, reset the circuit breaker and break loop
                         logger.info(`[AutoHealer:heal] AI request succeeded, breaking out of retry loop.`);
+                        this.getCircuitBreaker(this.provider).onSuccess();
                         break keyLoop;
                     } catch (reqError) {
                         const reqErrorTyped = reqError as AIError;
@@ -521,6 +544,7 @@ export class AutoHealer {
                                 logger.error(
                                     `[AutoHealer:heal] AI Server Error after ${maxRetries} retries. Giving up.`
                                 );
+                                this.getCircuitBreaker(this.provider).onFailure();
                                 throw reqErrorTyped;
                             }
                         }
