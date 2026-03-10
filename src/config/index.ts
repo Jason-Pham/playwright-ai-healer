@@ -19,6 +19,7 @@ const envSchema = z.object({
     OPENAI_API_KEY: z.string().optional(),
     OPENAI_MODEL: z.string().default('gpt-4o'),
     TEST_TIMEOUT: z.string().default('180000').transform(Number),
+    DOM_SNAPSHOT_CHAR_LIMIT: z.string().default('2000').transform(Number).pipe(z.number().int().min(100)),
     HEADLESS: z
         .string()
         .default('true')
@@ -34,7 +35,7 @@ type AppConfig = {
         provider: string;
         gemini: { apiKey: string | undefined; modelName: string };
         openai: { apiKeys: string[]; modelName: string; apiKey: string | undefined };
-        healing: { maxRetries: number; retryDelay: number; confidenceThreshold: number };
+        healing: { maxRetries: number; retryDelay: number; confidenceThreshold: number; domSnapshotCharLimit: number };
         security: { vercelChallengePath: string };
         prompts: { healingPrompt: (selector: string, error: string, html: string) => string };
     };
@@ -97,6 +98,7 @@ function buildConfig(): AppConfig {
                 maxRetries: 3,
                 retryDelay: 5000,
                 confidenceThreshold: 0.7,
+                domSnapshotCharLimit: env.DOM_SNAPSHOT_CHAR_LIMIT,
             },
             security: {
                 vercelChallengePath: '.well-known/vercel/security/request-challenge',

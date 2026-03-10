@@ -381,12 +381,17 @@ export class AutoHealer {
         // 1. Capture simplified DOM
         logger.info(`[AutoHealer:heal] Step 1: Capturing simplified DOM...`);
         const htmlSnapshot = await this.getSimplifiedDOM();
-        logger.info(`[AutoHealer:heal] DOM snapshot length: ${htmlSnapshot.length} chars (will use full DOM)`);
+        const domLimit = config.ai.healing.domSnapshotCharLimit;
+        logger.info(`[AutoHealer:heal] DOM snapshot length: ${htmlSnapshot.length} chars (will use first ${domLimit})`);
         logger.debug(`[AutoHealer:heal] DOM snapshot preview (first 500 chars): ${htmlSnapshot.substring(0, 500)}`);
 
         // 2. Construct Prompt
         logger.info(`[AutoHealer:heal] Step 2: Constructing prompt...`);
-        const promptText = config.ai.prompts.healingPrompt(originalSelector, error.message, htmlSnapshot);
+        const promptText = config.ai.prompts.healingPrompt(
+            originalSelector,
+            error.message,
+            htmlSnapshot.substring(0, domLimit)
+        );
         logger.info(`[AutoHealer:heal] Prompt length: ${promptText.length} chars`);
         logger.debug(`[AutoHealer:heal] Prompt preview (first 300 chars): ${promptText.substring(0, 300)}`);
 

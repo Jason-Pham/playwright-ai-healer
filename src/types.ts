@@ -199,6 +199,8 @@ export interface AIConfig {
         retryDelay: number;
         /** Minimum confidence score (0–1) required to accept an AI-suggested selector. */
         confidenceThreshold: number;
+        /** Maximum character length of the DOM snapshot sent to the AI provider. */
+        domSnapshotCharLimit: number;
     };
     prompts: {
         /** Function that builds the healing prompt sent to the AI. */
