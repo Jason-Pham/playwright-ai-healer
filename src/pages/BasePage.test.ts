@@ -23,7 +23,7 @@ describe('BasePage', () => {
             goto: vi.fn(),
             waitForTimeout: vi.fn(),
             locator: vi.fn(),
-            waitForLoadState: vi.fn(),
+            waitForLoadState: vi.fn().mockResolvedValue(undefined),
             waitForFunction: vi.fn(),
             getByRole: vi.fn(),
             on: vi.fn().mockReturnThis(), // Returns itself for chaining
@@ -178,6 +178,52 @@ describe('BasePage', () => {
 
             expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', expect.anything());
             // expect() is mocked globally in test-setup.ts
+        });
+    });
+
+    describe('waitForPageLoad', () => {
+        it('should wait for load and domcontentloaded but not networkidle when networking is omitted', async () => {
+            await basePage.waitForPageLoad();
+
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', undefined);
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', undefined);
+            expect(mockPage.waitForLoadState).not.toHaveBeenCalledWith('networkidle', expect.anything());
+        });
+
+        it('should wait for all three load states when networking is true', async () => {
+            await basePage.waitForPageLoad({ networking: true });
+
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', undefined);
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', undefined);
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('networkidle', undefined);
+        });
+
+        it('should pass timeout option through and not call networkidle when networking is false', async () => {
+            await basePage.waitForPageLoad({ timeout: 5000 });
+
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', { timeout: 5000 });
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', { timeout: 5000 });
+            expect(mockPage.waitForLoadState).not.toHaveBeenCalledWith('networkidle', expect.anything());
+        });
+
+        it('should not reject when networkidle times out', async () => {
+            const timeoutError = Object.assign(new Error('Timeout exceeded'), { name: 'TimeoutError' });
+            vi.mocked(mockPage.waitForLoadState!).mockImplementation((state?: string) => {
+                if (state === 'networkidle') return Promise.reject(timeoutError);
+                return Promise.resolve();
+            });
+
+            await expect(basePage.waitForPageLoad({ networking: true })).resolves.toBeUndefined();
+        });
+
+        it('should rethrow non-timeout errors from networkidle', async () => {
+            const crashError = new Error('Page crashed');
+            vi.mocked(mockPage.waitForLoadState!).mockImplementation((state?: string) => {
+                if (state === 'networkidle') return Promise.reject(crashError);
+                return Promise.resolve();
+            });
+
+            await expect(basePage.waitForPageLoad({ networking: true })).rejects.toThrow('Page crashed');
         });
     });
 });

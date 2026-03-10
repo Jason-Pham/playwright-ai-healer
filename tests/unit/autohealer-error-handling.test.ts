@@ -25,9 +25,7 @@ vi.mock('../../src/config/index.js', () => ({
         ai: {
             gemini: { modelName: 'mock-gemini-model' },
             openai: { modelName: 'mock-openai-model' },
-            healing: {
-                domSnapshotCharLimit: 2000,
-            },
+            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7 },
             prompts: {
                 healingPrompt: () => 'mock prompt',
             },
@@ -81,6 +79,10 @@ describe('AutoHealer Error Handling', () => {
             evaluate: vi.fn().mockResolvedValue('<html>mock dom</html>'),
             click: vi.fn(),
             fill: vi.fn(),
+            locator: vi.fn().mockReturnValue({
+                waitFor: vi.fn().mockResolvedValue(undefined),
+                count: vi.fn().mockResolvedValue(1),
+            }),
         };
 
         // Reset mocks
