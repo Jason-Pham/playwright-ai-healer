@@ -714,7 +714,7 @@ export class AutoHealer {
         const trimmed = selector.trim();
 
         // Denylist: dangerous prefixes (case-insensitive)
-        const dangerousPrefixes = ['javascript:', 'data:'];
+        const dangerousPrefixes = ['javascript:', 'data:', 'vbscript:'];
         for (const prefix of dangerousPrefixes) {
             if (trimmed.toLowerCase().startsWith(prefix)) {
                 logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous prefix "${prefix}": "${trimmed}"`);
