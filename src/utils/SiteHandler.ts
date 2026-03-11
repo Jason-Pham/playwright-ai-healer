@@ -78,11 +78,22 @@ export class GiganttiHandler implements SiteHandler {
                 }
             }, cookieBtnSelector);
 
-            // Wait for the banner to disappear
-            await cookieBtn.waitFor({ state: 'hidden', timeout: config.test.timeouts.cookie }).catch(async () => {
+            // Wait for the ROOT wrapper to disappear — this is the element that actually
+            // intercepts pointer events in WebKit. Checking only the accept button is
+            // insufficient: the button can become hidden while the wrapper stays visible.
+            const cookieWrapper = page.locator('#cookie-information-template-wrapper').first();
+            await cookieWrapper.waitFor({ state: 'hidden', timeout: config.test.timeouts.cookie }).catch(async () => {
                 logger.warn('Cookie banner failed to dismiss normally. Attempting to force hide.');
-                // Fallback: Force hide the banner if it's still visible
+                // Fallback: Force hide the banner if it's still visible.
+                // Uses pointer-events:none in addition to display:none so that even if
+                // WebKit's JS re-enables the element, it cannot intercept pointer events.
                 await page.evaluate(selector => {
+                    const applyHide = (el: HTMLElement) => {
+                        el.style.setProperty('display', 'none', 'important');
+                        el.style.setProperty('visibility', 'hidden', 'important');
+                        el.style.setProperty('pointer-events', 'none', 'important');
+                    };
+
                     const selectors = selector.split(',').map(s => s.trim());
                     // 1. Try hiding based on the button's ancestors
                     for (const s of selectors) {
@@ -94,32 +105,32 @@ export class GiganttiHandler implements SiteHandler {
                                 el.closest('.coi-banner__wrapper') ||
                                 el.closest('[role="dialog"]') ||
                                 el;
-                            if (container instanceof HTMLElement) {
-                                container.style.display = 'none';
-                                container.style.visibility = 'hidden';
-                                container.style.setProperty('display', 'none', 'important');
-                            }
+                            if (container instanceof HTMLElement) applyHide(container);
                         });
                     }
-                    // 2. Try hiding known container IDs directly
-                    const knownIds = ['coiPage-1', 'coiPage-2', 'coiPage-3', 'coiOverlay', 'coi-banner-wrapper'];
+                    // 2. Try hiding known container IDs directly.
+                    // Includes the root wrapper (#cookie-information-template-wrapper) which
+                    // is the actual pointer-events blocker in WebKit when child panels like
+                    // #coiOverlay and .coi-banner__summary remain visible after SDK dismissal.
+                    const knownIds = [
+                        'cookie-information-template-wrapper',
+                        'coiPage-1',
+                        'coiPage-2',
+                        'coiPage-3',
+                        'coiOverlay',
+                        'coi-banner-wrapper',
+                    ];
                     for (const id of knownIds) {
                         const el = document.getElementById(id);
-                        if (el) {
-                            el.style.display = 'none';
-                            el.style.visibility = 'hidden';
-                            el.style.setProperty('display', 'none', 'important');
-                        }
+                        if (el) applyHide(el);
                     }
-                    // 3. Try hiding by common classes
-                    const knownClasses = ['.coi-banner__wrapper', '.coi-banner__container'];
+                    // 3. Try hiding by common classes.
+                    // Includes .coi-banner__summary which is a sibling of #coiOverlay
+                    // and intercepts pointer events independently in WebKit.
+                    const knownClasses = ['.coi-banner__wrapper', '.coi-banner__container', '.coi-banner__summary'];
                     for (const cls of knownClasses) {
                         document.querySelectorAll(cls).forEach(el => {
-                            if (el instanceof HTMLElement) {
-                                el.style.display = 'none';
-                                el.style.visibility = 'hidden';
-                                el.style.setProperty('display', 'none', 'important');
-                            }
+                            if (el instanceof HTMLElement) applyHide(el);
                         });
                     }
                 }, cookieBtnSelector);
