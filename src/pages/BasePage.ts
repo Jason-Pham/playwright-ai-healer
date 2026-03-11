@@ -121,7 +121,12 @@ export abstract class BasePage {
     private async ensureOverlaysDismissed(): Promise<void> {
         if (!this.overlaysDismissed) {
             await this.dismissOverlaysBeforeAction();
-            this.overlaysDismissed = true;
+        } else {
+            // Always re-check on subsequent actions: the banner may have re-appeared
+            // after the initial dismissal (e.g. due to site JS re-initialisation).
+            // GiganttiHandler uses an instant isVisible() check here, so this is
+            // near-zero overhead when the banner is already gone.
+            await this.siteHandler.dismissOverlays(this.page);
         }
     }
 
