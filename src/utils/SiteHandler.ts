@@ -28,20 +28,39 @@ export interface SiteHandler {
  *
  * Dismisses the CookieInformation SDK consent banner by waiting for it to become
  * visible and then accepting it. Silently no-ops if the banner never appears.
+ *
+ * Designed to be called before every user interaction (not just once), so it
+ * catches cases where the banner re-appears after the initial dismissal.
+ * After the first successful dismissal, subsequent calls use an instant
+ * isVisible() check and return immediately if the banner is gone.
  */
 export class GiganttiHandler implements SiteHandler {
+    private dismissed = false;
+
     async dismissOverlays(page: Page): Promise<void> {
         // Handle Gigantti cookie consent banner using CookieInformation SDK API.
         const cookieBtnSelector = locators.gigantti.cookieBannerAccept;
         const cookieBtn = page.locator(cookieBtnSelector).first();
 
-        try {
-            // Wait for cookie banner to appear (it renders asynchronously after page load).
-            // If it doesn't appear within the timeout, there's no banner to dismiss.
-            await cookieBtn.waitFor({ state: 'visible', timeout: config.test.timeouts.cookie });
-        } catch {
-            // Banner didn't appear — nothing to dismiss
-            return;
+        if (this.dismissed) {
+            // Fast re-check path: the banner was already dismissed once.
+            // isVisible() is instant (no polling) — return immediately if gone.
+            // If visible, the banner re-appeared; fall through to re-dismiss.
+            const wrapperVisible = await page
+                .locator('#cookie-information-template-wrapper')
+                .isVisible()
+                .catch(() => false);
+            if (!wrapperVisible) return;
+            logger.debug('[GiganttiHandler] Cookie banner re-appeared after initial dismissal; re-dismissing...');
+        } else {
+            try {
+                // Wait for cookie banner to appear (it renders asynchronously after page load).
+                // If it doesn't appear within the timeout, there's no banner to dismiss.
+                await cookieBtn.waitFor({ state: 'visible', timeout: config.test.timeouts.cookie });
+            } catch {
+                // Banner didn't appear — nothing to dismiss
+                return;
+            }
         }
 
         try {
@@ -135,6 +154,7 @@ export class GiganttiHandler implements SiteHandler {
                     }
                 }, cookieBtnSelector);
             });
+            this.dismissed = true;
         } catch (error) {
             logger.warn(`Error dismissing cookie banner: ${error}`);
         }
