@@ -56,13 +56,11 @@ type AppConfig = {
     logging: { level: string; consoleLevel: string };
     testData: {
         searchTerms: string[];
-        getNextSearchTerm(): string;
+        getRandomSearchTerm(): string;
         categories: { computers: string };
     };
 };
 
-// Round-robin index for deterministic search term selection (no Math.random)
-let _searchTermIndex = 0;
 
 function buildConfig(): AppConfig {
     // loadEnvironment() is idempotent — safe to call multiple times
@@ -161,12 +159,9 @@ function buildConfig(): AppConfig {
                 'näppäimistö',
                 'näyttö',
             ],
-            // Helper to get next search term in round-robin order (deterministic, no Math.random)
-            getNextSearchTerm(): string {
+            getRandomSearchTerm(): string {
                 const terms = this.searchTerms;
-                const term = terms[_searchTermIndex % terms.length];
-                _searchTermIndex = (_searchTermIndex + 1) % terms.length;
-                return term ?? 'laptop';
+                return terms[Math.floor(Math.random() * terms.length)] ?? 'laptop';
             },
             categories: {
                 computers: 'Tietotekniikka',
@@ -188,5 +183,4 @@ export const config: AppConfig = new Proxy({} as AppConfig, {
 /** Reset the config singleton. Use only in tests to allow re-initialisation after env changes. */
 export function resetConfigForTesting(): void {
     _config = undefined;
-    _searchTermIndex = 0;
 }

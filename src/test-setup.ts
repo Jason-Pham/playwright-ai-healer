@@ -46,7 +46,7 @@ vi.mock('./config/index.js', () => ({
         logging: { level: 'info', consoleLevel: 'info' },
         testData: {
             searchTerms: ['kannettava', 'puhelin'],
-            getNextSearchTerm() {
+            getRandomSearchTerm() {
                 return 'kannettava';
             },
             categories: { computers: 'Tietotekniikka' },
