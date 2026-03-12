@@ -106,6 +106,7 @@ export class FileAdapter implements LocatorAdapter {
             logger.info(`[FileAdapter] Updated '${key}' → '${selector}'`);
         } catch (err) {
             logger.error(`[FileAdapter] updateLocator failed for '${key}': ${String(err)}`);
+            throw err;
         } finally {
             if (release) await release();
         }

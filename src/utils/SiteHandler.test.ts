@@ -7,10 +7,11 @@ import { GiganttiHandler, NoOpHandler } from './SiteHandler.js';
 describe('SiteHandler', () => {
     let mockPage: Partial<Page>;
     let mockCookieBtn: Partial<Locator>;
+    let handler: GiganttiHandler;
 
     beforeEach(() => {
         mockCookieBtn = {
-            isVisible: vi.fn(),
+            isVisible: vi.fn().mockResolvedValue(false),
             click: vi.fn(),
             first: vi.fn().mockReturnThis(),
             waitFor: vi.fn().mockResolvedValue(undefined),
@@ -22,11 +23,12 @@ describe('SiteHandler', () => {
             waitForFunction: vi.fn().mockResolvedValue(undefined),
             evaluate: vi.fn().mockResolvedValue(undefined),
         };
+
+        // Fresh instance per test: the dismissed flag must not carry over
+        handler = new GiganttiHandler();
     });
 
     describe('GiganttiHandler', () => {
-        const handler = new GiganttiHandler();
-
         it('should dismiss cookie banner when visible', async () => {
             // waitFor resolves (banner is visible)
             (mockCookieBtn.waitFor as any).mockResolvedValue(undefined);

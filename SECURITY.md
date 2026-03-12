@@ -51,15 +51,19 @@ const healer = new AutoHealer(page, [process.env.API_KEY_1, process.env.API_KEY_
 
 ### Selector Validation
 
-While the framework uses AI to find selectors, always validate inputs:
+All AI-returned selectors are automatically validated by the built-in `validateSelector()` method before use. It applies two layers of protection:
+
+1. **Denylist** — immediately rejects selectors containing dangerous patterns such as `javascript:`, `<script>`, `eval(`, `data:`, `vbscript:`, and CSS expression injection
+2. **Allowlist** — only accepts known-safe patterns: CSS selectors (`#id`, `.class`, `[attr]`, `tag`), XPath (`//`, `/`), and Playwright locator engines (`text=`, `role=`, `data-testid=`, etc.)
 
 ```typescript
-// Validate selector format before use
-function isValidSelector(selector: string): boolean {
-    // Check for basic CSS selector patterns
-    return /^[#.\[\]a-zA-Z0-9_-]+$/.test(selector);
-}
+// Built-in — no user code required
+// heal() calls validateSelector() before returning any selector
+const result = await healer.heal(brokenSelector, error);
+// result is null if validation fails — the test is skipped safely
 ```
+
+Selectors that fail validation are logged and rejected; the test is skipped rather than retried with a potentially dangerous string.
 
 ### HTML Sanitization
 
@@ -250,7 +254,8 @@ The framework is configured with secure defaults:
 - ✅ Strict TypeScript compilation
 - ✅ ESLint security rules enabled
 - ✅ No eval or dynamic code execution
-- ✅ Input validation in critical paths
+- ✅ AI-returned selectors validated via denylist + allowlist before use
+- ✅ Confidence threshold — healed selectors must match live DOM elements
 - ✅ Error messages don't leak sensitive info
 
 ## Compliance
@@ -286,7 +291,7 @@ Before deploying:
 
 ## Updates
 
-This security policy is reviewed regularly. Last updated: 2026-02-03
+This security policy is reviewed regularly. Last updated: 2026-03-03
 
 ## Additional Resources
 
