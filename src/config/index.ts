@@ -188,4 +188,5 @@ export const config: AppConfig = new Proxy({} as AppConfig, {
 /** Reset the config singleton. Use only in tests to allow re-initialisation after env changes. */
 export function resetConfigForTesting(): void {
     _config = undefined;
+    _searchTermIndex = 0;
 }
