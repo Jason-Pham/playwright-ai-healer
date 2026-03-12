@@ -61,7 +61,6 @@ type AppConfig = {
     };
 };
 
-
 function buildConfig(): AppConfig {
     // loadEnvironment() is idempotent — safe to call multiple times
     loadEnvironment();
