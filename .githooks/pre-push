@@ -1,0 +1,18 @@
+#!/bin/sh
+echo "Running pre-push checks..."
+
+echo "[1/2] Validate (typecheck + lint + format + unit tests)..."
+npm run validate
+if [ $? -ne 0 ]; then
+  echo "❌ npm run validate failed. Push aborted."
+  exit 1
+fi
+
+echo "[2/2] E2E tests (all browsers)..."
+npm run test:prod:all-browsers
+if [ $? -ne 0 ]; then
+  echo "❌ npm run test:prod:all-browsers failed. Push aborted."
+  exit 1
+fi
+
+echo "✅ All pre-push checks passed."

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Install dependencies (required after cloning)
-npm install
+npm install                           # also runs `prepare`, which sets core.hooksPath to .githooks
 npx playwright install --with-deps   # For E2E tests
 
 # Validation pipeline (run before every PR)
