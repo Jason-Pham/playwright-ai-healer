@@ -158,10 +158,9 @@ function buildConfig(): AppConfig {
                 'näppäimistö',
                 'näyttö',
             ],
-            // Helper to get random search term
             getRandomSearchTerm(): string {
                 const terms = this.searchTerms;
-                return terms[Math.floor(Math.random() * terms.length)] || 'laptop';
+                return terms[Math.floor(Math.random() * terms.length)] ?? 'laptop';
             },
             categories: {
                 computers: 'Tietotekniikka',
