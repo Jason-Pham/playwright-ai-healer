@@ -89,22 +89,14 @@ export abstract class BasePage {
         if (networking) {
             // networkidle requires 500ms of zero activity — unreliable on polling/streaming pages.
             // Cap it at the configured short timeout to avoid long hangs.
-            const networkIdleTimeout = Math.min(
-                timeout ?? config.test.timeouts.short,
-                config.test.timeouts.short
-            );
-            await this.page
-                .waitForLoadState('networkidle', { timeout: networkIdleTimeout })
-                .catch((error: unknown) => {
-                    if (
-                        error instanceof Error &&
-                        (error.name === 'TimeoutError' || error.message.includes('Timeout'))
-                    ) {
-                        logger.debug('[BasePage] networkidle timed out; proceeding after load');
-                    } else {
-                        throw error;
-                    }
-                });
+            const networkIdleTimeout = Math.min(timeout ?? config.test.timeouts.short, config.test.timeouts.short);
+            await this.page.waitForLoadState('networkidle', { timeout: networkIdleTimeout }).catch((error: unknown) => {
+                if (error instanceof Error && (error.name === 'TimeoutError' || error.message.includes('Timeout'))) {
+                    logger.debug('[BasePage] networkidle timed out; proceeding after load');
+                } else {
+                    throw error;
+                }
+            });
         }
     }
 
