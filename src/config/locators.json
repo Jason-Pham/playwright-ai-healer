@@ -4,6 +4,7 @@
   },
   "gigantti": {
     "cookieBannerAccept": "#coiPage-1 .coi-banner__accept",
+    "cookieBannerWrapper": "#cookie-information-template-wrapper",
     "searchInput": "input[type='search']",
     "searchButton": "button[type='submit']",
     "productCard": "[data-testid='product-card']",

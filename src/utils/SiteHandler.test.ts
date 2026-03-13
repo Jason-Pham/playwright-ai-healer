@@ -39,7 +39,7 @@ describe('SiteHandler', () => {
         vi.clearAllMocks();
 
         mockCookieBtn = {
-            isVisible: vi.fn(),
+            isVisible: vi.fn().mockResolvedValue(false),
             click: vi.fn(),
             first: vi.fn().mockReturnThis(),
             waitFor: vi.fn().mockResolvedValue(undefined),
@@ -110,7 +110,8 @@ describe('SiteHandler', () => {
 
             it('should call first() on locator to target the first matching button', async () => {
                 await handler.dismissOverlays(mockPage as Page);
-                expect(mockCookieBtn.first).toHaveBeenCalledTimes(1);
+                // btn locator + wrapper locator both call .first()
+                expect(mockCookieBtn.first).toHaveBeenCalledTimes(2);
             });
         });
 
@@ -176,7 +177,10 @@ describe('SiteHandler', () => {
                 await handler.dismissOverlays(mockPage as Page);
 
                 const secondEvaluateCall = (mockPage.evaluate as ReturnType<typeof vi.fn>).mock.calls[1];
-                expect(secondEvaluateCall?.[1]).toBe(locators.gigantti.cookieBannerAccept);
+                expect(secondEvaluateCall?.[1]).toEqual({
+                    btnSelector: locators.gigantti.cookieBannerAccept,
+                    wrapperSelector: locators.gigantti.cookieBannerWrapper,
+                });
             });
 
             it('should hide known DOM elements by ID and class when present in jsdom', async () => {
@@ -226,7 +230,8 @@ describe('SiteHandler', () => {
                 await handler.dismissOverlays(mockPage as Page);
                 await handler.dismissOverlays(mockPage as Page);
 
-                expect(mockPage.locator).toHaveBeenCalledTimes(2);
+                // each call uses btn locator + wrapper locator = 2 locators per call
+                expect(mockPage.locator).toHaveBeenCalledTimes(4);
             });
         });
 
