@@ -84,16 +84,27 @@ export abstract class BasePage {
     async waitForPageLoad(options?: { timeout?: number; networking?: boolean }): Promise<void> {
         const { timeout, networking } = options ?? {};
         const pwOptions = timeout !== undefined ? { timeout } : undefined;
+        await this.page.waitForLoadState('domcontentloaded', pwOptions);
         await this.page.waitForLoadState('load', pwOptions);
         if (networking) {
-            // networkidle can fail on pages with continuous polling; treat as best-effort
-            await this.page.waitForLoadState('networkidle', pwOptions).catch((error: unknown) => {
-                if (error instanceof Error && (error.name === 'TimeoutError' || error.message.includes('Timeout'))) {
-                    logger.debug('[BasePage] networkidle timed out; proceeding without full network quiesce');
-                } else {
-                    throw error;
-                }
-            });
+            // networkidle requires 500ms of zero activity — unreliable on polling/streaming pages.
+            // Cap it at the configured short timeout to avoid long hangs.
+            const networkIdleTimeout = Math.min(
+                timeout ?? config.test.timeouts.short,
+                config.test.timeouts.short
+            );
+            await this.page
+                .waitForLoadState('networkidle', { timeout: networkIdleTimeout })
+                .catch((error: unknown) => {
+                    if (
+                        error instanceof Error &&
+                        (error.name === 'TimeoutError' || error.message.includes('Timeout'))
+                    ) {
+                        logger.debug('[BasePage] networkidle timed out; proceeding after load');
+                    } else {
+                        throw error;
+                    }
+                });
         }
     }
 

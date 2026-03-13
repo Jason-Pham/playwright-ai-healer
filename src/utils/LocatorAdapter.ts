@@ -186,7 +186,7 @@ export class SQLiteAdapter implements LocatorAdapter {
     }
 
     async updateLocator(key: string, selector: string): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         this.db
             .prepare(
                 `INSERT INTO locators (key, selector)
