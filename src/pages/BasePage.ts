@@ -188,8 +188,8 @@ export abstract class BasePage {
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
         await expect(async () => {
-            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
-            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
+            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
+            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
 
             await selectorOrLocator.fill(value, {
                 force: true,
