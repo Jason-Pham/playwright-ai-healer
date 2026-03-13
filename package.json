@@ -37,10 +37,13 @@
     ],
     "author": "",
     "license": "ISC",
+    "engines": {
+        "node": ">=24.0.0"
+    },
     "type": "module",
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
-        "@types/node": "^25.0.10",
+        "@types/node": "^24.0.0",
         "better-sqlite3": "^12.6.2",
         "dotenv": "^17.2.3",
         "openai": "^6.16.0",
