@@ -85,7 +85,6 @@ export abstract class BasePage {
         const { timeout, networking } = options ?? {};
         const pwOptions = timeout !== undefined ? { timeout } : undefined;
         await this.page.waitForLoadState('load', pwOptions);
-        await this.page.waitForLoadState('domcontentloaded', pwOptions);
         if (networking) {
             // networkidle can fail on pages with continuous polling; treat as best-effort
             await this.page.waitForLoadState('networkidle', pwOptions).catch((error: unknown) => {
@@ -189,8 +188,8 @@ export abstract class BasePage {
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
         await expect(async () => {
-            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
-            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
+            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => { });
+            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => { });
 
             await selectorOrLocator.fill(value, {
                 force: true,
