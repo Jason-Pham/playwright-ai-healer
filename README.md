@@ -106,6 +106,9 @@ HEADLESS=true
 
 # AI Healing (optional — defaults shown)
 DOM_SNAPSHOT_CHAR_LIMIT=2000   # Max chars of DOM sent to AI; must be >= 100
+
+# Locator Storage Backend
+LOCATOR_STORE=file    # 'file' (default, JSON + lockfile) or 'sqlite' (ACID SQLite)
 ```
 
 ## 🐳 Run with Docker
@@ -146,7 +149,8 @@ src/
 └── utils/
     ├── Environment.ts         # Multi-env loader
     ├── Logger.ts              # Winston wrapper
-    ├── LocatorManager.ts      # Selector persistence
+    ├── LocatorAdapter.ts      # Pluggable storage: FileAdapter | SQLiteAdapter
+    ├── LocatorManager.ts      # Selector persistence (facade over LocatorAdapter)
     └── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
 
 tests/

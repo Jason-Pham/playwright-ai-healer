@@ -182,27 +182,29 @@ describe('BasePage', () => {
     });
 
     describe('waitForPageLoad', () => {
-        it('should wait for load but not networkidle when networking is omitted', async () => {
+        it('should wait for domcontentloaded and load but not networkidle when networking is omitted', async () => {
             await basePage.waitForPageLoad();
 
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', undefined);
             expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', undefined);
-            expect(mockPage.waitForLoadState).not.toHaveBeenCalledWith('domcontentloaded', expect.anything());
             expect(mockPage.waitForLoadState).not.toHaveBeenCalledWith('networkidle', expect.anything());
         });
 
-        it('should wait for load and networkidle when networking is true', async () => {
+        it('should wait for domcontentloaded, load and networkidle when networking is true', async () => {
             await basePage.waitForPageLoad({ networking: true });
 
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', undefined);
             expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', undefined);
-            expect(mockPage.waitForLoadState).not.toHaveBeenCalledWith('domcontentloaded', expect.anything());
-            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('networkidle', undefined);
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('networkidle', {
+                timeout: config.test.timeouts.short,
+            });
         });
 
         it('should pass timeout option through and not call networkidle when networking is false', async () => {
             await basePage.waitForPageLoad({ timeout: 5000 });
 
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', { timeout: 5000 });
             expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', { timeout: 5000 });
-            expect(mockPage.waitForLoadState).not.toHaveBeenCalledWith('domcontentloaded', expect.anything());
             expect(mockPage.waitForLoadState).not.toHaveBeenCalledWith('networkidle', expect.anything());
         });
 
