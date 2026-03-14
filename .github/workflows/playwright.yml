@@ -95,11 +95,6 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps ${{ matrix.browsers }}
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-
-      - name: Install Playwright system dependencies
-        run: npx playwright install-deps ${{ matrix.browsers }}
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
 
       - name: Run Playwright tests
         run: npx playwright test ${{ matrix.projectFlags }}
