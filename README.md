@@ -113,24 +113,41 @@ LOCATOR_STORE=file    # 'file' (default, JSON + lockfile) or 'sqlite' (ACID SQLi
 
 ## 🐳 Run with Docker
 
-You can run the tests in a containerized environment to ensure consistency.
+Run the full test suite in a containerized environment — no local Node.js or Playwright install needed.
 
-### 1. Build & Run
+### Quick start
 
 ```bash
-# Build the image
-docker-compose build
+# Copy your env vars
+cp .env.example .env   # then fill in GEMINI_API_KEY / OPENAI_API_KEY
 
-# Run the tests
-docker-compose up
+# Run unit tests (typecheck → lint → format → Vitest)
+docker-compose run --rm unit-tests
+
+# Run E2E tests (headless, prod)
+docker-compose run --rm e2e-tests
 ```
 
-### 2. View Reports
+### Build image explicitly
 
-Start a local web server to view the report generated inside the container:
+```bash
+docker-compose build
+```
+
+### View reports
+
+After E2E tests finish, the HTML report is written to `./playwright-report` on the host:
 
 ```bash
 npx playwright show-report playwright-report
+```
+
+### Environment variables
+
+Pass overrides directly without editing `.env`:
+
+```bash
+AI_PROVIDER=openai OPENAI_API_KEY=sk-... docker-compose run --rm e2e-tests
 ```
 
 ## Technical Notes
