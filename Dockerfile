@@ -1,5 +1,5 @@
 # ── Stage 1: install deps with layer caching ─────────────────────────────────
-FROM node:20-slim AS deps
+FROM node:24-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
