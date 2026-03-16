@@ -25,6 +25,7 @@ vi.mock('../../src/config/index.js', () => ({
         ai: {
             gemini: { modelName: 'mock-gemini-model' },
             openai: { modelName: 'mock-openai-model' },
+            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7 },
             prompts: {
                 healingPrompt: () => 'mock prompt',
             },
@@ -41,7 +42,7 @@ vi.mock('../../src/utils/LocatorManager.js', () => ({
     LocatorManager: {
         getInstance: vi.fn(() => ({
             getLocator: vi.fn(),
-            updateLocator: vi.fn(),
+            updateLocator: vi.fn().mockResolvedValue(undefined),
         })),
     },
 }));
@@ -81,6 +82,7 @@ describe('AutoHealer Core Logic', () => {
             fill: vi.fn(),
             locator: vi.fn().mockReturnValue({
                 waitFor: vi.fn().mockResolvedValue(undefined),
+                count: vi.fn().mockResolvedValue(1),
             }),
         };
 
@@ -100,7 +102,7 @@ describe('AutoHealer Core Logic', () => {
         mockGenerateContent = mockModel.generateContent;
 
         // Setup LocatorManager mock
-        mockUpdateLocator = vi.fn();
+        mockUpdateLocator = vi.fn().mockResolvedValue(undefined);
         (LocatorManager.getInstance as any).mockReturnValue({
             getLocator: vi.fn(),
             updateLocator: mockUpdateLocator,
