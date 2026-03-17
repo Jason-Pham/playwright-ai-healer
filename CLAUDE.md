@@ -119,7 +119,7 @@ GitHub Actions (`.github/workflows/playwright.yml`) runs on push/PR to `main`:
 | `devops-engineer`  | sonnet | CI/CD pipeline, npm deps, Playwright config, env vars, pre-push hooks, build optimisation                                               |
 
 <!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+## GitNexus — Code Intelligence
 
 This project is indexed by GitNexus as **self-healing-agent** (211 symbols, 485 relationships, 20 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
