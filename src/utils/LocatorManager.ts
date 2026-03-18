@@ -1,6 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import * as lockfile from 'proper-lockfile';
 import { logger } from './Logger.js';
 import { createLocatorAdapter, type LocatorAdapter } from './LocatorAdapter.js';
 import { config } from '../config/index.js';
@@ -29,7 +30,7 @@ const __dirname = path.dirname(__filename);
 export class LocatorManager {
     private static instance: LocatorManager;
     private readonly adapter: LocatorAdapter;
-    private metricsPath: string;
+    private readonly metricsPath: string;
     private metrics: MetricsStore = {};
 
     private constructor() {
@@ -111,7 +112,7 @@ export class LocatorManager {
 
     // ── Selector Stability Metrics ────────────────────────────────────────────
 
-    private loadMetrics() {
+    private loadMetrics(): void {
         try {
             if (fs.existsSync(this.metricsPath)) {
                 const raw = fs.readFileSync(this.metricsPath, 'utf-8');
@@ -123,59 +124,80 @@ export class LocatorManager {
         }
     }
 
-    private saveMetrics() {
+    /**
+     * Acquire a file lock, re-read metrics from disk (to absorb concurrent
+     * worker writes), apply `mutate` to the entry for `key`, and flush.
+     *
+     * Using the same `proper-lockfile` strategy as `FileAdapter` ensures
+     * parallel Playwright workers cannot clobber each other's metric counts.
+     */
+    private async atomicMetricUpdate(
+        key: string,
+        mutate: (existing: SelectorMetrics) => SelectorMetrics
+    ): Promise<void> {
+        let release: (() => Promise<void>) | undefined;
         try {
+            release = await lockfile.lock(this.metricsPath, {
+                retries: { retries: 3, factor: 2, minTimeout: 100, maxTimeout: 500 },
+            });
+            // Re-read under lock so we don't clobber a concurrent worker's write
+            this.loadMetrics();
+            const existing = this.metrics[key] ?? { failureCount: 0 };
+            this.metrics[key] = mutate(existing);
             fs.writeFileSync(this.metricsPath, JSON.stringify(this.metrics, null, 2), 'utf-8');
         } catch (error) {
-            logger.error(`[LocatorManager] Failed to save metrics: ${String(error)}`);
+            logger.error(`[LocatorManager] Failed to update metrics for '${key}': ${String(error)}`);
+        } finally {
+            if (release) await release();
         }
     }
 
     /**
-     * Record that a healed selector has failed again.
+     * Record a post-healing failure for a previously healed selector.
      *
-     * Call this when an action fails on a selector that was previously healed,
-     * i.e. the selector exists in the locator store and the action fails. This
-     * closes the feedback loop: we know a healed selector is fragile.
+     * Only fires if the selector has a prior `healedAt` timestamp — i.e. it
+     * was successfully healed at least once. This prevents inflating counts
+     * for original (never-healed) selectors that happen to fail.
      *
      * @param key - Dot-path locator key (e.g. `'gigantti.searchInput'`)
      */
-    public recordSelectorFailure(key: string): void {
-        const existing = this.metrics[key] ?? { failureCount: 0 };
-        this.metrics[key] = {
+    public async recordSelectorFailure(key: string): Promise<void> {
+        if (!this.metrics[key]?.healedAt) return; // not yet healed — skip
+        await this.atomicMetricUpdate(key, existing => ({
             ...existing,
             failureCount: existing.failureCount + 1,
             lastFailedAt: new Date().toISOString(),
-        };
+        }));
         logger.warn(
-            `[LocatorManager] Healed selector '${key}' failed again (total failures: ${this.metrics[key].failureCount})`
+            `[LocatorManager] Healed selector '${key}' failed again (total failures: ${this.metrics[key]?.failureCount ?? 0})`
         );
-        this.saveMetrics();
     }
 
     /**
-     * Record that a locator key was successfully healed.
+     * Record a successful heal for a locator key.
      *
-     * Call this immediately after `updateLocator` succeeds so the metrics file
-     * captures the moment of healing.
+     * Resets `failureCount` to 0 so the counter tracks failures since the
+     * most recent heal, not lifetime failures.
      *
      * @param key - Dot-path locator key (e.g. `'gigantti.searchInput'`)
      */
-    public recordSelectorHealed(key: string): void {
-        const existing = this.metrics[key] ?? { failureCount: 0 };
-        this.metrics[key] = {
+    public async recordSelectorHealed(key: string): Promise<void> {
+        await this.atomicMetricUpdate(key, existing => ({
             ...existing,
+            failureCount: 0, // reset: count failures per heal cycle, not lifetime
             healedAt: new Date().toISOString(),
-        };
-        this.saveMetrics();
+        }));
     }
 
     /**
      * Return stability metrics for a specific key or all keys.
      *
-     * @param key - Optional dot-path locator key. If omitted, returns all metrics.
-     * @returns Metrics for the requested key, or the full metrics store.
+     * @param key - Dot-path locator key. When provided, returns the single
+     *   entry (defaulting to `{ failureCount: 0 }` if unseen). When omitted,
+     *   returns a shallow copy of the full metrics store.
      */
+    public getMetrics(key: string): SelectorMetrics;
+    public getMetrics(): MetricsStore;
     public getMetrics(key?: string): SelectorMetrics | MetricsStore {
         if (key !== undefined) {
             return this.metrics[key] ?? { failureCount: 0 };

@@ -194,7 +194,7 @@ export class AutoHealer {
 
             // Track failure of a previously-healed selector (feedback loop)
             if (locatorKey) {
-                locatorManager.recordSelectorFailure(locatorKey);
+                await locatorManager.recordSelectorFailure(locatorKey);
             }
 
             const result = await this.heal(selector, error as Error);
@@ -208,7 +208,7 @@ export class AutoHealer {
                     if (locatorKey) {
                         logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
                         await locatorManager.updateLocator(locatorKey, result.selector);
-                        locatorManager.recordSelectorHealed(locatorKey);
+                        await locatorManager.recordSelectorHealed(locatorKey);
                     }
                 } catch (retryError) {
                     logger.error(`[AutoHealer] Failed to interact with healed selector: ${String(retryError)}`);

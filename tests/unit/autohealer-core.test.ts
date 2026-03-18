@@ -70,6 +70,8 @@ describe('AutoHealer Core Logic', () => {
     let mockPage: any;
     let mockGenerateContent: any;
     let mockUpdateLocator: any;
+    let mockRecordSelectorFailure: any;
+    let mockRecordSelectorHealed: any;
 
     beforeEach(() => {
         // Mock setTimeout to resolve immediately
@@ -105,11 +107,13 @@ describe('AutoHealer Core Logic', () => {
 
         // Setup LocatorManager mock
         mockUpdateLocator = vi.fn().mockResolvedValue(undefined);
+        mockRecordSelectorFailure = vi.fn().mockResolvedValue(undefined);
+        mockRecordSelectorHealed = vi.fn().mockResolvedValue(undefined);
         (LocatorManager.getInstance as any).mockReturnValue({
             getLocator: vi.fn(),
             updateLocator: mockUpdateLocator,
-            recordSelectorFailure: vi.fn(),
-            recordSelectorHealed: vi.fn(),
+            recordSelectorFailure: mockRecordSelectorFailure,
+            recordSelectorHealed: mockRecordSelectorHealed,
         });
 
         autoHealer = new AutoHealer(mockPage, 'mock-key', 'gemini');
@@ -165,6 +169,22 @@ describe('AutoHealer Core Logic', () => {
 
             // Expect updateLocator to be called
             expect(mockUpdateLocator).toHaveBeenCalledWith(key, healedSelector);
+            // Expect recordSelectorHealed to be called after a successful heal
+            expect(mockRecordSelectorHealed).toHaveBeenCalledWith(key);
+        });
+
+        it('should record selector failure when a keyed selector fails', async () => {
+            const key = 'submitButton';
+            const brokenSelector = '#old-submit';
+            const healedSelector = '#new-submit';
+
+            (LocatorManager.getInstance() as any).getLocator.mockReturnValue(brokenSelector);
+            mockPage.click.mockRejectedValueOnce(new Error('Element not found')).mockResolvedValueOnce(undefined);
+            mockGenerateContent.mockResolvedValue({ response: { text: () => healedSelector } });
+
+            await autoHealer.click(key);
+
+            expect(mockRecordSelectorFailure).toHaveBeenCalledWith(key);
         });
 
         it('should skip test if healing fails (returns null)', async () => {
