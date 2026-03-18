@@ -216,6 +216,30 @@ export interface LocatorStore {
 }
 
 /**
+ * Stability metrics for a single healed selector.
+ *
+ * Tracks how many times a healed selector later failed again, enabling
+ * users to identify selectors that are fragile even after healing.
+ */
+export interface SelectorMetrics {
+    /** Number of times this selector failed after being healed. */
+    failureCount: number;
+    /** ISO 8601 timestamp of the most recent post-healing failure. */
+    lastFailedAt?: string;
+    /** ISO 8601 timestamp of the most recent healing event. */
+    healedAt?: string;
+}
+
+/**
+ * Flat map of dot-path locator keys → their stability metrics.
+ *
+ * @example { "gigantti.searchInput": { failureCount: 2, lastFailedAt: "2026-03-02T…" } }
+ */
+export interface MetricsStore {
+    [key: string]: SelectorMetrics;
+}
+
+/**
  * Recursive type for nested locator storage (e.g., { gigantti: { searchInput: "#id" } })
  */
 export interface LocatorMap {

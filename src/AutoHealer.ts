@@ -191,6 +191,12 @@ export class AutoHealer {
             logger.warn(
                 `[AutoHealer] ${actionName} failed on: ${selector}. Initiating healing protocol (${this.provider})...`
             );
+
+            // Track failure of a previously-healed selector (feedback loop)
+            if (locatorKey) {
+                await locatorManager.recordSelectorFailure(locatorKey);
+            }
+
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
@@ -202,6 +208,7 @@ export class AutoHealer {
                     if (locatorKey) {
                         logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
                         await locatorManager.updateLocator(locatorKey, result.selector);
+                        await locatorManager.recordSelectorHealed(locatorKey);
                     }
                 } catch (retryError) {
                     logger.error(`[AutoHealer] Failed to interact with healed selector: ${String(retryError)}`);

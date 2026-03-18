@@ -157,7 +157,8 @@ src/
 ├── AutoHealer.ts              # Core AI healing logic
 ├── config/
 │   ├── index.ts               # Centralized configuration
-│   └── locators.json          # Persistent selector storage
+│   ├── locators.json          # Persistent selector storage
+│   └── metrics.json           # Per-key selector failure/heal metrics
 ├── pages/
 │   ├── BasePage.ts            # Abstract base page
 │   ├── GiganttiHomePage.ts    # Entry point
@@ -167,7 +168,7 @@ src/
     ├── Environment.ts         # Multi-env loader
     ├── Logger.ts              # Winston wrapper
     ├── LocatorAdapter.ts      # Pluggable storage: FileAdapter | SQLiteAdapter
-    ├── LocatorManager.ts      # Selector persistence (facade over LocatorAdapter)
+    ├── LocatorManager.ts      # Selector persistence (facade over LocatorAdapter) + stability metrics
     └── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
 
 tests/
