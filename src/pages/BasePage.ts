@@ -82,8 +82,22 @@ export abstract class BasePage {
      * @param options.networking - When `true`, also waits for `networkidle` after load states.
      */
     async waitForPageLoad(options?: { timeout?: number; networking?: boolean }): Promise<void> {
-        await this.page.waitForLoadState('load', options);
-        await this.page.waitForLoadState('domcontentloaded', options);
+        const { timeout, networking } = options ?? {};
+        const pwOptions = timeout !== undefined ? { timeout } : undefined;
+        await this.page.waitForLoadState('domcontentloaded', pwOptions);
+        await this.page.waitForLoadState('load', pwOptions);
+        if (networking) {
+            // networkidle requires 500ms of zero activity — unreliable on polling/streaming pages.
+            // Cap it at the configured short timeout to avoid long hangs.
+            const networkIdleTimeout = Math.min(timeout ?? config.test.timeouts.short, config.test.timeouts.short);
+            await this.page.waitForLoadState('networkidle', { timeout: networkIdleTimeout }).catch((error: unknown) => {
+                if (error instanceof Error && (error.name === 'TimeoutError' || error.message.includes('Timeout'))) {
+                    logger.debug('[BasePage] networkidle timed out; proceeding after load');
+                } else {
+                    throw error;
+                }
+            });
+        }
     }
 
     private overlaysDismissed = false;
@@ -109,7 +123,12 @@ export abstract class BasePage {
     private async ensureOverlaysDismissed(): Promise<void> {
         if (!this.overlaysDismissed) {
             await this.dismissOverlaysBeforeAction();
-            this.overlaysDismissed = true;
+        } else {
+            // Always re-check on subsequent actions: the banner may have re-appeared
+            // after the initial dismissal (e.g. due to site JS re-initialisation).
+            // GiganttiHandler uses an instant isVisible() check here, so this is
+            // near-zero overhead when the banner is already gone.
+            await this.siteHandler.dismissOverlays(this.page);
         }
     }
 

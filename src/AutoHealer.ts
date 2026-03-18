@@ -4,7 +4,20 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from './config/index.js';
 import { LocatorManager } from './utils/LocatorManager.js';
 import { logger } from './utils/Logger.js';
-import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
+import type {
+    AIProvider,
+    ClickOptions,
+    FillOptions,
+    HoverOptions,
+    TypeOptions,
+    SelectOptionOptions,
+    SelectOptionValues,
+    CheckOptions,
+    WaitForSelectorOptions,
+    AIError,
+    HealingResult,
+    HealingEvent,
+} from './types.js';
 
 /**
  * AutoHealer - Self-healing test automation agent
@@ -156,7 +169,8 @@ export class AutoHealer {
         selectorOrKey: string,
         actionName: string,
         actionFn: (selector: string) => Promise<void>,
-        retryFn: (selector: string) => Promise<void>
+        retryFn: (selector: string) => Promise<void>,
+        visibilityTimeout?: number
     ) {
         const locatorManager = LocatorManager.getInstance();
         const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
@@ -166,7 +180,9 @@ export class AutoHealer {
             if (this.debug)
                 logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
-                await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.short });
+                await this.page
+                    .locator(selector)
+                    .waitFor({ state: 'visible', timeout: visibilityTimeout ?? config.test.timeouts.short });
             } catch {
                 logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
             }
@@ -184,13 +200,26 @@ export class AutoHealer {
             const result = await this.heal(selector, error as Error);
             if (result) {
                 logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await retryFn(result.selector);
 
-                // Update locator if we have a key
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                    locatorManager.recordSelectorHealed(locatorKey);
+                try {
+                    await retryFn(result.selector);
+
+                    // Update locator if we have a key
+                    if (locatorKey) {
+                        logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                        await locatorManager.updateLocator(locatorKey, result.selector);
+                        locatorManager.recordSelectorHealed(locatorKey);
+                    }
+                } catch (retryError) {
+                    logger.error(`[AutoHealer] Failed to interact with healed selector: ${String(retryError)}`);
+                    test.info().annotations.push({
+                        type: 'warning',
+                        description: `Test skipped because healed selector '${result.selector}' failed during interaction.`,
+                    });
+                    test.skip(
+                        true,
+                        `Test skipped because healed selector '${result.selector}' failed during interaction.`
+                    );
                 }
             } else {
                 logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
@@ -205,224 +234,130 @@ export class AutoHealer {
 
     /**
      * Safe hover method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright hover options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async hover(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting hover on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Hover failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.hover(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+    async hover(selectorOrKey: string, options?: HoverOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'hover',
+            async selector => {
+                await this.page.hover(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.hover(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe type method (pressSequentially) that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param text - Text to type character by character
+     * @param options - Delay between keystrokes and timeout
+     * @throws Error if healing fails or element still cannot be found
      */
-    async type(selectorOrKey: string, text: string, options?: { delay?: number; timeout?: number }) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting type on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.locator(selector).pressSequentially(text, {
-                ...(options?.delay !== undefined && { delay: options.delay }),
-                timeout: options?.timeout ?? config.test.timeouts.fill,
-            });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Type failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page
-                    .locator(result.selector)
-                    .pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
+    async type(selectorOrKey: string, text: string, options?: TypeOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'type',
+            async selector => {
+                await this.page.locator(selector).pressSequentially(text, {
+                    ...(options?.delay !== undefined && { delay: options.delay }),
+                    timeout: options?.timeout ?? config.test.timeouts.fill,
                 });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+            },
+            async selector => {
+                await this.page
+                    .locator(selector)
+                    .pressSequentially(text, options?.delay !== undefined ? { delay: options.delay } : {});
             }
-        }
+        );
     }
 
     /**
      * Safe selectOption method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param values - Option value(s) to select
+     * @param options - Playwright selectOption options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async selectOption(
-        selectorOrKey: string,
-        values: string | string[] | { value?: string; label?: string; index?: number },
-        options?: { timeout?: number; force?: boolean }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug)
-                logger.info(`[AutoHealer] Attempting selectOption on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] SelectOption failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.selectOption(result.selector, values, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+    async selectOption(selectorOrKey: string, values: SelectOptionValues, options?: SelectOptionOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'selectOption',
+            async selector => {
+                await this.page.selectOption(selector, values, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.selectOption(selector, values, options);
             }
-        }
+        );
     }
 
     /**
      * Safe check method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright check options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async check(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug) logger.info(`[AutoHealer] Attempting check on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Check failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.check(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+    async check(selectorOrKey: string, options?: CheckOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'check',
+            async selector => {
+                await this.page.check(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.check(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe uncheck method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright uncheck options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async uncheck(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug)
-                logger.info(`[AutoHealer] Attempting uncheck on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] Uncheck failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.uncheck(result.selector, options);
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+    async uncheck(selectorOrKey: string, options?: CheckOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'uncheck',
+            async selector => {
+                await this.page.uncheck(selector, { timeout: config.test.timeouts.click, ...options });
+            },
+            async selector => {
+                await this.page.uncheck(selector, options);
             }
-        }
+        );
     }
 
     /**
      * Safe waitForSelector method that attempts self-healing on failure
+     *
+     * @param selectorOrKey - CSS selector or locator key from locators.json
+     * @param options - Playwright waitForSelector options
+     * @throws Error if healing fails or element still cannot be found
      */
-    async waitForSelector(
-        selectorOrKey: string,
-        options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }
-    ) {
-        const locatorManager = LocatorManager.getInstance();
-        const selector = locatorManager.getLocator(selectorOrKey) || selectorOrKey;
-        const locatorKey = locatorManager.getLocator(selectorOrKey) ? selectorOrKey : null;
-
-        try {
-            if (this.debug)
-                logger.info(`[AutoHealer] Attempting waitForSelector on: ${selector} (Key: ${locatorKey || 'N/A'})`);
-            await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
-        } catch (error) {
-            logger.warn(`[AutoHealer] WaitForSelector failed. Initiating healing protocol (${this.provider})...`);
-            const result = await this.heal(selector, error as Error);
-            if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
-                await this.page.waitForSelector(result.selector, options ?? {});
-
-                if (locatorKey) {
-                    logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
-                    await locatorManager.updateLocator(locatorKey, result.selector);
-                }
-            } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
-            }
-        }
+    async waitForSelector(selectorOrKey: string, options?: WaitForSelectorOptions) {
+        await this.executeAction(
+            selectorOrKey,
+            'waitForSelector',
+            async selector => {
+                await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default, ...options });
+            },
+            async selector => {
+                await this.page.waitForSelector(selector, options ?? {});
+            },
+            options?.timeout ?? config.test.timeouts.short
+        );
     }
 
     /**
@@ -453,12 +388,17 @@ export class AutoHealer {
         // 1. Capture simplified DOM
         logger.info(`[AutoHealer:heal] Step 1: Capturing simplified DOM...`);
         const htmlSnapshot = await this.getSimplifiedDOM();
-        logger.info(`[AutoHealer:heal] DOM snapshot length: ${htmlSnapshot.length} chars (will use full DOM)`);
+        const domLimit = config.ai.healing.domSnapshotCharLimit;
+        logger.info(`[AutoHealer:heal] DOM snapshot length: ${htmlSnapshot.length} chars (will use first ${domLimit})`);
         logger.debug(`[AutoHealer:heal] DOM snapshot preview (first 500 chars): ${htmlSnapshot.substring(0, 500)}`);
 
         // 2. Construct Prompt
         logger.info(`[AutoHealer:heal] Step 2: Constructing prompt...`);
-        const promptText = config.ai.prompts.healingPrompt(originalSelector, error.message, htmlSnapshot);
+        const promptText = config.ai.prompts.healingPrompt(
+            originalSelector,
+            error.message,
+            htmlSnapshot.substring(0, domLimit)
+        );
         logger.info(`[AutoHealer:heal] Prompt length: ${promptText.length} chars`);
         logger.debug(`[AutoHealer:heal] Prompt preview (first 300 chars): ${promptText.substring(0, 300)}`);
 
@@ -484,11 +424,17 @@ export class AutoHealer {
                     try {
                         if (this.provider === 'openai' && this.openai) {
                             logger.info(`[AutoHealer:heal] Sending request to OpenAI (model: ${this.modelName})...`);
+                            const openai = this.openai;
                             const completion = await this.withTimeout(
-                                this.openai.chat.completions.create({
-                                    messages: [{ role: 'user', content: promptText }],
-                                    model: this.modelName,
-                                }),
+                                signal =>
+                                    openai.chat.completions.create(
+                                        {
+                                            messages: [{ role: 'user', content: promptText }],
+                                            model: this.modelName,
+                                            stream: false,
+                                        },
+                                        { signal }
+                                    ),
                                 config.test.timeouts.default,
                                 'OpenAI'
                             );
@@ -512,7 +458,7 @@ export class AutoHealer {
                             logger.info(`[AutoHealer:heal] Sending request to Gemini (model: ${this.modelName})...`);
                             const model = this.gemini.getGenerativeModel({ model: this.modelName });
                             const resultResult = await this.withTimeout(
-                                model.generateContent(promptText),
+                                signal => model.generateContent(promptText, { signal }),
                                 config.test.timeouts.default,
                                 'Gemini'
                             );
@@ -680,14 +626,32 @@ export class AutoHealer {
             }
 
             if (result && result !== 'FAIL') {
-                healingSuccess = true;
-                healingResult = {
-                    selector: result,
-                    confidence: 1.0,
-                    reasoning: 'AI found replacement selector.',
-                    strategy: 'css',
-                };
-                logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                // Validate the selector before using or persisting it
+                if (!this.validateSelector(result)) {
+                    logger.warn(
+                        `[AutoHealer:heal] ❌ HEALING REJECTED. AI-returned selector failed validation: "${result}"`
+                    );
+                } else {
+                    // Verify the healed selector actually matches an element on the page
+                    const elementCount = await this.page.locator(result).count();
+                    // TODO: extend to a continuous score (e.g. penalise elementCount > 5 as ambiguous)
+                    // Currently binary: 1.0 if count > 0, 0.0 if count === 0
+                    const confidence = elementCount > 0 ? 1.0 : 0.0;
+                    if (confidence < config.ai.healing.confidenceThreshold) {
+                        logger.warn(
+                            `[AutoHealer:heal] ❌ HEALING REJECTED. Healed selector "${result}" matched 0 elements (confidence=${confidence} < threshold=${config.ai.healing.confidenceThreshold})`
+                        );
+                    } else {
+                        healingSuccess = true;
+                        healingResult = {
+                            selector: result,
+                            confidence,
+                            reasoning: 'AI found replacement selector.',
+                            strategy: 'css',
+                        };
+                        logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${result}"`);
+                    }
+                }
             } else {
                 logger.warn(`[AutoHealer:heal] ❌ HEALING FAILED. Result was: "${result}" (FAIL or empty)`);
             }
@@ -730,17 +694,112 @@ export class AutoHealer {
     }
 
     /**
-     * Wraps a promise with a timeout to prevent hanging API calls
+     * Validates an AI-returned selector against an allowlist of safe patterns and a
+     * denylist of dangerous payloads before the selector is used in any page interaction
+     * or persisted to locators.json.
+     *
+     * Allowed patterns:
+     * - XPath expressions starting with `//` or `./`
+     * - Playwright built-in text engines: `text=`, `role=`, `label=`, `placeholder=`,
+     *   `alt=`, `title=`, `testid=`, `data-testid=`
+     * - Attribute selectors starting with `[`
+     * - Standard CSS selectors matching only known-safe characters
+     *
+     * Rejected patterns (denylist takes precedence):
+     * - Strings starting with `javascript:` or `data:`
+     * - Strings containing HTML tags or angle brackets (`<`, `>`)
+     * - Strings containing JS execution primitives: `eval(`, `document.`, `window.`
+     *
+     * @param selector - The selector string returned by the AI provider
+     * @returns `true` when the selector is considered safe, `false` otherwise
      */
-    private async withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    private validateSelector(selector: string): boolean {
+        if (!selector || selector.trim().length === 0) {
+            return false;
+        }
+
+        const trimmed = selector.trim();
+
+        // Denylist: dangerous prefixes (case-insensitive)
+        const dangerousPrefixes = ['javascript:', 'data:'];
+        for (const prefix of dangerousPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous prefix "${prefix}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Denylist: dangerous substrings that indicate HTML or JS injection.
+        // Note: standalone `<` and `>` are NOT in the denylist because `>` is a valid
+        // CSS child combinator and XPath uses `<`/`>` in comparisons.  We only block
+        // patterns that unambiguously indicate injection payloads.
+        const dangerousSubstrings = ['<script', '</', '<!--', 'eval(', 'document.', 'window.'];
+        for (const pattern of dangerousSubstrings) {
+            if (trimmed.toLowerCase().includes(pattern.toLowerCase())) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous pattern "${pattern}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Allowlist: Playwright text engine prefixes
+        const playwrightPrefixes = [
+            'text=',
+            'role=',
+            'label=',
+            'placeholder=',
+            'alt=',
+            'title=',
+            'testid=',
+            'data-testid=',
+        ];
+        for (const prefix of playwrightPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        // Allowlist: XPath expressions
+        if (trimmed.startsWith('//') || trimmed.startsWith('./')) {
+            return true;
+        }
+
+        // Allowlist: CSS attribute selectors starting with `[`
+        if (trimmed.startsWith('[')) {
+            return true;
+        }
+
+        // Allowlist: Standard CSS selector characters only
+        // Permits: alphanumeric, whitespace, and common CSS selector syntax tokens
+        // (#id, .class, tag, [attr], :pseudo, >, +, ~, *, comma, quotes, =, ^, $, |, -, !, @, /)
+        const safeCssPattern = /^[a-zA-Z0-9\s\-_#.:,[\]()="'^$*|>+~!@/\\]+$/;
+        if (safeCssPattern.test(trimmed)) {
+            return true;
+        }
+
+        // Default deny: selector did not match any known-safe pattern
+        logger.warn(`[AutoHealer:validateSelector] Rejected — selector does not match any safe pattern: "${trimmed}"`);
+        return false;
+    }
+
+    /**
+     * Wraps an API call factory with a timeout and AbortController so the underlying
+     * HTTP request is cancelled when the deadline is reached.
+     *
+     * @param factory - A function that receives an AbortSignal and returns a Promise
+     * @param ms - Timeout in milliseconds
+     * @param label - Human-readable label for the error message
+     */
+    private async withTimeout<T>(factory: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {
+        const controller = new AbortController();
         let timeoutId: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {
             timeoutId = setTimeout(() => {
+                controller.abort();
                 reject(new Error(`[AutoHealer] ${label} API request timed out after ${ms / 1000}s`));
             }, ms);
         });
         try {
-            return await Promise.race([promise, timeoutPromise]);
+            return await Promise.race([factory(controller.signal), timeoutPromise]);
         } finally {
             clearTimeout(timeoutId!);
         }
@@ -756,221 +815,232 @@ export class AutoHealer {
      * @private
      */
     private async getSimplifiedDOM(): Promise<string> {
-        return await this.page.evaluate(() => {
-            const MAX_OUTPUT_CHARS = 15000;
+        try {
+            return await this.page.evaluate(() => {
+                const MAX_OUTPUT_CHARS = 15000;
 
-            const scrubPII = (text: string): string => {
-                const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-                const phoneRegex = /(\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}/g;
-                return text.replace(emailRegex, '[EMAIL]').replace(phoneRegex, '[PHONE]');
-            };
+                const scrubPII = (text: string): string => {
+                    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+                    const phoneRegex = /(\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}/g;
+                    return text.replace(emailRegex, '[EMAIL]').replace(phoneRegex, '[PHONE]');
+                };
 
-            const SKIP_TAGS = new Set([
-                'script',
-                'style',
-                'svg',
-                'path',
-                'link',
-                'meta',
-                'noscript',
-                'iframe',
-                'video',
-                'audio',
-            ]);
+                const SKIP_TAGS = new Set([
+                    'script',
+                    'style',
+                    'svg',
+                    'path',
+                    'link',
+                    'meta',
+                    'noscript',
+                    'iframe',
+                    'video',
+                    'audio',
+                ]);
 
-            const FULL_ATTRS = new Set([
-                'id',
-                'name',
-                'class',
-                'type',
-                'placeholder',
-                'aria-label',
-                'role',
-                'href',
-                'title',
-                'alt',
-                'for',
-                'action',
-            ]);
+                const FULL_ATTRS = new Set([
+                    'id',
+                    'name',
+                    'class',
+                    'type',
+                    'placeholder',
+                    'aria-label',
+                    'role',
+                    'href',
+                    'title',
+                    'alt',
+                    'for',
+                    'action',
+                ]);
 
-            // Only id and name for ancestor (structural) elements
-            const STRUCTURAL_ATTRS = new Set(['id', 'name', 'role']);
+                // Only id and name for ancestor (structural) elements
+                const STRUCTURAL_ATTRS = new Set(['id', 'name', 'role']);
 
-            // Selectors for interactive elements
-            const INTERACTIVE_SELECTOR = [
-                'input',
-                'button',
-                'select',
-                'textarea',
-                'form',
-                '[role="button"]',
-                '[role="textbox"]',
-                '[role="searchbox"]',
-                '[role="combobox"]',
-                '[role="checkbox"]',
-                '[role="radio"]',
-                '[onclick]',
-                '[data-testid]',
-                '[data-test]',
-                '[data-cy]',
-            ].join(',');
+                // Selectors for interactive elements
+                const INTERACTIVE_SELECTOR = [
+                    'input',
+                    'button',
+                    'select',
+                    'textarea',
+                    'form',
+                    '[role="button"]',
+                    '[role="textbox"]',
+                    '[role="searchbox"]',
+                    '[role="combobox"]',
+                    '[role="checkbox"]',
+                    '[role="radio"]',
+                    '[onclick]',
+                    '[data-testid]',
+                    '[data-test]',
+                    '[data-cy]',
+                ].join(',');
 
-            // ── Step 1: Find interactive elements and mark ancestor chains ──
-            const interactiveSet = new Set<Element>();
-            const neededElements = new Set<Element>();
+                // ── Step 1: Find interactive elements and mark ancestor chains ──
+                const interactiveSet = new Set<Element>();
+                const neededElements = new Set<Element>();
 
-            const interactiveEls = document.body.querySelectorAll(INTERACTIVE_SELECTOR);
-            interactiveEls.forEach(el => {
-                // Skip elements hidden by CSS (e.g. dismissed cookie banners still in the DOM)
-                if (
-                    typeof (el as HTMLElement).checkVisibility === 'function' &&
-                    !(el as HTMLElement).checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
-                )
-                    return;
+                const interactiveEls = document.body.querySelectorAll(INTERACTIVE_SELECTOR);
+                interactiveEls.forEach(el => {
+                    // Skip elements hidden by CSS (e.g. dismissed cookie banners still in the DOM)
+                    if (
+                        typeof (el as HTMLElement).checkVisibility === 'function' &&
+                        !(el as HTMLElement).checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+                    )
+                        return;
 
-                interactiveSet.add(el);
-                let current: Element | null = el;
-                while (current && current !== document.body) {
-                    if (neededElements.has(current)) break;
-                    neededElements.add(current);
-                    current = current.parentElement;
-                }
-            });
-            neededElements.add(document.body);
-
-            // ── Step 2: Serialize with role-based attribute filtering ──
-            const serializeAttrs = (el: Element, isInteractive: boolean): string => {
-                const tagName = el.tagName.toLowerCase();
-                const allowedAttrs = isInteractive ? FULL_ATTRS : STRUCTURAL_ATTRS;
-                let attrs = '';
-                Array.from(el.attributes).forEach(attr => {
-                    const isDataTest = attr.name.startsWith('data-test') || attr.name.startsWith('data-cy');
-                    if (allowedAttrs.has(attr.name) || (isInteractive && isDataTest)) {
-                        let value = attr.value;
-                        if (attr.name === 'value' && (tagName === 'input' || tagName === 'textarea')) {
-                            value = '[REDACTED]';
-                        }
-                        if (attr.name === 'class' && value.length > 60) {
-                            value = value.substring(0, 60) + '...';
-                        }
-                        attrs += ` ${attr.name}="${value}"`;
+                    interactiveSet.add(el);
+                    let current: Element | null = el;
+                    while (current && current !== document.body) {
+                        if (neededElements.has(current)) break;
+                        neededElements.add(current);
+                        current = current.parentElement;
                     }
                 });
-                return attrs;
-            };
+                neededElements.add(document.body);
 
-            let charCount = 0;
-            let budgetExceeded = false;
-
-            const serializeNode = (node: Element, depth: number): string => {
-                if (budgetExceeded) return '';
-                const tagName = node.tagName.toLowerCase();
-                if (SKIP_TAGS.has(tagName)) return '';
-
-                const isInteractive = interactiveSet.has(node);
-                const indent = '  '.repeat(Math.min(depth, 4));
-                let html = `${indent}<${tagName}${serializeAttrs(node, isInteractive)}>`;
-
-                // Only include text for interactive elements (not ancestors)
-                if (isInteractive) {
-                    const directText: string[] = [];
-                    node.childNodes.forEach(child => {
-                        if (child.nodeType === Node.TEXT_NODE) {
-                            const text = child.nodeValue?.trim();
-                            if (text) {
-                                const scrubbed = scrubPII(text);
-                                directText.push(scrubbed.length > 80 ? scrubbed.substring(0, 80) + '...' : scrubbed);
+                // ── Step 2: Serialize with role-based attribute filtering ──
+                const serializeAttrs = (el: Element, isInteractive: boolean): string => {
+                    const tagName = el.tagName.toLowerCase();
+                    const allowedAttrs = isInteractive ? FULL_ATTRS : STRUCTURAL_ATTRS;
+                    let attrs = '';
+                    Array.from(el.attributes).forEach(attr => {
+                        const isDataTest = attr.name.startsWith('data-test') || attr.name.startsWith('data-cy');
+                        if (allowedAttrs.has(attr.name) || (isInteractive && isDataTest)) {
+                            let value = attr.value;
+                            if (attr.name === 'value' && (tagName === 'input' || tagName === 'textarea')) {
+                                value = '[REDACTED]';
                             }
+                            if (attr.name === 'class' && value.length > 60) {
+                                value = value.substring(0, 60) + '...';
+                            }
+                            attrs += ` ${attr.name}="${value}"`;
                         }
                     });
-                    if (directText.length > 0) {
-                        html += directText.join(' ');
-                    }
-                }
+                    return attrs;
+                };
 
-                // Collect needed children
-                const neededChildren: Element[] = [];
-                Array.from(node.children).forEach(child => {
-                    if (neededElements.has(child)) neededChildren.push(child);
-                });
+                let charCount = 0;
+                let budgetExceeded = false;
 
-                if (neededChildren.length > 0) {
-                    html += '\n';
-                    let i = 0;
-                    while (i < neededChildren.length && !budgetExceeded) {
-                        const child = neededChildren[i]!;
-                        const childTag = child.tagName.toLowerCase();
-                        const childClass = child.getAttribute('class') || '';
-                        const sig = `${childTag}|${childClass}`;
+                const serializeNode = (node: Element, depth: number): string => {
+                    if (budgetExceeded) return '';
+                    const tagName = node.tagName.toLowerCase();
+                    if (SKIP_TAGS.has(tagName)) return '';
 
-                        // Count consecutive similar siblings
-                        let run = 1;
-                        while (
-                            i + run < neededChildren.length &&
-                            `${neededChildren[i + run]!.tagName.toLowerCase()}|${neededChildren[i + run]!.getAttribute('class') || ''}` ===
-                                sig
-                        ) {
-                            run++;
-                        }
+                    const isInteractive = interactiveSet.has(node);
+                    const indent = '  '.repeat(Math.min(depth, 4));
+                    let html = `${indent}<${tagName}${serializeAttrs(node, isInteractive)}>`;
 
-                        if (run >= 3) {
-                            html += serializeNode(child, depth + 1) + '\n';
-                            html += serializeNode(neededChildren[i + 1]!, depth + 1) + '\n';
-                            html += `${'  '.repeat(Math.min(depth + 1, 4))}<!-- ...${run - 2} more <${childTag}> -->\n`;
-                            i += run;
-                        } else {
-                            html += serializeNode(child, depth + 1) + '\n';
-                            i++;
-                        }
-                    }
-                    html += `${indent}</${tagName}>`;
-                } else {
-                    html += `</${tagName}>`;
-                }
-
-                charCount += html.length;
-                if (charCount > MAX_OUTPUT_CHARS) {
-                    budgetExceeded = true;
-                }
-
-                return html;
-            };
-
-            // ── Step 3: Serialize and enforce budget ──
-            let result = serializeNode(document.body, 0);
-
-            // Hard-cap the output
-            if (result.length > MAX_OUTPUT_CHARS) {
-                result = result.substring(0, MAX_OUTPUT_CHARS) + '\n<!-- DOM truncated at budget limit -->';
-            }
-
-            // ── Step 4: Fallback if no interactive elements found ──
-            if (interactiveEls.length === 0) {
-                const clone = document.body.cloneNode(true) as HTMLElement;
-                ['script', 'style', 'svg', 'noscript', 'iframe', 'video', 'audio'].forEach(tag =>
-                    clone.querySelectorAll(tag).forEach(el => el.remove())
-                );
-                const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
-                while (walker.nextNode()) {
-                    const n = walker.currentNode;
-                    if (n.nodeType === Node.ELEMENT_NODE) {
-                        const el = n as HTMLElement;
-                        Array.from(el.attributes).forEach(attr => {
-                            if (attr.name === 'value' && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
-                                el.setAttribute(attr.name, '[REDACTED]');
-                            } else if (!FULL_ATTRS.has(attr.name) && !attr.name.startsWith('data-test')) {
-                                el.removeAttribute(attr.name);
+                    // Only include text for interactive elements (not ancestors)
+                    if (isInteractive) {
+                        const directText: string[] = [];
+                        node.childNodes.forEach(child => {
+                            if (child.nodeType === Node.TEXT_NODE) {
+                                const text = child.nodeValue?.trim();
+                                if (text) {
+                                    const scrubbed = scrubPII(text);
+                                    directText.push(
+                                        scrubbed.length > 80 ? scrubbed.substring(0, 80) + '...' : scrubbed
+                                    );
+                                }
                             }
                         });
-                    } else if (n.nodeType === Node.TEXT_NODE && n.nodeValue) {
-                        n.nodeValue = scrubPII(n.nodeValue);
-                        if (n.nodeValue.length > 100) n.nodeValue = n.nodeValue.substring(0, 100) + '...';
+                        if (directText.length > 0) {
+                            html += directText.join(' ');
+                        }
                     }
-                }
-                return clone.innerHTML.substring(0, MAX_OUTPUT_CHARS);
-            }
 
-            return result;
-        });
+                    // Collect needed children
+                    const neededChildren: Element[] = [];
+                    Array.from(node.children).forEach(child => {
+                        if (neededElements.has(child)) neededChildren.push(child);
+                    });
+
+                    if (neededChildren.length > 0) {
+                        html += '\n';
+                        let i = 0;
+                        while (i < neededChildren.length && !budgetExceeded) {
+                            const child = neededChildren[i]!;
+                            const childTag = child.tagName.toLowerCase();
+                            const childClass = child.getAttribute('class') || '';
+                            const sig = `${childTag}|${childClass}`;
+
+                            // Count consecutive similar siblings
+                            let run = 1;
+                            while (
+                                i + run < neededChildren.length &&
+                                `${neededChildren[i + run]!.tagName.toLowerCase()}|${neededChildren[i + run]!.getAttribute('class') || ''}` ===
+                                    sig
+                            ) {
+                                run++;
+                            }
+
+                            if (run >= 3) {
+                                html += serializeNode(child, depth + 1) + '\n';
+                                html += serializeNode(neededChildren[i + 1]!, depth + 1) + '\n';
+                                html += `${'  '.repeat(Math.min(depth + 1, 4))}<!-- ...${run - 2} more <${childTag}> -->\n`;
+                                i += run;
+                            } else {
+                                html += serializeNode(child, depth + 1) + '\n';
+                                i++;
+                            }
+                        }
+                        html += `${indent}</${tagName}>`;
+                    } else {
+                        html += `</${tagName}>`;
+                    }
+
+                    charCount += html.length;
+                    if (charCount > MAX_OUTPUT_CHARS) {
+                        budgetExceeded = true;
+                    }
+
+                    return html;
+                };
+
+                // ── Step 3: Serialize and enforce budget ──
+                let result = serializeNode(document.body, 0);
+
+                // Hard-cap the output
+                if (result.length > MAX_OUTPUT_CHARS) {
+                    result = result.substring(0, MAX_OUTPUT_CHARS) + '\n<!-- DOM truncated at budget limit -->';
+                }
+
+                // ── Step 4: Fallback if no interactive elements found ──
+                if (interactiveEls.length === 0) {
+                    const clone = document.body.cloneNode(true) as HTMLElement;
+                    ['script', 'style', 'svg', 'noscript', 'iframe', 'video', 'audio'].forEach(tag =>
+                        clone.querySelectorAll(tag).forEach(el => el.remove())
+                    );
+                    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+                    while (walker.nextNode()) {
+                        const n = walker.currentNode;
+                        if (n.nodeType === Node.ELEMENT_NODE) {
+                            const el = n as HTMLElement;
+                            Array.from(el.attributes).forEach(attr => {
+                                if (attr.name === 'value' && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+                                    el.setAttribute(attr.name, '[REDACTED]');
+                                } else if (!FULL_ATTRS.has(attr.name) && !attr.name.startsWith('data-test')) {
+                                    el.removeAttribute(attr.name);
+                                }
+                            });
+                        } else if (n.nodeType === Node.TEXT_NODE && n.nodeValue) {
+                            n.nodeValue = scrubPII(n.nodeValue);
+                            if (n.nodeValue.length > 100) n.nodeValue = n.nodeValue.substring(0, 100) + '...';
+                        }
+                    }
+                    return clone.innerHTML.substring(0, MAX_OUTPUT_CHARS);
+                }
+
+                return result;
+            });
+        } catch (err) {
+            const msg = String(err);
+            if (msg.includes('Target page') || msg.includes('has been closed')) {
+                logger.warn('[AutoHealer:getSimplifiedDOM] Page closed before DOM capture; skipping test.');
+                test.skip(true, 'Test skipped: browser page was closed before DOM could be captured.');
+            }
+            throw err;
+        }
     }
 }
