@@ -18,6 +18,7 @@ npm run lint                          # ESLint check
 npm run lint:fix                      # ESLint auto-fix
 npm run format:check                  # Prettier check
 npm run format                        # Prettier auto-format
+git commit -am "style: apply lint and format fixes"
 
 # Unit tests (Vitest, ~1s)
 npm run test:unit                     # Run once
