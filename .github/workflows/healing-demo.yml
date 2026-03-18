@@ -13,6 +13,9 @@ on:
   schedule:
     - cron: '0 9 * * 1'
 
+permissions:
+  contents: read
+
 concurrency:
   group: healing-demo
   cancel-in-progress: true
@@ -20,15 +23,15 @@ concurrency:
 jobs:
   demo:
     name: Record self-healing demo
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
@@ -38,7 +41,7 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       # Run the dedicated healing demo spec with video always on
-      - name: Run healing demo (headed video capture)
+      - name: Run healing demo (video capture)
         env:
           AI_PROVIDER: gemini
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -56,7 +59,7 @@ jobs:
       # Upload the HTML report with embedded video
       - name: Upload demo report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: healing-demo-report-${{ github.run_number }}
           path: playwright-report/
@@ -65,7 +68,7 @@ jobs:
       # Upload raw videos separately for easy download
       - name: Upload demo videos
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: healing-demo-videos-${{ github.run_number }}
           path: test-results/**/video.webm
