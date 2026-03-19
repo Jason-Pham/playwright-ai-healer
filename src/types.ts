@@ -245,3 +245,39 @@ export interface MetricsStore {
 export interface LocatorMap {
     [key: string]: string | LocatorMap;
 }
+
+/**
+ * A single operation descriptor for `AutoHealer.healAll()`.
+ *
+ * Describes a Playwright action that should be attempted concurrently with
+ * other operations; any that fail will have their selectors healed in parallel
+ * via AI before being retried.
+ */
+export interface HealOperation {
+    /** CSS selector or locator key (dot-path into locators.json). */
+    selectorOrKey: string;
+    /**
+     * Playwright action to perform.
+     * Note: `selectOption` is intentionally excluded — its complex value signature
+     * (`string | string[] | { value?; label?; index? }`) does not map cleanly to
+     * the single optional `value` field. Use `AutoHealer.selectOption()` directly
+     * for that case.
+     */
+    action: 'click' | 'fill' | 'hover' | 'type' | 'check' | 'uncheck' | 'waitForSelector';
+    /** Value to use for `fill` / `type` actions. */
+    value?: string;
+}
+
+/**
+ * Per-operation result from `AutoHealer.healAll()`.
+ */
+export interface HealAllResult {
+    /** The original selector/key passed in. */
+    selectorOrKey: string;
+    /** Whether the operation ultimately succeeded (after healing if needed). */
+    success: boolean;
+    /** The new selector returned by AI healing, if healing was performed. */
+    healedSelector?: string;
+    /** Error message if the operation failed even after healing. */
+    error?: string;
+}

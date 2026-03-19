@@ -17,6 +17,8 @@ import type {
     AIError,
     HealingResult,
     HealingEvent,
+    HealOperation,
+    HealAllResult,
 } from './types.js';
 
 /**
@@ -365,6 +367,146 @@ export class AutoHealer {
      */
     getHealingEvents(): readonly HealingEvent[] {
         return this.healingEvents;
+    }
+
+    /**
+     * Heal multiple operations concurrently.
+     *
+     * Runs all operations sequentially (to avoid Playwright race conditions),
+     * then fires AI healing for every failed operation **in parallel**, and
+     * retries healed operations sequentially. This reduces total wall-clock
+     * time when several selectors need AI-powered repair in the same test run.
+     *
+     * @param operations - Array of actions to attempt
+     * @returns Per-operation results including success flag and healed selector
+     *
+     * @example
+     * ```typescript
+     * const results = await healer.healAll([
+     *   { selectorOrKey: 'gigantti.searchInput', action: 'click' },
+     *   { selectorOrKey: 'gigantti.cookieBtn',   action: 'click' },
+     *   { selectorOrKey: 'gigantti.filterBox',   action: 'fill', value: 'laptop' },
+     * ]);
+     * results.forEach(r => console.log(r.selectorOrKey, r.success, r.healedSelector));
+     * ```
+     */
+    async healAll(operations: HealOperation[]): Promise<HealAllResult[]> {
+        const locatorManager = LocatorManager.getInstance();
+
+        // ── Phase 1: attempt all actions, collect failures ─────────────────
+        type FailureRecord = {
+            index: number;
+            op: HealOperation;
+            selector: string;
+            locatorKey: string | null;
+            error: Error;
+        };
+
+        const results: HealAllResult[] = operations.map(op => ({
+            selectorOrKey: op.selectorOrKey,
+            success: false,
+        }));
+
+        const failures: FailureRecord[] = [];
+
+        for (let i = 0; i < operations.length; i++) {
+            const op = operations[i];
+            if (!op) continue;
+            const resolved = locatorManager.getLocator(op.selectorOrKey);
+            const selector = resolved || op.selectorOrKey;
+            const locatorKey = resolved ? op.selectorOrKey : null;
+
+            try {
+                await this.runOperation(op, selector);
+                results[i] = { selectorOrKey: op.selectorOrKey, success: true };
+            } catch (err) {
+                if (locatorKey) {
+                    await locatorManager.recordSelectorFailure(locatorKey);
+                }
+                failures.push({ index: i, op, selector, locatorKey, error: err as Error });
+            }
+        }
+
+        if (failures.length === 0) return results;
+
+        logger.info(`[AutoHealer:healAll] ${failures.length} operation(s) failed — firing AI healing in parallel...`);
+
+        // ── Phase 2: heal all failures concurrently ────────────────────────
+        const healed = await Promise.allSettled(failures.map(f => this.heal(f.selector, f.error)));
+
+        // ── Phase 3: retry healed operations sequentially ─────────────────
+        for (let j = 0; j < failures.length; j++) {
+            const failure = failures[j];
+            const healResult = healed[j];
+            if (!failure || !healResult) continue;
+
+            if (healResult.status === 'fulfilled' && healResult.value) {
+                const newSelector = healResult.value.selector;
+                try {
+                    await this.runOperation(failure.op, newSelector);
+                    results[failure.index] = {
+                        selectorOrKey: failure.op.selectorOrKey,
+                        success: true,
+                        healedSelector: newSelector,
+                    };
+                    if (failure.locatorKey) {
+                        await locatorManager.updateLocator(failure.locatorKey, newSelector);
+                        await locatorManager.recordSelectorHealed(failure.locatorKey);
+                    }
+                } catch (retryErr) {
+                    results[failure.index] = {
+                        selectorOrKey: failure.op.selectorOrKey,
+                        success: false,
+                        healedSelector: newSelector,
+                        error: String(retryErr),
+                    };
+                }
+            } else {
+                results[failure.index] = {
+                    selectorOrKey: failure.op.selectorOrKey,
+                    success: false,
+                    error: 'AI could not find a replacement selector',
+                };
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Execute a single HealOperation against the resolved selector.
+     * @private
+     */
+    private async runOperation(op: HealOperation, selector: string): Promise<void> {
+        switch (op.action) {
+            case 'click':
+                await this.page.click(selector, { timeout: config.test.timeouts.click });
+                break;
+            case 'fill':
+                await this.page.fill(selector, op.value ?? '', { timeout: config.test.timeouts.fill });
+                break;
+            case 'hover':
+                await this.page.hover(selector, { timeout: config.test.timeouts.click });
+                break;
+            case 'type':
+                await this.page.locator(selector).pressSequentially(op.value ?? '', {
+                    delay: 50,
+                });
+                break;
+            case 'check':
+                await this.page.check(selector, { timeout: config.test.timeouts.click });
+                break;
+            case 'uncheck':
+                await this.page.uncheck(selector, { timeout: config.test.timeouts.click });
+                break;
+            case 'waitForSelector':
+                await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default });
+                break;
+            default: {
+                const _exhaustive: never = op.action;
+                throw new Error(`[AutoHealer:runOperation] Unsupported action: ${_exhaustive}`);
+            }
+        }
     }
 
     /**

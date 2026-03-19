@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `HealingEvent.tokensUsed` — records prompt, completion, and total token counts from the AI provider when available.
 - `HealingEvent.domSnapshotLength` — records the character length of the DOM snapshot sent to the AI for diagnostics.
 - DOM snapshot char limit is now configurable via the `DOM_SNAPSHOT_CHAR_LIMIT` environment variable.
+- `AutoHealer.healAll(operations)` — batch-heals multiple failing selectors; AI requests for all failures fire in parallel (`Promise.allSettled`) while Playwright page interactions remain sequential. Returns `HealAllResult[]` with per-operation outcome.
+- `HealOperation` and `HealAllResult` types added to `src/types.ts`.
 - **Selector stability metrics** — `LocatorManager` now tracks per-key failure and heal events in `src/config/metrics.json`. New methods: `recordSelectorFailure(key)`, `recordSelectorHealed(key)`, `getMetrics(key?)`. `AutoHealer` wires these automatically on every healing cycle.
 - `SelectorMetrics` and `MetricsStore` types added to `src/types.ts`.
 - **Pluggable locator storage** — `src/utils/LocatorAdapter.ts` introduces a `LocatorAdapter` interface with two implementations: `FileAdapter` (JSON + file-locking, default) and `SQLiteAdapter` (ACID SQLite via `better-sqlite3`). Select the backend with `LOCATOR_STORE=file|sqlite`.
