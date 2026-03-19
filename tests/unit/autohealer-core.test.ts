@@ -25,6 +25,7 @@ vi.mock('../../src/config/index.js', () => ({
         ai: {
             gemini: { modelName: 'mock-gemini-model' },
             openai: { modelName: 'mock-openai-model' },
+            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7 },
             prompts: {
                 healingPrompt: () => 'mock prompt',
             },
@@ -41,7 +42,9 @@ vi.mock('../../src/utils/LocatorManager.js', () => ({
     LocatorManager: {
         getInstance: vi.fn(() => ({
             getLocator: vi.fn(),
-            updateLocator: vi.fn(),
+            updateLocator: vi.fn().mockResolvedValue(undefined),
+            recordSelectorFailure: vi.fn(),
+            recordSelectorHealed: vi.fn(),
         })),
     },
 }));
@@ -67,6 +70,8 @@ describe('AutoHealer Core Logic', () => {
     let mockPage: any;
     let mockGenerateContent: any;
     let mockUpdateLocator: any;
+    let mockRecordSelectorFailure: any;
+    let mockRecordSelectorHealed: any;
 
     beforeEach(() => {
         // Mock setTimeout to resolve immediately
@@ -81,6 +86,7 @@ describe('AutoHealer Core Logic', () => {
             fill: vi.fn(),
             locator: vi.fn().mockReturnValue({
                 waitFor: vi.fn().mockResolvedValue(undefined),
+                count: vi.fn().mockResolvedValue(1),
             }),
         };
 
@@ -100,10 +106,14 @@ describe('AutoHealer Core Logic', () => {
         mockGenerateContent = mockModel.generateContent;
 
         // Setup LocatorManager mock
-        mockUpdateLocator = vi.fn();
+        mockUpdateLocator = vi.fn().mockResolvedValue(undefined);
+        mockRecordSelectorFailure = vi.fn().mockResolvedValue(undefined);
+        mockRecordSelectorHealed = vi.fn().mockResolvedValue(undefined);
         (LocatorManager.getInstance as any).mockReturnValue({
             getLocator: vi.fn(),
             updateLocator: mockUpdateLocator,
+            recordSelectorFailure: mockRecordSelectorFailure,
+            recordSelectorHealed: mockRecordSelectorHealed,
         });
 
         autoHealer = new AutoHealer(mockPage, 'mock-key', 'gemini');
@@ -159,6 +169,22 @@ describe('AutoHealer Core Logic', () => {
 
             // Expect updateLocator to be called
             expect(mockUpdateLocator).toHaveBeenCalledWith(key, healedSelector);
+            // Expect recordSelectorHealed to be called after a successful heal
+            expect(mockRecordSelectorHealed).toHaveBeenCalledWith(key);
+        });
+
+        it('should record selector failure when a keyed selector fails', async () => {
+            const key = 'submitButton';
+            const brokenSelector = '#old-submit';
+            const healedSelector = '#new-submit';
+
+            (LocatorManager.getInstance() as any).getLocator.mockReturnValue(brokenSelector);
+            mockPage.click.mockRejectedValueOnce(new Error('Element not found')).mockResolvedValueOnce(undefined);
+            mockGenerateContent.mockResolvedValue({ response: { text: () => healedSelector } });
+
+            await autoHealer.click(key);
+
+            expect(mockRecordSelectorFailure).toHaveBeenCalledWith(key);
         });
 
         it('should skip test if healing fails (returns null)', async () => {

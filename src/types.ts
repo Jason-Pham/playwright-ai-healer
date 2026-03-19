@@ -96,6 +96,65 @@ export interface FillOptions {
 }
 
 /**
+ * Hover options extending Playwright's native options
+ */
+export interface HoverOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+    /** Bypass actionability checks and force the hover. */
+    force?: boolean;
+    /** Hover at this position relative to the element's top-left corner. */
+    position?: { x: number; y: number };
+}
+
+/**
+ * Type (pressSequentially) options
+ */
+export interface TypeOptions {
+    /** Delay in milliseconds between consecutive key presses. */
+    delay?: number;
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+}
+
+/**
+ * SelectOption options extending Playwright's native options
+ */
+export interface SelectOptionOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+    /** Bypass actionability checks and force the selection. */
+    force?: boolean;
+}
+
+/**
+ * SelectOption value argument — mirrors Playwright's overload
+ */
+export type SelectOptionValues = string | string[] | { value?: string; label?: string; index?: number };
+
+/**
+ * Check/uncheck options extending Playwright's native options
+ */
+export interface CheckOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+    /** Bypass actionability checks and force the check/uncheck. */
+    force?: boolean;
+    /** Click at this position relative to the element's top-left corner. */
+    position?: { x: number; y: number };
+}
+
+/**
+ * WaitForSelector options extending Playwright's native options
+ */
+export interface WaitForSelectorOptions {
+    /** Expected element state to wait for. Defaults to `'visible'`. */
+    state?: 'attached' | 'detached' | 'visible' | 'hidden';
+    /** Maximum time in milliseconds to wait for the selector to satisfy the `state` condition. */
+    timeout?: number;
+}
+
+/**
  * Timeout configuration used across the test framework (all values in milliseconds)
  */
 export interface TimeoutConfig {
@@ -140,6 +199,8 @@ export interface AIConfig {
         retryDelay: number;
         /** Minimum confidence score (0–1) required to accept an AI-suggested selector. */
         confidenceThreshold: number;
+        /** Maximum character length of the DOM snapshot sent to the AI provider. */
+        domSnapshotCharLimit: number;
     };
     prompts: {
         /** Function that builds the healing prompt sent to the AI. */
@@ -152,6 +213,30 @@ export interface AIConfig {
  */
 export interface LocatorStore {
     [key: string]: string | LocatorStore;
+}
+
+/**
+ * Stability metrics for a single healed selector.
+ *
+ * Tracks how many times a healed selector later failed again, enabling
+ * users to identify selectors that are fragile even after healing.
+ */
+export interface SelectorMetrics {
+    /** Number of times this selector failed after being healed. */
+    failureCount: number;
+    /** ISO 8601 timestamp of the most recent post-healing failure. */
+    lastFailedAt?: string;
+    /** ISO 8601 timestamp of the most recent healing event. */
+    healedAt?: string;
+}
+
+/**
+ * Flat map of dot-path locator keys → their stability metrics.
+ *
+ * @example { "gigantti.searchInput": { failureCount: 2, lastFailedAt: "2026-03-02T…" } }
+ */
+export interface MetricsStore {
+    [key: string]: SelectorMetrics;
 }
 
 /**
