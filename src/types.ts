@@ -256,7 +256,13 @@ export interface LocatorMap {
 export interface HealOperation {
     /** CSS selector or locator key (dot-path into locators.json). */
     selectorOrKey: string;
-    /** Playwright action to perform. */
+    /**
+     * Playwright action to perform.
+     * Note: `selectOption` is intentionally excluded — its complex value signature
+     * (`string | string[] | { value?; label?; index? }`) does not map cleanly to
+     * the single optional `value` field. Use `AutoHealer.selectOption()` directly
+     * for that case.
+     */
     action: 'click' | 'fill' | 'hover' | 'type' | 'check' | 'uncheck' | 'waitForSelector';
     /** Value to use for `fill` / `type` actions. */
     value?: string;

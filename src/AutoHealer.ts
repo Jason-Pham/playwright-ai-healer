@@ -412,13 +412,17 @@ export class AutoHealer {
         for (let i = 0; i < operations.length; i++) {
             const op = operations[i];
             if (!op) continue;
-            const selector = locatorManager.getLocator(op.selectorOrKey) || op.selectorOrKey;
-            const locatorKey = locatorManager.getLocator(op.selectorOrKey) ? op.selectorOrKey : null;
+            const resolved = locatorManager.getLocator(op.selectorOrKey);
+            const selector = resolved || op.selectorOrKey;
+            const locatorKey = resolved ? op.selectorOrKey : null;
 
             try {
                 await this.runOperation(op, selector);
                 results[i] = { selectorOrKey: op.selectorOrKey, success: true };
             } catch (err) {
+                if (locatorKey) {
+                    await locatorManager.recordSelectorFailure(locatorKey);
+                }
                 failures.push({ index: i, op, selector, locatorKey, error: err as Error });
             }
         }
@@ -447,6 +451,7 @@ export class AutoHealer {
                     };
                     if (failure.locatorKey) {
                         await locatorManager.updateLocator(failure.locatorKey, newSelector);
+                        await locatorManager.recordSelectorHealed(failure.locatorKey);
                     }
                 } catch (retryErr) {
                     results[failure.index] = {
@@ -497,6 +502,10 @@ export class AutoHealer {
             case 'waitForSelector':
                 await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default });
                 break;
+            default: {
+                const _exhaustive: never = op.action;
+                throw new Error(`[AutoHealer:runOperation] Unsupported action: ${_exhaustive}`);
+            }
         }
     }
 

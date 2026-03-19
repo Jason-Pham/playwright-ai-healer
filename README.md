@@ -242,10 +242,10 @@ Heal multiple failing selectors in one call — AI requests fire in parallel, Pl
 
 ```typescript
 const results = await healer.healAll([
-    { type: 'click', selector: '#broken-btn', locatorKey: 'home.searchButton' },
-    { type: 'fill', selector: '#broken-input', value: 'laptop', locatorKey: 'home.searchInput' },
+    { action: 'click', selectorOrKey: 'home.searchButton' },
+    { action: 'fill', selectorOrKey: 'home.searchInput', value: 'laptop' },
 ]);
-// results: HealAllResult[] — per-operation outcome, healed selector, and healing event
+// results: HealAllResult[] — per-operation outcome, healed selector, and error
 ```
 
 ### 🎭 Healing Demo
