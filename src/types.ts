@@ -96,6 +96,65 @@ export interface FillOptions {
 }
 
 /**
+ * Hover options extending Playwright's native options
+ */
+export interface HoverOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+    /** Bypass actionability checks and force the hover. */
+    force?: boolean;
+    /** Hover at this position relative to the element's top-left corner. */
+    position?: { x: number; y: number };
+}
+
+/**
+ * Type (pressSequentially) options
+ */
+export interface TypeOptions {
+    /** Delay in milliseconds between consecutive key presses. */
+    delay?: number;
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+}
+
+/**
+ * SelectOption options extending Playwright's native options
+ */
+export interface SelectOptionOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+    /** Bypass actionability checks and force the selection. */
+    force?: boolean;
+}
+
+/**
+ * SelectOption value argument — mirrors Playwright's overload
+ */
+export type SelectOptionValues = string | string[] | { value?: string; label?: string; index?: number };
+
+/**
+ * Check/uncheck options extending Playwright's native options
+ */
+export interface CheckOptions {
+    /** Maximum time in milliseconds to wait for the element to be actionable. */
+    timeout?: number;
+    /** Bypass actionability checks and force the check/uncheck. */
+    force?: boolean;
+    /** Click at this position relative to the element's top-left corner. */
+    position?: { x: number; y: number };
+}
+
+/**
+ * WaitForSelector options extending Playwright's native options
+ */
+export interface WaitForSelectorOptions {
+    /** Expected element state to wait for. Defaults to `'visible'`. */
+    state?: 'attached' | 'detached' | 'visible' | 'hidden';
+    /** Maximum time in milliseconds to wait for the selector to satisfy the `state` condition. */
+    timeout?: number;
+}
+
+/**
  * Timeout configuration used across the test framework (all values in milliseconds)
  */
 export interface TimeoutConfig {
@@ -140,6 +199,8 @@ export interface AIConfig {
         retryDelay: number;
         /** Minimum confidence score (0–1) required to accept an AI-suggested selector. */
         confidenceThreshold: number;
+        /** Maximum character length of the DOM snapshot sent to the AI provider. */
+        domSnapshotCharLimit: number;
     };
     prompts: {
         /** Function that builds the healing prompt sent to the AI. */
@@ -155,8 +216,68 @@ export interface LocatorStore {
 }
 
 /**
+ * Stability metrics for a single healed selector.
+ *
+ * Tracks how many times a healed selector later failed again, enabling
+ * users to identify selectors that are fragile even after healing.
+ */
+export interface SelectorMetrics {
+    /** Number of times this selector failed after being healed. */
+    failureCount: number;
+    /** ISO 8601 timestamp of the most recent post-healing failure. */
+    lastFailedAt?: string;
+    /** ISO 8601 timestamp of the most recent healing event. */
+    healedAt?: string;
+}
+
+/**
+ * Flat map of dot-path locator keys → their stability metrics.
+ *
+ * @example { "gigantti.searchInput": { failureCount: 2, lastFailedAt: "2026-03-02T…" } }
+ */
+export interface MetricsStore {
+    [key: string]: SelectorMetrics;
+}
+
+/**
  * Recursive type for nested locator storage (e.g., { gigantti: { searchInput: "#id" } })
  */
 export interface LocatorMap {
     [key: string]: string | LocatorMap;
+}
+
+/**
+ * A single operation descriptor for `AutoHealer.healAll()`.
+ *
+ * Describes a Playwright action that should be attempted concurrently with
+ * other operations; any that fail will have their selectors healed in parallel
+ * via AI before being retried.
+ */
+export interface HealOperation {
+    /** CSS selector or locator key (dot-path into locators.json). */
+    selectorOrKey: string;
+    /**
+     * Playwright action to perform.
+     * Note: `selectOption` is intentionally excluded — its complex value signature
+     * (`string | string[] | { value?; label?; index? }`) does not map cleanly to
+     * the single optional `value` field. Use `AutoHealer.selectOption()` directly
+     * for that case.
+     */
+    action: 'click' | 'fill' | 'hover' | 'type' | 'check' | 'uncheck' | 'waitForSelector';
+    /** Value to use for `fill` / `type` actions. */
+    value?: string;
+}
+
+/**
+ * Per-operation result from `AutoHealer.healAll()`.
+ */
+export interface HealAllResult {
+    /** The original selector/key passed in. */
+    selectorOrKey: string;
+    /** Whether the operation ultimately succeeded (after healing if needed). */
+    success: boolean;
+    /** The new selector returned by AI healing, if healing was performed. */
+    healedSelector?: string;
+    /** Error message if the operation failed even after healing. */
+    error?: string;
 }

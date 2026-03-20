@@ -122,10 +122,11 @@ export class AIClientManager {
     private async callOpenAI(promptText: string, timeout: number): Promise<AICallResult> {
         logger.info(`[AIClientManager] Sending request to OpenAI (model: ${this.modelName})...`);
         const completion = await this.withTimeout(
-            this.openai!.chat.completions.create({
-                messages: [{ role: 'user', content: promptText }],
-                model: this.modelName,
-            }),
+            signal =>
+                this.openai!.chat.completions.create(
+                    { messages: [{ role: 'user', content: promptText }], model: this.modelName },
+                    { signal }
+                ),
             timeout,
             'OpenAI'
         );
@@ -149,7 +150,8 @@ export class AIClientManager {
     private async callGemini(promptText: string, timeout: number): Promise<AICallResult> {
         logger.info(`[AIClientManager] Sending request to Gemini (model: ${this.modelName})...`);
         const model = this.gemini!.getGenerativeModel({ model: this.modelName });
-        const response = await this.withTimeout(model.generateContent(promptText), timeout, 'Gemini');
+        // Gemini SDK does not support AbortSignal; signal is accepted but unused
+        const response = await this.withTimeout(_signal => model.generateContent(promptText), timeout, 'Gemini');
         const raw = response.response.text().trim();
         const usageMetadata = response.response.usageMetadata;
         const tokensUsed = usageMetadata
@@ -183,15 +185,21 @@ export class AIClientManager {
         }
     }
 
-    private async withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    private async withTimeout<T>(factory: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {
+        const controller = new AbortController();
+        // Start the request first so the factory promise is in-flight before the
+        // timeout race is set up. This preserves correct error-priority ordering
+        // even in test environments where setTimeout is stubbed to fire synchronously.
+        const requestPromise = factory(controller.signal);
         let timeoutId: ReturnType<typeof setTimeout>;
         const timeoutPromise = new Promise<never>((_, reject) => {
             timeoutId = setTimeout(() => {
+                controller.abort();
                 reject(new Error(`[AutoHealer] ${label} API request timed out after ${ms / 1000}s`));
             }, ms);
         });
         try {
-            return await Promise.race([promise, timeoutPromise]);
+            return await Promise.race([requestPromise, timeoutPromise]);
         } finally {
             clearTimeout(timeoutId!);
         }

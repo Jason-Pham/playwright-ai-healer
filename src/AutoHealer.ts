@@ -5,7 +5,22 @@ import { logger } from './utils/Logger.js';
 import { AIClientManager } from './ai/AIClientManager.js';
 import { getSimplifiedDOM } from './ai/DOMSerializer.js';
 import { parseAIResponse } from './ai/ResponseParser.js';
-import type { AIProvider, ClickOptions, FillOptions, AIError, HealingResult, HealingEvent } from './types.js';
+import type {
+    AIProvider,
+    ClickOptions,
+    FillOptions,
+    HoverOptions,
+    TypeOptions,
+    SelectOptionOptions,
+    SelectOptionValues,
+    CheckOptions,
+    WaitForSelectorOptions,
+    AIError,
+    HealingResult,
+    HealingEvent,
+    HealOperation,
+    HealAllResult,
+} from './types.js';
 
 /**
  * AutoHealer - Self-healing test automation agent
@@ -170,10 +185,7 @@ export class AutoHealer {
     /**
      * Safe hover method that attempts self-healing on failure
      */
-    async hover(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
+    async hover(selectorOrKey: string, options?: HoverOptions) {
         await this.executeAction(
             selectorOrKey,
             'hover',
@@ -189,7 +201,7 @@ export class AutoHealer {
     /**
      * Safe type method (pressSequentially) that attempts self-healing on failure
      */
-    async type(selectorOrKey: string, text: string, options?: { delay?: number; timeout?: number }) {
+    async type(selectorOrKey: string, text: string, options?: TypeOptions) {
         await this.executeAction(
             selectorOrKey,
             'type',
@@ -210,11 +222,7 @@ export class AutoHealer {
     /**
      * Safe selectOption method that attempts self-healing on failure
      */
-    async selectOption(
-        selectorOrKey: string,
-        values: string | string[] | { value?: string; label?: string; index?: number },
-        options?: { timeout?: number; force?: boolean }
-    ) {
+    async selectOption(selectorOrKey: string, values: SelectOptionValues, options?: SelectOptionOptions) {
         await this.executeAction(
             selectorOrKey,
             'selectOption',
@@ -230,10 +238,7 @@ export class AutoHealer {
     /**
      * Safe check method that attempts self-healing on failure
      */
-    async check(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
+    async check(selectorOrKey: string, options?: CheckOptions) {
         await this.executeAction(
             selectorOrKey,
             'check',
@@ -249,10 +254,7 @@ export class AutoHealer {
     /**
      * Safe uncheck method that attempts self-healing on failure
      */
-    async uncheck(
-        selectorOrKey: string,
-        options?: { timeout?: number; force?: boolean; position?: { x: number; y: number } }
-    ) {
+    async uncheck(selectorOrKey: string, options?: CheckOptions) {
         await this.executeAction(
             selectorOrKey,
             'uncheck',
@@ -268,10 +270,7 @@ export class AutoHealer {
     /**
      * Safe waitForSelector method that attempts self-healing on failure
      */
-    async waitForSelector(
-        selectorOrKey: string,
-        options?: { state?: 'attached' | 'detached' | 'visible' | 'hidden'; timeout?: number }
-    ) {
+    async waitForSelector(selectorOrKey: string, options?: WaitForSelectorOptions) {
         await this.executeAction(
             selectorOrKey,
             'waitForSelector',
@@ -289,6 +288,146 @@ export class AutoHealer {
      */
     getHealingEvents(): readonly HealingEvent[] {
         return this.healingEvents;
+    }
+
+    /**
+     * Heal multiple operations concurrently.
+     *
+     * Runs all operations sequentially (to avoid Playwright race conditions),
+     * then fires AI healing for every failed operation **in parallel**, and
+     * retries healed operations sequentially. This reduces total wall-clock
+     * time when several selectors need AI-powered repair in the same test run.
+     *
+     * @param operations - Array of actions to attempt
+     * @returns Per-operation results including success flag and healed selector
+     *
+     * @example
+     * ```typescript
+     * const results = await healer.healAll([
+     *   { selectorOrKey: 'gigantti.searchInput', action: 'click' },
+     *   { selectorOrKey: 'gigantti.cookieBtn',   action: 'click' },
+     *   { selectorOrKey: 'gigantti.filterBox',   action: 'fill', value: 'laptop' },
+     * ]);
+     * results.forEach(r => console.log(r.selectorOrKey, r.success, r.healedSelector));
+     * ```
+     */
+    async healAll(operations: HealOperation[]): Promise<HealAllResult[]> {
+        const locatorManager = LocatorManager.getInstance();
+
+        // ── Phase 1: attempt all actions, collect failures ─────────────────
+        type FailureRecord = {
+            index: number;
+            op: HealOperation;
+            selector: string;
+            locatorKey: string | null;
+            error: Error;
+        };
+
+        const results: HealAllResult[] = operations.map(op => ({
+            selectorOrKey: op.selectorOrKey,
+            success: false,
+        }));
+
+        const failures: FailureRecord[] = [];
+
+        for (let i = 0; i < operations.length; i++) {
+            const op = operations[i];
+            if (!op) continue;
+            const resolved = locatorManager.getLocator(op.selectorOrKey);
+            const selector = resolved || op.selectorOrKey;
+            const locatorKey = resolved ? op.selectorOrKey : null;
+
+            try {
+                await this.runOperation(op, selector);
+                results[i] = { selectorOrKey: op.selectorOrKey, success: true };
+            } catch (err) {
+                if (locatorKey) {
+                    await locatorManager.recordSelectorFailure(locatorKey);
+                }
+                failures.push({ index: i, op, selector, locatorKey, error: err as Error });
+            }
+        }
+
+        if (failures.length === 0) return results;
+
+        logger.info(`[AutoHealer:healAll] ${failures.length} operation(s) failed — firing AI healing in parallel...`);
+
+        // ── Phase 2: heal all failures concurrently ────────────────────────
+        const healed = await Promise.allSettled(failures.map(f => this.heal(f.selector, f.error)));
+
+        // ── Phase 3: retry healed operations sequentially ─────────────────
+        for (let j = 0; j < failures.length; j++) {
+            const failure = failures[j];
+            const healResult = healed[j];
+            if (!failure || !healResult) continue;
+
+            if (healResult.status === 'fulfilled' && healResult.value) {
+                const newSelector = healResult.value.selector;
+                try {
+                    await this.runOperation(failure.op, newSelector);
+                    results[failure.index] = {
+                        selectorOrKey: failure.op.selectorOrKey,
+                        success: true,
+                        healedSelector: newSelector,
+                    };
+                    if (failure.locatorKey) {
+                        await locatorManager.updateLocator(failure.locatorKey, newSelector);
+                        await locatorManager.recordSelectorHealed(failure.locatorKey);
+                    }
+                } catch (retryErr) {
+                    results[failure.index] = {
+                        selectorOrKey: failure.op.selectorOrKey,
+                        success: false,
+                        healedSelector: newSelector,
+                        error: String(retryErr),
+                    };
+                }
+            } else {
+                results[failure.index] = {
+                    selectorOrKey: failure.op.selectorOrKey,
+                    success: false,
+                    error: 'AI could not find a replacement selector',
+                };
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Execute a single HealOperation against the resolved selector.
+     * @private
+     */
+    private async runOperation(op: HealOperation, selector: string): Promise<void> {
+        switch (op.action) {
+            case 'click':
+                await this.page.click(selector, { timeout: config.test.timeouts.click });
+                break;
+            case 'fill':
+                await this.page.fill(selector, op.value ?? '', { timeout: config.test.timeouts.fill });
+                break;
+            case 'hover':
+                await this.page.hover(selector, { timeout: config.test.timeouts.click });
+                break;
+            case 'type':
+                await this.page.locator(selector).pressSequentially(op.value ?? '', {
+                    delay: 50,
+                });
+                break;
+            case 'check':
+                await this.page.check(selector, { timeout: config.test.timeouts.click });
+                break;
+            case 'uncheck':
+                await this.page.uncheck(selector, { timeout: config.test.timeouts.click });
+                break;
+            case 'waitForSelector':
+                await this.page.waitForSelector(selector, { timeout: config.test.timeouts.default });
+                break;
+            default: {
+                const _exhaustive: never = op.action;
+                throw new Error(`[AutoHealer:runOperation] Unsupported action: ${_exhaustive}`);
+            }
+        }
     }
 
     /**
@@ -451,19 +590,35 @@ export class AutoHealer {
                 }
             }
 
-            // 4. Parse AI result
+            // 4. Parse and validate AI result
             logger.info(`[AutoHealer:heal] Step 4: Processing AI result. Raw result: "${rawResult}"`);
             const parsed = parseAIResponse(rawResult);
 
-            if (parsed) {
-                healingSuccess = true;
-                healingResult = {
-                    selector: parsed,
-                    confidence: 1.0,
-                    reasoning: 'AI found replacement selector.',
-                    strategy: 'css',
-                };
-                logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${parsed}"`);
+            if (parsed && parsed !== 'FAIL') {
+                // Validate selector safety before using it
+                if (!this.validateSelector(parsed)) {
+                    logger.warn(
+                        `[AutoHealer:heal] ❌ HEALING REJECTED. AI-returned selector failed validation: "${parsed}"`
+                    );
+                } else {
+                    // Verify the healed selector actually matches an element on the page
+                    const elementCount = await this.page.locator(parsed).count();
+                    const confidence = elementCount > 0 ? 1.0 : 0.0;
+                    if (confidence < config.ai.healing.confidenceThreshold) {
+                        logger.warn(
+                            `[AutoHealer:heal] ❌ HEALING REJECTED. Healed selector "${parsed}" matched 0 elements (confidence=${confidence} < threshold=${config.ai.healing.confidenceThreshold})`
+                        );
+                    } else {
+                        healingSuccess = true;
+                        healingResult = {
+                            selector: parsed,
+                            confidence,
+                            reasoning: 'AI found replacement selector.',
+                            strategy: 'css',
+                        };
+                        logger.info(`[AutoHealer:heal] ✅ HEALING SUCCEEDED! New selector: "${parsed}"`);
+                    }
+                }
             } else {
                 logger.warn(`[AutoHealer:heal] ❌ HEALING FAILED. Result was: "${rawResult}" (FAIL or empty)`);
             }
@@ -503,5 +658,78 @@ export class AutoHealer {
         }
 
         return healingResult;
+    }
+
+    /**
+     * Validates that an AI-returned selector is safe to use.
+     * Rejects injection payloads and selectors that don't match known-safe patterns.
+     * @private
+     */
+    private validateSelector(selector: string): boolean {
+        if (!selector || selector.trim().length === 0) {
+            return false;
+        }
+
+        const trimmed = selector.trim();
+
+        // Denylist: dangerous prefixes (case-insensitive)
+        const dangerousPrefixes = ['javascript:', 'data:'];
+        for (const prefix of dangerousPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous prefix "${prefix}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Denylist: dangerous substrings that indicate HTML or JS injection.
+        // Note: standalone `<` and `>` are NOT in the denylist because `>` is a valid
+        // CSS child combinator and XPath uses `<`/`>` in comparisons.  We only block
+        // patterns that unambiguously indicate injection payloads.
+        const dangerousSubstrings = ['<script', '</', '<!--', 'eval(', 'document.', 'window.'];
+        for (const pattern of dangerousSubstrings) {
+            if (trimmed.toLowerCase().includes(pattern.toLowerCase())) {
+                logger.warn(`[AutoHealer:validateSelector] Rejected — dangerous pattern "${pattern}": "${trimmed}"`);
+                return false;
+            }
+        }
+
+        // Allowlist: Playwright text engine prefixes
+        const playwrightPrefixes = [
+            'text=',
+            'role=',
+            'label=',
+            'placeholder=',
+            'alt=',
+            'title=',
+            'testid=',
+            'data-testid=',
+        ];
+        for (const prefix of playwrightPrefixes) {
+            if (trimmed.toLowerCase().startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        // Allowlist: XPath expressions
+        if (trimmed.startsWith('//') || trimmed.startsWith('./')) {
+            return true;
+        }
+
+        // Allowlist: CSS attribute selectors starting with `[`
+        if (trimmed.startsWith('[')) {
+            return true;
+        }
+
+        // Allowlist: Standard CSS selector characters only
+        // Permits: alphanumeric, whitespace, and common CSS selector syntax tokens
+        // (#id, .class, tag, [attr], :pseudo, >, +, ~, *, comma, quotes, =, ^, $, |, -, !, @, /)
+        const safeCssPattern = /^[a-zA-Z0-9\s\-_#.:,[\]()="'^$*|>+~!@/\\]+$/;
+        if (safeCssPattern.test(trimmed)) {
+            return true;
+        }
+
+        // Default deny: selector did not match any known-safe pattern
+        logger.warn(`[AutoHealer:validateSelector] Rejected — selector does not match any safe pattern: "${trimmed}"`);
+        return false;
     }
 }
