@@ -240,7 +240,7 @@ export class HealingEngine {
                             reasoning: 'AI found replacement selector.',
                             strategy: 'css',
                         };
-                        logger.info(`[HealingEngine:heal] HEALING SUCCEEDED! New selector: "${parsed}"`);
+                        logger.info(`[HealingEngine:heal] ✅ HEALING SUCCEEDED! New selector: "${parsed}"`);
                     }
                 }
             } else {
