@@ -154,7 +154,12 @@ AI_PROVIDER=openai OPENAI_API_KEY=sk-... docker-compose run --rm e2e-tests
 
 ```
 src/
-├── AutoHealer.ts              # Core AI healing logic
+├── AutoHealer.ts              # Public healing API (click, fill, hover…) + heal() orchestration
+├── ai/
+│   ├── AIClientManager.ts     # AI client lifecycle, key rotation, provider failover
+│   ├── DOMSerializer.ts       # getSimplifiedDOM() — interactive-element snapshot
+│   ├── ResponseParser.ts      # parseAIResponse() — cleans raw AI output
+│   └── index.ts               # Barrel re-export
 ├── config/
 │   ├── index.ts               # Centralized configuration
 │   ├── locators.json          # Persistent selector storage

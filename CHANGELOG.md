@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored
+
+- `AutoHealer.ts` split into four focused modules under `src/ai/`:
+    - `AIClientManager` — owns AI client lifecycle, API key rotation, provider failover, and raw `makeRequest()` calls with timeout wrapping
+    - `DOMSerializer` — `getSimplifiedDOM(page)` that captures a focused interactive-element snapshot for the AI prompt
+    - `ResponseParser` — `parseAIResponse()` that strips markdown fences, backticks, and surrounding quotes from raw AI responses
+    - `src/ai/index.ts` — barrel re-export for the `ai/` sub-package
+- `AutoHealer.ts` shrinks from 891 → 512 lines; public API and healing control flow are unchanged.
+
 ### Added
 
 - Multi-stage `Dockerfile` (`deps` → `runner`) reduces rebuild time by caching the `npm ci` layer separately from the Playwright image layer.
