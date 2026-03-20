@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored
+
+- `AutoHealer.ts` split into four focused modules under `src/ai/`:
+    - `AIClientManager` — owns AI client lifecycle, API key rotation, provider failover, and raw `makeRequest()` calls with timeout wrapping
+    - `DOMSerializer` — `getSimplifiedDOM(page)` that captures a focused interactive-element snapshot for the AI prompt
+    - `ResponseParser` — `parseAIResponse()` that strips markdown fences, backticks, and surrounding quotes from raw AI responses
+    - `src/ai/index.ts` — barrel re-export for the `ai/` sub-package
+- `AutoHealer.ts` shrinks from 891 → 512 lines; public API and healing control flow are unchanged.
+
 ### Added
 
 - **Coverage thresholds gate** — `vitest.config.ts` now enforces minimum coverage (lines 80 %, branches 70 %, functions 80 %, statements 80 %); the `test:coverage` step fails the build when coverage regresses.
@@ -17,13 +26,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Adversarial selector-validator test suite** — 16 new tests covering protocol bypasses (`vbscript:`, BOM-prefix `javascript:`), control-character injection (newline, CR, null byte), Unicode lookalike characters, `eval()` variants, `document.`/`window.` inside XPath and Playwright prefixes, CSS `expression()` blocks, and chained multi-payload selectors.
 - **`DomSimplifier` class** (`src/utils/DomSimplifier.ts`) — DOM snapshot logic extracted from `AutoHealer` into a dedicated class, satisfying the Single Responsibility Principle and enabling isolated unit testing of the snapshot algorithm.
 - **`docs` script** — `npm run docs` generates a TypeDoc HTML API reference into `docs/` from JSDoc annotations in `src/`.
+- Multi-stage `Dockerfile` (`deps` → `runner`) reduces rebuild time by caching the `npm ci` layer separately from the Playwright image layer.
+- `docker-compose.yml` now exposes two named services: `unit-tests` (runs `npm run validate`) and `e2e-tests` (runs `npm run test:prod`, mounts `playwright-report/`, `test-results/`, and `logs/` as host volumes).
 
 ### Changed
 
 - `AutoHealer` now delegates DOM snapshot capture to `DomSimplifier` via a constructor-injected instance.
 
 ### Fixed
-
 - **Confidence threshold** — healed selectors are now verified against the live DOM before use; selectors matching zero elements are rejected (confidence below `config.ai.healing.confidenceThreshold`). Scoring is currently binary (0.0 or 1.0) with a TODO to extend to continuous scoring.
 - Unit test covering the confidence-threshold rejection path (healed selector passes validation but matches 0 DOM elements).
 - **Selector validation** — AI-returned selectors are checked against an allowlist of safe patterns (CSS, XPath, Playwright text engines) and a denylist of dangerous payloads (`javascript:`, `<script>`, `eval(`, etc.) before being used or persisted.
@@ -36,6 +46,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `HealingEvent.tokensUsed` — records prompt, completion, and total token counts from the AI provider when available.
 - `HealingEvent.domSnapshotLength` — records the character length of the DOM snapshot sent to the AI for diagnostics.
 - DOM snapshot char limit is now configurable via the `DOM_SNAPSHOT_CHAR_LIMIT` environment variable.
+- `AutoHealer.healAll(operations)` — batch-heals multiple failing selectors; AI requests for all failures fire in parallel (`Promise.allSettled`) while Playwright page interactions remain sequential. Returns `HealAllResult[]` with per-operation outcome.
+- `HealOperation` and `HealAllResult` types added to `src/types.ts`.
+- **Selector stability metrics** — `LocatorManager` now tracks per-key failure and heal events in `src/config/metrics.json`. New methods: `recordSelectorFailure(key)`, `recordSelectorHealed(key)`, `getMetrics(key?)`. `AutoHealer` wires these automatically on every healing cycle.
+- `SelectorMetrics` and `MetricsStore` types added to `src/types.ts`.
+- **Pluggable locator storage** — `src/utils/LocatorAdapter.ts` introduces a `LocatorAdapter` interface with two implementations: `FileAdapter` (JSON + file-locking, default) and `SQLiteAdapter` (ACID SQLite via `better-sqlite3`). Select the backend with `LOCATOR_STORE=file|sqlite`.
+- `LocatorManager` is now a thin facade delegating all I/O to the active `LocatorAdapter`; public API (`getLocator`, `updateLocator`, `getAllLocators`) is unchanged.
 - `LocatorManager.resetInstance()` — static method to clear the singleton for clean unit-test isolation.
 
 ### Changed
@@ -57,3 +73,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Updated `updateLocator` test mocks to return `Promise<void>` (`.mockResolvedValue(undefined)`) to match the real async signature.
 - Removed dead `TreeWalker` code path from `getSimplifiedDOM()`.
 - Removed unused `popupHandlerRegistered` field from `AutoHealer`.
+- `SiteHandler` unit test coverage raised from 22 % to 84 % — all overlay-dismissal paths, force-hide branches, and the `NoOpHandler` are now covered.

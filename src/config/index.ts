@@ -26,6 +26,7 @@ const envSchema = z.object({
         .transform(val => val !== 'false'),
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
+    LOCATOR_STORE: z.enum(['file', 'sqlite']).default('file'),
 });
 
 type AppConfig = {
@@ -53,6 +54,7 @@ type AppConfig = {
             stabilization: number;
         };
     };
+    locatorStore: 'file' | 'sqlite';
     logging: { level: string; consoleLevel: string };
     testData: {
         searchTerms: string[];
@@ -141,6 +143,7 @@ function buildConfig(): AppConfig {
                 stabilization: 200,
             },
         },
+        locatorStore: env.LOCATOR_STORE,
         logging: {
             level: env.LOG_LEVEL,
             consoleLevel: env.CONSOLE_LOG_LEVEL,
@@ -158,10 +161,9 @@ function buildConfig(): AppConfig {
                 'näppäimistö',
                 'näyttö',
             ],
-            // Helper to get random search term
             getRandomSearchTerm(): string {
                 const terms = this.searchTerms;
-                return terms[Math.floor(Math.random() * terms.length)] || 'laptop';
+                return terms[Math.floor(Math.random() * terms.length)] ?? 'laptop';
             },
             categories: {
                 computers: 'Tietotekniikka',

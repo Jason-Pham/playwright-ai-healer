@@ -77,3 +77,6 @@ list-models.ts
 OPTIMIZATION_SUMMARY.md
 /agents/
 
+.gitnexus
+AGENTS.md
+.claude/worktrees/
