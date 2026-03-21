@@ -32,6 +32,7 @@ export interface LocatorAdapter {
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import * as lockfile from 'proper-lockfile';
 import { logger } from './Logger.js';
 import type { LocatorStore } from '../types.js';
@@ -171,10 +172,9 @@ export class SQLiteAdapter implements LocatorAdapter {
 
     constructor(dbPath?: string) {
         const resolvedPath = dbPath ?? path.resolve(__dirname, '../config/locators.db');
-        // Dynamic import so the module is only loaded when the SQLite adapter
-        // is actually chosen — avoids native binding errors in environments
-        // where better-sqlite3 is not available.
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        // Loaded on demand so native binding errors only surface when the SQLite
+        // adapter is actually chosen, not when the file adapter is used.
+        const require = createRequire(import.meta.url);
         const Database = require('better-sqlite3') as new (path: string, opts?: object) => BetterSqlite3Database;
         this.db = new Database(resolvedPath);
         this.migrate();

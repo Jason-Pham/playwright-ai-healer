@@ -12,8 +12,6 @@ test.describe('Self-Healing Demo', () => {
     test('should heal a broken search button selector', async ({ giganttiPage, autoHealer }) => {
         // Ensure autoHealer is available
         expect(autoHealer).toBeDefined();
-        // eslint-disable-next-line playwright/no-conditional-in-test -- type-narrowing guard; autoHealer is guaranteed by fixture
-        if (!autoHealer) throw new Error('AutoHealer not initialized');
 
         // Use POM to open the page
         await giganttiPage.open();
@@ -29,7 +27,7 @@ test.describe('Self-Healing Demo', () => {
         await expect(giganttiPage.page).toHaveURL(/search|haku|query/, { timeout: config.test.timeouts.short });
 
         // Verify the healing events were recorded
-        const events = autoHealer.getHealingEvents();
+        const events = autoHealer!.getHealingEvents();
         expect(events.length).toBeGreaterThan(0);
         expect(events[0]?.success).toBe(true);
     });
