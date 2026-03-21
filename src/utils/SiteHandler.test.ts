@@ -98,7 +98,7 @@ describe('SiteHandler', () => {
                     expect.objectContaining({ state: 'visible', timeout: 5000 })
                 );
                 expect(mockPage.waitForFunction).toHaveBeenCalled();
-                expect(mockLogger.debug).toHaveBeenCalledWith('Dismissing Gigantti cookie banner...');
+                expect(mockLogger.debug).toHaveBeenCalledWith('🍪 Dismissing Gigantti cookie banner...');
                 expect(mockPage.evaluate).toHaveBeenCalledWith(
                     expect.any(Function),
                     locators.gigantti.cookieBannerAccept
@@ -151,7 +151,7 @@ describe('SiteHandler', () => {
 
                 await handler.dismissOverlays(mockPage as Page);
 
-                expect(mockLogger.debug).toHaveBeenCalledWith('Dismissing Gigantti cookie banner...');
+                expect(mockLogger.debug).toHaveBeenCalledWith('🍪 Dismissing Gigantti cookie banner...');
             });
         });
 
@@ -165,7 +165,7 @@ describe('SiteHandler', () => {
 
                 expect(mockPage.evaluate).toHaveBeenCalledTimes(2);
                 expect(mockLogger.warn).toHaveBeenCalledWith(
-                    'Cookie banner failed to dismiss normally. Attempting to force hide.'
+                    '⚠️ Cookie banner failed to dismiss normally. Attempting to force hide.'
                 );
             });
 
