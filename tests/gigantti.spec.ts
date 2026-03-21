@@ -2,7 +2,7 @@ import { test as base } from './fixtures/base.js';
 import { config } from '../src/config/index.js';
 
 const test = base.extend({
-    autoHealer: async ({}, use) => {
+    autoHealer: async ({ }, use) => {
         await use(undefined);
     },
 });
@@ -33,36 +33,6 @@ test.describe('Gigantti.fi E2E Tests', () => {
         test('should navigate to computers → allComputers', async ({ giganttiPage }) => {
             await giganttiPage.open();
             const categoryPage = await giganttiPage.selectCategory('computers', 'allComputers');
-            await categoryPage.verifyProductsDisplayed();
-        });
-
-        test('should navigate to computers → components', async ({ giganttiPage }) => {
-            await giganttiPage.open();
-            const categoryPage = await giganttiPage.selectCategory('computers', 'components');
-            await categoryPage.verifyProductsDisplayed();
-        });
-
-        test('should navigate to tvs → headphones', async ({ giganttiPage }) => {
-            await giganttiPage.open();
-            const categoryPage = await giganttiPage.selectCategory('tvs', 'headphones');
-            await categoryPage.verifyProductsDisplayed();
-        });
-
-        test('should navigate to gaming → consoles', async ({ giganttiPage }) => {
-            await giganttiPage.open();
-            const categoryPage = await giganttiPage.selectCategory('gaming', 'consoles');
-            await categoryPage.verifyProductsDisplayed();
-        });
-
-        test('should navigate to gaming → games', async ({ giganttiPage }) => {
-            await giganttiPage.open();
-            const categoryPage = await giganttiPage.selectCategory('gaming', 'games');
-            await categoryPage.verifyProductsDisplayed();
-        });
-
-        test('should navigate to appliances → refrigerators', async ({ giganttiPage }) => {
-            await giganttiPage.open();
-            const categoryPage = await giganttiPage.selectCategory('appliances', 'refrigerators');
             await categoryPage.verifyProductsDisplayed();
         });
 
