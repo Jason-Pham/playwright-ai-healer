@@ -67,8 +67,11 @@ Test → BasePage.safeClick/safeFill
 | `src/config/locators.json`    | Persistent selector store; updated at runtime by `LocatorManager` when healing succeeds                                                         |
 | `src/utils/LocatorManager.ts` | Singleton; reads/writes `locators.json` with file locking (`proper-lockfile`); dot-path key access (e.g., `gigantti.searchInput`)               |
 | `src/utils/SiteHandler.ts`    | Strategy pattern for site-specific overlay dismissal; `GiganttiHandler` handles cookie banners; `NoOpHandler` is a no-op                        |
-| `src/pages/BasePage.ts`       | Abstract base for all page objects; wraps interactions with overlay dismissal, `AutoHealer` delegation, and Vercel security challenge detection |
-| `tests/fixtures/base.ts`      | Playwright fixtures providing `autoHealer` and `giganttiPage` to E2E tests                                                                      |
+| `src/pages/BasePage.ts`           | Abstract base for all page objects; wraps interactions with overlay dismissal, `AutoHealer` delegation, and Vercel security challenge detection |
+| `src/pages/GiganttiHomePage.ts`   | Home page entry point; `searchFor()`, `navigateToCategory(string)`, and typed `selectCategory<K>(key, subcategoryKey?)` delegating to `CategoryMenuPage` |
+| `src/pages/CategoryMenuPage.ts`   | Typed category navigation POM; `select<K extends CategoryKey>(key, subcategoryKey?)` resolves Finnish nav labels from config and navigates via XPath + scoped `getByRole` fallback |
+| `src/pages/CategoryPage.ts`       | Product listing / category landing page; `verifyProductsDisplayed()` accepts both product-card grids and subcategory tile pages; `clickFirstProduct()` returns `ProductDetailPage` |
+| `tests/fixtures/base.ts`          | Playwright fixtures providing `autoHealer` and `giganttiPage` to E2E tests                                                                      |
 
 ### Environment Configuration
 
