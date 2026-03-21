@@ -71,9 +71,12 @@ export class GiganttiHandler implements SiteHandler {
             // condition: if the response arrived before the listener was set up,
             // it would needlessly wait for the full timeout duration.
             await page
-                .waitForFunction(() => (window as any).isCookieInformationAPIReady === true, {
-                    timeout: config.test.timeouts.cookie,
-                })
+                .waitForFunction(
+                    () => (window as unknown as Record<string, unknown>).isCookieInformationAPIReady === true,
+                    {
+                        timeout: config.test.timeouts.cookie,
+                    }
+                )
                 .catch(() => {
                     // SDK not ready in time — proceed to fallback click
                 });
@@ -82,7 +85,8 @@ export class GiganttiHandler implements SiteHandler {
 
             // Use SDK API to accept all cookies; fall back to direct click
             await page.evaluate(selector => {
-                const ci = (window as any).CookieInformation;
+                const win = window as unknown as Record<string, unknown>;
+                const ci = win.CookieInformation as { submitAllCategories?: () => void } | undefined;
                 if (typeof ci?.submitAllCategories === 'function') {
                     ci.submitAllCategories();
                 } else {

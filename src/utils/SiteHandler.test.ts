@@ -266,7 +266,7 @@ describe('SiteHandler', () => {
             it('should use locators.gigantti.cookieBannerAccept as the selector', async () => {
                 await handler.dismissOverlays(mockPage as Page);
 
-                const selectorArg = (mockPage.locator as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+                const selectorArg = (mockPage.locator as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
                 expect(selectorArg).toBe(locators.gigantti.cookieBannerAccept);
             });
         });

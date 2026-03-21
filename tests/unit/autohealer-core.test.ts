@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Page } from '@playwright/test';
 import { AutoHealer } from '../../src/AutoHealer.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { LocatorManager } from '../../src/utils/LocatorManager.js';
+
+/** Shape of the mock LocatorManager returned by the mocked getInstance(). */
+interface MockLocatorManagerInstance {
+    getLocator: ReturnType<typeof vi.fn>;
+    updateLocator: ReturnType<typeof vi.fn>;
+    recordSelectorFailure: ReturnType<typeof vi.fn>;
+    recordSelectorHealed: ReturnType<typeof vi.fn>;
+}
 
 // Mock dependencies
 vi.mock('@playwright/test', () => ({
@@ -67,11 +76,16 @@ vi.mock('@google/generative-ai', () => {
 
 describe('AutoHealer Core Logic', () => {
     let autoHealer: AutoHealer;
-    let mockPage: any;
-    let mockGenerateContent: any;
-    let mockUpdateLocator: any;
-    let mockRecordSelectorFailure: any;
-    let mockRecordSelectorHealed: any;
+    let mockPage: {
+        evaluate: ReturnType<typeof vi.fn>;
+        click: ReturnType<typeof vi.fn>;
+        fill: ReturnType<typeof vi.fn>;
+        locator: ReturnType<typeof vi.fn>;
+    };
+    let mockGenerateContent: ReturnType<typeof vi.fn>;
+    let mockUpdateLocator: ReturnType<typeof vi.fn>;
+    let mockRecordSelectorFailure: ReturnType<typeof vi.fn>;
+    let mockRecordSelectorHealed: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
         // Mock setTimeout to resolve immediately
@@ -94,14 +108,12 @@ describe('AutoHealer Core Logic', () => {
         vi.clearAllMocks();
 
         // Setup AI mock
-        const MockGenAI = vi.mocked(GoogleGenerativeAI);
         const mockModel = {
             generateContent: vi.fn(),
         };
-        (MockGenAI as any).mockImplementation(function () {
-            return {
-                getGenerativeModel: () => mockModel,
-            };
+        // Must use `function` (not arrow) because this mock is invoked with `new`
+        vi.mocked(GoogleGenerativeAI).mockImplementation(function () {
+            return { getGenerativeModel: () => mockModel } as unknown as GoogleGenerativeAI;
         });
         mockGenerateContent = mockModel.generateContent;
 
@@ -109,14 +121,14 @@ describe('AutoHealer Core Logic', () => {
         mockUpdateLocator = vi.fn().mockResolvedValue(undefined);
         mockRecordSelectorFailure = vi.fn().mockResolvedValue(undefined);
         mockRecordSelectorHealed = vi.fn().mockResolvedValue(undefined);
-        (LocatorManager.getInstance as any).mockReturnValue({
+        vi.mocked(LocatorManager.getInstance).mockReturnValue({
             getLocator: vi.fn(),
             updateLocator: mockUpdateLocator,
             recordSelectorFailure: mockRecordSelectorFailure,
             recordSelectorHealed: mockRecordSelectorHealed,
-        });
+        } as unknown as LocatorManager);
 
-        autoHealer = new AutoHealer(mockPage, 'mock-key', 'gemini');
+        autoHealer = new AutoHealer(mockPage as unknown as Page, 'mock-key', 'gemini');
     });
 
     describe('click() Healing Flow', () => {
@@ -157,7 +169,9 @@ describe('AutoHealer Core Logic', () => {
             const healedSelector = '#new-submit';
 
             // Mock LocatorManager to return broken selector for the key
-            (LocatorManager.getInstance() as any).getLocator.mockReturnValue(brokenSelector);
+            (LocatorManager.getInstance() as unknown as MockLocatorManagerInstance).getLocator.mockReturnValue(
+                brokenSelector
+            );
 
             // Mock page failure and AI success
             mockPage.click.mockRejectedValueOnce(new Error('Element not found')).mockResolvedValueOnce(undefined);
@@ -178,7 +192,9 @@ describe('AutoHealer Core Logic', () => {
             const brokenSelector = '#old-submit';
             const healedSelector = '#new-submit';
 
-            (LocatorManager.getInstance() as any).getLocator.mockReturnValue(brokenSelector);
+            (LocatorManager.getInstance() as unknown as MockLocatorManagerInstance).getLocator.mockReturnValue(
+                brokenSelector
+            );
             mockPage.click.mockRejectedValueOnce(new Error('Element not found')).mockResolvedValueOnce(undefined);
             mockGenerateContent.mockResolvedValue({ response: { text: () => healedSelector } });
 
@@ -257,7 +273,7 @@ describe('AutoHealer Core Logic', () => {
         it('should heal a failing operation and return success with healedSelector', async () => {
             // Arrange
             const healedSelector = '#healed-btn';
-            const locatorManagerMock = LocatorManager.getInstance() as any;
+            const locatorManagerMock = LocatorManager.getInstance() as unknown as MockLocatorManagerInstance;
             locatorManagerMock.getLocator.mockReturnValue('#broken-btn');
 
             // Phase 1: click fails
@@ -378,7 +394,7 @@ describe('AutoHealer Core Logic', () => {
 
         it('should call recordSelectorFailure when a keyed selector fails in Phase 1', async () => {
             // Arrange
-            const locatorManagerMock = LocatorManager.getInstance() as any;
+            const locatorManagerMock = LocatorManager.getInstance() as unknown as MockLocatorManagerInstance;
             locatorManagerMock.getLocator.mockReturnValue('#resolved-selector');
 
             mockPage.click.mockRejectedValueOnce(new Error('Element not found'));

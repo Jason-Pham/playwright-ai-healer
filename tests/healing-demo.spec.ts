@@ -12,6 +12,7 @@ test.describe('Self-Healing Demo', () => {
     test('should heal a broken search button selector', async ({ giganttiPage, autoHealer }) => {
         // Ensure autoHealer is available
         expect(autoHealer).toBeDefined();
+        // eslint-disable-next-line playwright/no-conditional-in-test -- type-narrowing guard; autoHealer is guaranteed by fixture
         if (!autoHealer) throw new Error('AutoHealer not initialized');
 
         // Use POM to open the page

@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Page } from '@playwright/test';
+import type { Page, Locator } from '@playwright/test';
 import { GiganttiHomePage } from './GiganttiHomePage.js';
 import { CategoryPage } from './CategoryPage.js';
 import { ProductDetailPage } from './ProductDetailPage.js';
 import { AutoHealer } from '../AutoHealer.js';
 import { config } from '../config/index.js';
+import type { SiteHandler } from '../utils/SiteHandler.js';
 
 // Mock dependencies
 vi.mock('../config/locators.json', () => ({
@@ -32,7 +33,7 @@ vi.mock('../utils/Logger.js', () => ({
 describe('Page Objects', () => {
     let mockPage: Partial<Page>;
     let mockAutoHealer: Partial<AutoHealer>;
-    let mockLocator: any;
+    let mockLocator: Partial<Locator>;
 
     beforeEach(() => {
         mockLocator = {
@@ -51,7 +52,7 @@ describe('Page Objects', () => {
             getByRole: vi.fn().mockReturnValue(mockLocator),
             waitForLoadState: vi.fn().mockResolvedValue(undefined),
             waitForTimeout: vi.fn(),
-            waitForResponse: vi.fn().mockResolvedValue(undefined as any),
+            waitForResponse: vi.fn().mockResolvedValue(undefined),
             on: vi.fn(),
         };
 
@@ -67,7 +68,9 @@ describe('Page Objects', () => {
         beforeEach(() => {
             homePage = new GiganttiHomePage(mockPage as Page, mockAutoHealer as AutoHealer);
             // Mock implicit site handler behavior from BasePage
-            (homePage as any).siteHandler = { dismissOverlays: vi.fn().mockResolvedValue(undefined) };
+            Object.assign(homePage, {
+                siteHandler: { dismissOverlays: vi.fn().mockResolvedValue(undefined) } satisfies SiteHandler,
+            });
         });
 
         it('should open and navigate', async () => {
@@ -115,7 +118,9 @@ describe('Page Objects', () => {
 
         beforeEach(() => {
             categoryPage = new CategoryPage(mockPage as Page, mockAutoHealer as AutoHealer);
-            (categoryPage as any).siteHandler = { dismissOverlays: vi.fn().mockResolvedValue(undefined) };
+            Object.assign(categoryPage, {
+                siteHandler: { dismissOverlays: vi.fn().mockResolvedValue(undefined) } satisfies SiteHandler,
+            });
         });
 
         it('should verify products displayed', async () => {
@@ -136,7 +141,9 @@ describe('Page Objects', () => {
 
         beforeEach(() => {
             detailPage = new ProductDetailPage(mockPage as Page, mockAutoHealer as AutoHealer);
-            (detailPage as any).siteHandler = { dismissOverlays: vi.fn().mockResolvedValue(undefined) };
+            Object.assign(detailPage, {
+                siteHandler: { dismissOverlays: vi.fn().mockResolvedValue(undefined) } satisfies SiteHandler,
+            });
         });
 
         it('should verify product details loaded', async () => {
@@ -151,7 +158,9 @@ describe('Page Objects', () => {
         it('should handle missing price gracefully', async () => {
             // Mock price waitFor to fail (second call)
             // First call (title) should succeed
-            mockLocator.waitFor.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Timeout'));
+            vi.mocked(mockLocator.waitFor!)
+                .mockResolvedValueOnce(undefined)
+                .mockRejectedValueOnce(new Error('Timeout'));
 
             await detailPage.verifyProductDetailsLoaded();
 

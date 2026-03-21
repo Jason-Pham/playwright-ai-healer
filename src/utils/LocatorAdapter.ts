@@ -129,6 +129,22 @@ export class FileAdapter implements LocatorAdapter {
 // ── SQLiteAdapter ─────────────────────────────────────────────────────────────
 
 /**
+ * Minimal interface for a better-sqlite3 database instance.
+ *
+ * Covers only the subset of the API used by `SQLiteAdapter`. This avoids
+ * pulling in `@types/better-sqlite3` as a prod dependency while still
+ * keeping the adapter fully type-safe.
+ */
+interface BetterSqlite3Database {
+    exec(sql: string): void;
+    prepare(sql: string): {
+        get(...params: unknown[]): unknown;
+        all(...params: unknown[]): unknown[];
+        run(...params: unknown[]): unknown;
+    };
+}
+
+/**
  * SQLiteAdapter — ACID-compliant storage backend using SQLite.
  *
  * Stores all locators in a single `locators` table inside a `.db` file.
@@ -151,8 +167,7 @@ export class FileAdapter implements LocatorAdapter {
  * rest of the framework requires no changes.
  */
 export class SQLiteAdapter implements LocatorAdapter {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private readonly db: any;
+    private readonly db: BetterSqlite3Database;
 
     constructor(dbPath?: string) {
         const resolvedPath = dbPath ?? path.resolve(__dirname, '../config/locators.db');
@@ -160,13 +175,12 @@ export class SQLiteAdapter implements LocatorAdapter {
         // is actually chosen — avoids native binding errors in environments
         // where better-sqlite3 is not available.
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const Database = require('better-sqlite3') as new (path: string, opts?: object) => unknown;
+        const Database = require('better-sqlite3') as new (path: string, opts?: object) => BetterSqlite3Database;
         this.db = new Database(resolvedPath);
         this.migrate();
     }
 
     private migrate(): void {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS locators (
                 key        TEXT PRIMARY KEY,
@@ -178,7 +192,6 @@ export class SQLiteAdapter implements LocatorAdapter {
     }
 
     getLocator(key: string): string | null {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         const row = this.db.prepare('SELECT selector FROM locators WHERE key = ?').get(key) as
             | { selector: string }
             | undefined;
@@ -186,7 +199,6 @@ export class SQLiteAdapter implements LocatorAdapter {
     }
 
     async updateLocator(key: string, selector: string): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         this.db
             .prepare(
                 `INSERT INTO locators (key, selector)
@@ -201,7 +213,6 @@ export class SQLiteAdapter implements LocatorAdapter {
     }
 
     getAllLocators(): Record<string, string> {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         const rows = this.db.prepare('SELECT key, selector FROM locators').all() as Array<{
             key: string;
             selector: string;
