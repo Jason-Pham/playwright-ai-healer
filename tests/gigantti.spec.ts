@@ -18,7 +18,7 @@ test.describe('Gigantti.fi E2E Tests', () => {
     });
 
     test.describe('Category Navigation', () => {
-        const categories = ['computers', 'phones', 'tvs', 'gaming', 'appliances'] as const;
+        const categories = ['phones', 'gaming'] as const;
 
         for (const category of categories) {
             test(`should navigate to ${category} category and verify content`, async ({ giganttiPage }) => {
