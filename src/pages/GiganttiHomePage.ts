@@ -11,10 +11,9 @@ const { searchInput, searchButton, navLink } = locators.gigantti;
 export class GiganttiHomePage extends BasePage {
     private readonly url = config.app.baseUrl;
     private readonly timeouts = config.test.timeouts;
-    private popupHandlerRegistered = false;
 
     async open() {
-        logger.debug(`Navigating to ${this.url} ...`);
+        logger.debug(`🌐 Navigating to ${this.url} ...`);
         await this.goto(this.url);
         await this.dismissOverlaysBeforeAction();
     }

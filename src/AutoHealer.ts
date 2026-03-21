@@ -123,21 +123,23 @@ export class AutoHealer {
 
         try {
             if (this.debug)
-                logger.info(`[AutoHealer] Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
+                logger.info(`[AutoHealer] 🎯 Attempting ${actionName} on: ${selector} (Key: ${locatorKey || 'N/A'})`);
             try {
                 await this.page.locator(selector).waitFor({ state: 'visible', timeout: config.test.timeouts.short });
             } catch {
-                logger.warn(`[AutoHealer] Element ${selector} not visible after timeout. Proceeding to action anyway.`);
+                logger.warn(
+                    `[AutoHealer] ⚠️ Element ${selector} not visible after timeout. Proceeding to action anyway.`
+                );
             }
             await actionFn(selector);
         } catch (error) {
-            logger.warn(`[AutoHealer] ${actionName} failed on: ${selector}. Initiating healing protocol...`);
+            logger.warn(`[AutoHealer] 💥 ${actionName} failed on: ${selector}. Initiating healing protocol...`);
             if (locatorKey) {
                 await locatorManager.recordSelectorFailure(locatorKey);
             }
             const result = await this.heal(selector, error as Error);
             if (result) {
-                logger.info(`[AutoHealer] Retrying with new selector: ${result.selector}`);
+                logger.info(`[AutoHealer] 🔄 Retrying with new selector: ${result.selector}`);
 
                 try {
                     // Pre-validation: verify new selector exists before attempting action
@@ -150,7 +152,7 @@ export class AutoHealer {
                             );
                         }
                     } catch (validationErr) {
-                        logger.warn(`[AutoHealer] Healed selector validation failed: ${String(validationErr)}`);
+                        logger.warn(`[AutoHealer] ⚠️ Healed selector validation failed: ${String(validationErr)}`);
                         throw validationErr; // Pass to outer catch context for skipping
                     }
 
@@ -158,12 +160,12 @@ export class AutoHealer {
 
                     // Update locator if we have a key
                     if (locatorKey) {
-                        logger.info(`[AutoHealer] Updating locator key '${locatorKey}' with new value.`);
+                        logger.info(`[AutoHealer] 💾 Updating locator key '${locatorKey}' with new value.`);
                         await locatorManager.updateLocator(locatorKey, result.selector);
                         await locatorManager.recordSelectorHealed(locatorKey);
                     }
                 } catch (retryError) {
-                    logger.error(`[AutoHealer] Failed to interact with healed selector: ${String(retryError)}`);
+                    logger.error(`[AutoHealer] ❌ Failed to interact with healed selector: ${String(retryError)}`);
                     test.info().annotations.push({
                         type: 'warning',
                         description: `Test skipped because healed selector '${result.selector}' failed during interaction.`,
@@ -174,7 +176,7 @@ export class AutoHealer {
                     );
                 }
             } else {
-                logger.warn(`[AutoHealer] AI could not find a new selector. Skipping test.`);
+                logger.warn(`[AutoHealer] 🚫 AI could not find a new selector. Skipping test.`);
                 test.info().annotations.push({
                     type: 'warning',
                     description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
@@ -353,7 +355,9 @@ export class AutoHealer {
 
         if (failures.length === 0) return results;
 
-        logger.info(`[AutoHealer:healAll] ${failures.length} operation(s) failed — firing AI healing in parallel...`);
+        logger.info(
+            `[AutoHealer:healAll] ⚡ ${failures.length} operation(s) failed — firing AI healing in parallel...`
+        );
 
         // -- Phase 2: heal all failures concurrently ----
         const healed = await Promise.allSettled(failures.map(f => this.heal(f.selector, f.error)));
