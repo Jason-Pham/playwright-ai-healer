@@ -17,6 +17,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`CategoryMenuPage`** — new page object (`src/pages/CategoryMenuPage.ts`) for typed category navigation; `select<K extends CategoryKey>(key, subcategoryKey?)` navigates to a top-level category and optionally drills into a subcategory tile, reusing the XPath + `getByRole` fallback strategy from `GiganttiHomePage`.
+- **Typed category system** — `categoriesData` const in `src/config/index.ts` defines 7 top-level categories (`computers`, `phones`, `tablets`, `tvs`, `gaming`, `cameras`, `appliances`) each with their Finnish nav label and available subcategory tiles. Exports `CategoryKey` and `SubCategoryKey<K>` types for compile-time validation — invalid keys are caught by TypeScript.
+- **`GiganttiHomePage.selectCategory<K>(key, subcategoryKey?)`** — typed shortcut delegating to `CategoryMenuPage`; replaces ad-hoc `navigateToCategory(string)` calls in tests (`navigateToCategory` is retained for backward compatibility).
+- **`categoryTile` locator** (`src/config/locators.json`) — `main article li a:has(img)` selector used as fallback in `CategoryPage.verifyProductsDisplayed()` for category landing pages (which show subcategory tiles rather than `[data-testid="product-card"]` grids).
+- **Category and subcategory E2E tests** — `tests/gigantti.spec.ts` extended with 5 top-level category navigation tests (loop over `computers`, `phones`, `tvs`, `gaming`, `appliances`) and 7 subcategory navigation tests (`computers → allComputers/components`, `tvs → headphones`, `gaming → consoles/games`, `appliances → refrigerators/washingMachines`).
+- Nav link fallback in `CategoryMenuPage._navigateByLabel` scoped to `a:not([data-testid="product-card"])` to prevent matching product card links when searching for navigation anchors.
+
 - Multi-stage `Dockerfile` (`deps` → `runner`) reduces rebuild time by caching the `npm ci` layer separately from the Playwright image layer.
 - `docker-compose.yml` now exposes two named services: `unit-tests` (runs `npm run validate`) and `e2e-tests` (runs `npm run test:prod`, mounts `playwright-report/`, `test-results/`, and `logs/` as host volumes).
 - **Confidence threshold** — healed selectors are now verified against the live DOM before use; selectors matching zero elements are rejected (confidence below `config.ai.healing.confidenceThreshold`). Scoring is currently binary (0.0 or 1.0) with a TODO to extend to continuous scoring.

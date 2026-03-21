@@ -1,8 +1,9 @@
 import { BasePage } from './BasePage.js';
 import { expect } from '@playwright/test';
 import { logger } from '../utils/Logger.js';
-import { config } from '../config/index.js';
+import { config, type CategoryKey, type SubCategoryKey } from '../config/index.js';
 import { CategoryPage } from './CategoryPage.js';
+import { CategoryMenuPage } from './CategoryMenuPage.js';
 
 import locators from '../config/locators.json' with { type: 'json' };
 
@@ -35,6 +36,10 @@ export class GiganttiHomePage extends BasePage {
         await this.safeClick(searchBtn);
 
         return new CategoryPage(this.page, this.autoHealer, this.siteHandler);
+    }
+
+    async selectCategory<K extends CategoryKey>(key: K, subcategoryKey?: SubCategoryKey<K>): Promise<CategoryPage> {
+        return new CategoryMenuPage(this.page, this.autoHealer, this.siteHandler).select(key, subcategoryKey);
     }
 
     async navigateToCategory(categoryName: string): Promise<CategoryPage> {

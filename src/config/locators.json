@@ -8,6 +8,7 @@
     "searchInput": "input[type='search']",
     "searchButton": "button[type='submit']",
     "productCard": "[data-testid='product-card']",
+    "categoryTile": "main article li a:has(img)",
     "addToCart": ".add-to-cart",
     "checkout": "#checkout-btn",
     "navLink": "//a[contains(text(), '{}')]",
