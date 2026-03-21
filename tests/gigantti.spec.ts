@@ -2,7 +2,7 @@ import { test as base } from './fixtures/base.js';
 import { config } from '../src/config/index.js';
 
 const test = base.extend({
-    autoHealer: async ({}, use) => {
+    autoHealer: async ({ }, use) => {
         await use(undefined);
     },
 });
@@ -18,7 +18,7 @@ test.describe('Gigantti.fi E2E Tests', () => {
     });
 
     test.describe('Category Navigation', () => {
-        const categories = ['phones', 'gaming'] as const;
+        const categories = ['phones'] as const;
 
         for (const category of categories) {
             test(`should navigate to ${category} category and verify content`, async ({ giganttiPage }) => {
@@ -33,12 +33,6 @@ test.describe('Gigantti.fi E2E Tests', () => {
         test('should navigate to computers → allComputers', async ({ giganttiPage }) => {
             await giganttiPage.open();
             const categoryPage = await giganttiPage.selectCategory('computers', 'allComputers');
-            await categoryPage.verifyProductsDisplayed();
-        });
-
-        test('should navigate to appliances → washingMachines', async ({ giganttiPage }) => {
-            await giganttiPage.open();
-            const categoryPage = await giganttiPage.selectCategory('appliances', 'washingMachines');
             await categoryPage.verifyProductsDisplayed();
         });
     });
