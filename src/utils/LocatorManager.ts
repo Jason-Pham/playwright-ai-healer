@@ -77,7 +77,7 @@ export class LocatorManager {
         try {
             return this.adapter.getLocator(key);
         } catch (error) {
-            logger.error(`[LocatorManager] Error retrieving locator for key '${key}': ${String(error)}`);
+            logger.error(`[LocatorManager] ❌ Error retrieving locator for key '${key}': ${String(error)}`);
             return null;
         }
     }
@@ -94,9 +94,9 @@ export class LocatorManager {
     public async updateLocator(key: string, newSelector: string): Promise<void> {
         try {
             await this.adapter.updateLocator(key, newSelector);
-            logger.info(`[LocatorManager] Updated locator '${key}' to '${newSelector}'`);
+            logger.info(`[LocatorManager] 💾 Updated locator '${key}' to '${newSelector}'`);
         } catch (error) {
-            logger.error(`[LocatorManager] Failed to update locator '${key}': ${String(error)}`);
+            logger.error(`[LocatorManager] ❌ Failed to update locator '${key}': ${String(error)}`);
             throw error;
         }
     }
@@ -119,7 +119,7 @@ export class LocatorManager {
                 this.metrics = JSON.parse(raw) as MetricsStore;
             }
         } catch (error) {
-            logger.warn(`[LocatorManager] Could not load metrics file: ${String(error)}`);
+            logger.warn(`[LocatorManager] ⚠️ Could not load metrics file: ${String(error)}`);
             this.metrics = {};
         }
     }
@@ -146,7 +146,7 @@ export class LocatorManager {
             this.metrics[key] = mutate(existing);
             fs.writeFileSync(this.metricsPath, JSON.stringify(this.metrics, null, 2), 'utf-8');
         } catch (error) {
-            logger.error(`[LocatorManager] Failed to update metrics for '${key}': ${String(error)}`);
+            logger.error(`[LocatorManager] ❌ Failed to update metrics for '${key}': ${String(error)}`);
         } finally {
             if (release) await release();
         }
@@ -169,7 +169,7 @@ export class LocatorManager {
             lastFailedAt: new Date().toISOString(),
         }));
         logger.warn(
-            `[LocatorManager] Healed selector '${key}' failed again (total failures: ${this.metrics[key]?.failureCount ?? 0})`
+            `[LocatorManager] ⚠️ Healed selector '${key}' failed again (total failures: ${this.metrics[key]?.failureCount ?? 0})`
         );
     }
 

@@ -62,7 +62,7 @@ export class FileAdapter implements LocatorAdapter {
                 this.locators = JSON.parse(fs.readFileSync(this.locatorsPath, 'utf-8')) as LocatorStore;
             }
         } catch (err) {
-            logger.error(`[FileAdapter] Failed to load locators: ${String(err)}`);
+            logger.error(`[FileAdapter] ❌ Failed to load locators: ${String(err)}`);
             this.locators = {};
         }
     }
@@ -104,9 +104,9 @@ export class FileAdapter implements LocatorAdapter {
                 current[lastPart] = selector;
             }
             fs.writeFileSync(this.locatorsPath, JSON.stringify(this.locators, null, 2), 'utf-8');
-            logger.info(`[FileAdapter] Updated '${key}' → '${selector}'`);
+            logger.info(`[FileAdapter] 💾 Updated '${key}' → '${selector}'`);
         } catch (err) {
-            logger.error(`[FileAdapter] updateLocator failed for '${key}': ${String(err)}`);
+            logger.error(`[FileAdapter] ❌ updateLocator failed for '${key}': ${String(err)}`);
             throw err;
         } finally {
             if (release) await release();
@@ -188,7 +188,7 @@ export class SQLiteAdapter implements LocatorAdapter {
                 updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
             );
         `);
-        logger.info('[SQLiteAdapter] Schema ready.');
+        logger.info('[SQLiteAdapter] ✅ Schema ready.');
     }
 
     getLocator(key: string): string | null {
@@ -208,7 +208,7 @@ export class SQLiteAdapter implements LocatorAdapter {
                      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`
             )
             .run(key, selector);
-        logger.info(`[SQLiteAdapter] Updated '${key}' → '${selector}'`);
+        logger.info(`[SQLiteAdapter] 💾 Updated '${key}' → '${selector}'`);
         return Promise.resolve();
     }
 
@@ -232,9 +232,9 @@ export class SQLiteAdapter implements LocatorAdapter {
 export function createLocatorAdapter(store?: string): LocatorAdapter {
     const backend = store ?? process.env['LOCATOR_STORE'] ?? 'file';
     if (backend === 'sqlite') {
-        logger.info('[LocatorAdapter] Using SQLiteAdapter');
+        logger.info('[LocatorAdapter] 🗄️ Using SQLiteAdapter');
         return new SQLiteAdapter();
     }
-    logger.info('[LocatorAdapter] Using FileAdapter');
+    logger.info('[LocatorAdapter] 📄 Using FileAdapter');
     return new FileAdapter();
 }
