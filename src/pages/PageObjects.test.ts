@@ -14,6 +14,7 @@ vi.mock('../config/locators.json', () => ({
             searchButton: '[data-testid="search-button"]',
             navLink: 'nav a:has-text("{}")',
             productCard: '.product',
+            categoryTile: '.category-tile',
             productTitle: ['.title'],
             productPrice: ['.price'],
         },
@@ -120,8 +121,8 @@ describe('Page Objects', () => {
 
         it('should verify products displayed', async () => {
             await categoryPage.verifyProductsDisplayed();
-            // Should wait for product card
-            expect(mockPage.locator).toHaveBeenCalledWith('.product');
+            // Should wait for product card or category tile (combined selector)
+            expect(mockPage.locator).toHaveBeenCalledWith('.product,.category-tile');
             expect(mockLocator.waitFor).toHaveBeenCalledWith(expect.objectContaining({ state: 'visible' }));
         });
 
