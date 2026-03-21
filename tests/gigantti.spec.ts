@@ -2,7 +2,7 @@ import { test as base } from './fixtures/base.js';
 import { config } from '../src/config/index.js';
 
 const test = base.extend({
-    autoHealer: async ({ }, use) => {
+    autoHealer: async ({}, use) => {
         await use(undefined);
     },
 });
