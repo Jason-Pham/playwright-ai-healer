@@ -30,9 +30,21 @@ export abstract class BasePage {
     public autoHealer: AutoHealer | undefined;
     protected siteHandler: SiteHandler;
 
-    private securityChallengeFailed = false;
-    private _securityChallengeReject: ((err: Error) => void) | null = null;
-    private readonly _securityChallengeSignal: Promise<never>;
+    // -------------------------------------------------------------------------
+    // Per-page (static) security-challenge tracking
+    //
+    // Each test creates multiple BasePage subclass instances that share the same
+    // Playwright Page (e.g. GiganttiHomePage → CategoryMenuPage via selectCategory).
+    // Using instance fields means the NEW subclass instance starts with a fresh
+    // signal that was never fired, even if the parent already detected the
+    // challenge.  Static WeakMaps keyed on the Page object fix this: all
+    // instances sharing a page see the same failed flag and abort signal.
+    // -------------------------------------------------------------------------
+    private static readonly _pageChallengeFailed = new WeakSet<Page>();
+    private static readonly _pageSignals = new WeakMap<
+        Page,
+        { signal: Promise<never>; reject: ((err: Error) => void) | null }
+    >();
 
     /**
      * @param page - Playwright page instance.
@@ -44,14 +56,30 @@ export abstract class BasePage {
         this.autoHealer = autoHealer;
         this.siteHandler = siteHandler;
 
-        this._securityChallengeSignal = new Promise<never>((_, reject) => {
-            this._securityChallengeReject = reject;
-        });
-        // Attach a no-op handler so Node.js doesn't emit unhandledRejection
-        // if the signal fires after all racers have already resolved.
-        this._securityChallengeSignal.catch(() => {});
+        // Initialise the per-page abort signal once; subsequent instances reuse it.
+        if (!BasePage._pageSignals.has(page)) {
+            const entry: { signal: Promise<never>; reject: ((err: Error) => void) | null } = {
+                signal: undefined as unknown as Promise<never>,
+                reject: null,
+            };
+            entry.signal = new Promise<never>((_, reject) => {
+                entry.reject = reject;
+            });
+            // Attach a no-op handler so Node.js never emits unhandledRejection
+            // if the signal fires after all racers have already resolved.
+            entry.signal.catch(() => {});
+            BasePage._pageSignals.set(page, entry);
+        }
 
-        // Monitor for Vercel security challenge failures
+        const alreadyFailed = BasePage._pageChallengeFailed.has(page);
+        logger.info(
+            `[BasePage:${this.constructor.name}] instance created` +
+                (alreadyFailed ? ' — page challenge ALREADY failed, skip will trigger on first action' : '')
+        );
+
+        // Monitor for Vercel security challenge failures.
+        // Multiple handlers on the same page are fine: WeakSet/WeakMap ops are
+        // idempotent and Promise.reject() is a no-op after the first call.
         this.page.on('response', response => {
             if (
                 config.ai.security?.vercelChallengePath &&
@@ -59,11 +87,14 @@ export abstract class BasePage {
             ) {
                 const status = response.status();
                 if (status >= 400) {
-                    logger.warn(`🚨 Vercel security challenge failed with status ${status}`);
-                    this.securityChallengeFailed = true;
-                    this._securityChallengeReject?.(
-                        new Error(`Vercel security challenge failed with status ${status}`)
+                    logger.warn(
+                        `🚨 [${this.constructor.name}] Vercel security challenge failed` +
+                            ` with status ${status} — aborting all pending operations on this page`
                     );
+                    BasePage._pageChallengeFailed.add(page);
+                    BasePage._pageSignals
+                        .get(page)
+                        ?.reject?.(new Error(`Vercel security challenge failed with status ${status}`));
                 }
             }
         });
@@ -119,28 +150,42 @@ export abstract class BasePage {
     }
 
     protected checkSecurityChallenge(): void {
-        if (this.securityChallengeFailed) {
-            logger.warn('🚫 Skipping test due to failed security challenge.');
+        const failed = BasePage._pageChallengeFailed.has(this.page);
+        logger.debug(`[BasePage:${this.constructor.name}] checkSecurityChallenge — failed: ${failed}`);
+        if (failed) {
+            logger.warn(
+                `🚫 [${this.constructor.name}] Skipping test — Vercel security challenge previously detected on this page`
+            );
             this.skipTest('Aborting test due to Vercel security challenge failure');
         }
     }
 
     /**
-     * Race `fn` against the security-challenge abort signal.
+     * Race `fn` against the per-page security-challenge abort signal.
      *
-     * If the Vercel security challenge fires while `fn` is running, the signal
-     * rejects immediately — aborting the wait without needing `toPass()` to time
-     * out — and then `checkSecurityChallenge()` marks the test as skipped.
+     * When the Vercel security challenge fires the shared signal rejects
+     * immediately, aborting `fn` without waiting for its own timeout.
+     * `checkSecurityChallenge()` then marks the test as skipped.
      * If `fn` fails for an unrelated reason the original error is re-thrown.
      */
     protected async withSecurityCheck<T>(fn: () => Promise<T>): Promise<T> {
+        const signal = BasePage._pageSignals.get(this.page)!.signal;
         const task = fn();
         try {
-            return await Promise.race([task, this._securityChallengeSignal]);
+            return await Promise.race([task, signal]);
         } catch (e) {
             // Suppress any future rejection from the still-running task so Node.js
             // does not emit an unhandledRejection warning after we've moved on.
             task.catch(() => {});
+            if (BasePage._pageChallengeFailed.has(this.page)) {
+                logger.info(
+                    `[BasePage:${this.constructor.name}] withSecurityCheck — security signal fired, aborting task`
+                );
+            } else {
+                logger.debug(
+                    `[BasePage:${this.constructor.name}] withSecurityCheck — non-security error: ${(e as Error)?.message}`
+                );
+            }
             this.checkSecurityChallenge(); // throws SkipError when challenge has fired
             throw e; // re-throw the original error when it's unrelated to the challenge
         }
