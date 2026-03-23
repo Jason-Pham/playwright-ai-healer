@@ -166,8 +166,9 @@ src/
 │   └── metrics.json           # Per-key selector failure/heal metrics
 ├── pages/
 │   ├── BasePage.ts            # Abstract base page
-│   ├── GiganttiHomePage.ts    # Entry point
-│   ├── CategoryPage.ts        # Product listings
+│   ├── GiganttiHomePage.ts    # Entry point; selectCategory<K>(key, sub?) for typed navigation
+│   ├── CategoryMenuPage.ts    # Typed category/subcategory navigation POM
+│   ├── CategoryPage.ts        # Product listings and category landing pages
 │   └── ProductDetailPage.ts   # Product details
 └── utils/
     ├── Environment.ts         # Multi-env loader

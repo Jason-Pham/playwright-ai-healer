@@ -50,7 +50,7 @@ export abstract class BasePage {
             ) {
                 const status = response.status();
                 if (status >= 400) {
-                    logger.warn(`Vercel security challenge failed with status ${status}`);
+                    logger.warn(`🚨 Vercel security challenge failed with status ${status}`);
                     this.securityChallengeFailed = true;
                 }
             }
@@ -92,7 +92,7 @@ export abstract class BasePage {
             const networkIdleTimeout = Math.min(timeout ?? config.test.timeouts.short, config.test.timeouts.short);
             await this.page.waitForLoadState('networkidle', { timeout: networkIdleTimeout }).catch((error: unknown) => {
                 if (error instanceof Error && (error.name === 'TimeoutError' || error.message.includes('Timeout'))) {
-                    logger.debug('[BasePage] networkidle timed out; proceeding after load');
+                    logger.debug('[BasePage] ⏱️ networkidle timed out; proceeding after load');
                 } else {
                     throw error;
                 }
@@ -108,7 +108,7 @@ export abstract class BasePage {
 
     protected checkSecurityChallenge(): void {
         if (this.securityChallengeFailed) {
-            logger.warn('Skipping test due to failed security challenge.');
+            logger.warn('🚫 Skipping test due to failed security challenge.');
             this.skipTest('Aborting test due to Vercel security challenge failure');
         }
     }

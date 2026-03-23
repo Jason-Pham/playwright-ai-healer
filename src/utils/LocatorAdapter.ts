@@ -32,6 +32,7 @@ export interface LocatorAdapter {
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import * as lockfile from 'proper-lockfile';
 import { logger } from './Logger.js';
 import type { LocatorStore } from '../types.js';
@@ -61,7 +62,7 @@ export class FileAdapter implements LocatorAdapter {
                 this.locators = JSON.parse(fs.readFileSync(this.locatorsPath, 'utf-8')) as LocatorStore;
             }
         } catch (err) {
-            logger.error(`[FileAdapter] Failed to load locators: ${String(err)}`);
+            logger.error(`[FileAdapter] ❌ Failed to load locators: ${String(err)}`);
             this.locators = {};
         }
     }
@@ -103,9 +104,9 @@ export class FileAdapter implements LocatorAdapter {
                 current[lastPart] = selector;
             }
             fs.writeFileSync(this.locatorsPath, JSON.stringify(this.locators, null, 2), 'utf-8');
-            logger.info(`[FileAdapter] Updated '${key}' → '${selector}'`);
+            logger.info(`[FileAdapter] 💾 Updated '${key}' → '${selector}'`);
         } catch (err) {
-            logger.error(`[FileAdapter] updateLocator failed for '${key}': ${String(err)}`);
+            logger.error(`[FileAdapter] ❌ updateLocator failed for '${key}': ${String(err)}`);
             throw err;
         } finally {
             if (release) await release();
@@ -127,6 +128,22 @@ export class FileAdapter implements LocatorAdapter {
 }
 
 // ── SQLiteAdapter ─────────────────────────────────────────────────────────────
+
+/**
+ * Minimal interface for a better-sqlite3 database instance.
+ *
+ * Covers only the subset of the API used by `SQLiteAdapter`. This avoids
+ * pulling in `@types/better-sqlite3` as a prod dependency while still
+ * keeping the adapter fully type-safe.
+ */
+interface BetterSqlite3Database {
+    exec(sql: string): void;
+    prepare(sql: string): {
+        get(...params: unknown[]): unknown;
+        all(...params: unknown[]): unknown[];
+        run(...params: unknown[]): unknown;
+    };
+}
 
 /**
  * SQLiteAdapter — ACID-compliant storage backend using SQLite.
@@ -151,22 +168,19 @@ export class FileAdapter implements LocatorAdapter {
  * rest of the framework requires no changes.
  */
 export class SQLiteAdapter implements LocatorAdapter {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private readonly db: any;
+    private readonly db: BetterSqlite3Database;
 
     constructor(dbPath?: string) {
         const resolvedPath = dbPath ?? path.resolve(__dirname, '../config/locators.db');
-        // Dynamic import so the module is only loaded when the SQLite adapter
-        // is actually chosen — avoids native binding errors in environments
-        // where better-sqlite3 is not available.
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const Database = require('better-sqlite3') as new (path: string, opts?: object) => unknown;
+        // Loaded on demand so native binding errors only surface when the SQLite
+        // adapter is actually chosen, not when the file adapter is used.
+        const require = createRequire(import.meta.url);
+        const Database = require('better-sqlite3') as new (path: string, opts?: object) => BetterSqlite3Database;
         this.db = new Database(resolvedPath);
         this.migrate();
     }
 
     private migrate(): void {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS locators (
                 key        TEXT PRIMARY KEY,
@@ -174,11 +188,10 @@ export class SQLiteAdapter implements LocatorAdapter {
                 updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
             );
         `);
-        logger.info('[SQLiteAdapter] Schema ready.');
+        logger.info('[SQLiteAdapter] ✅ Schema ready.');
     }
 
     getLocator(key: string): string | null {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         const row = this.db.prepare('SELECT selector FROM locators WHERE key = ?').get(key) as
             | { selector: string }
             | undefined;
@@ -186,7 +199,6 @@ export class SQLiteAdapter implements LocatorAdapter {
     }
 
     async updateLocator(key: string, selector: string): Promise<void> {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         this.db
             .prepare(
                 `INSERT INTO locators (key, selector)
@@ -196,12 +208,11 @@ export class SQLiteAdapter implements LocatorAdapter {
                      updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`
             )
             .run(key, selector);
-        logger.info(`[SQLiteAdapter] Updated '${key}' → '${selector}'`);
+        logger.info(`[SQLiteAdapter] 💾 Updated '${key}' → '${selector}'`);
         return Promise.resolve();
     }
 
     getAllLocators(): Record<string, string> {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         const rows = this.db.prepare('SELECT key, selector FROM locators').all() as Array<{
             key: string;
             selector: string;
@@ -221,9 +232,9 @@ export class SQLiteAdapter implements LocatorAdapter {
 export function createLocatorAdapter(store?: string): LocatorAdapter {
     const backend = store ?? process.env['LOCATOR_STORE'] ?? 'file';
     if (backend === 'sqlite') {
-        logger.info('[LocatorAdapter] Using SQLiteAdapter');
+        logger.info('[LocatorAdapter] 🗄️ Using SQLiteAdapter');
         return new SQLiteAdapter();
     }
-    logger.info('[LocatorAdapter] Using FileAdapter');
+    logger.info('[LocatorAdapter] 📄 Using FileAdapter');
     return new FileAdapter();
 }

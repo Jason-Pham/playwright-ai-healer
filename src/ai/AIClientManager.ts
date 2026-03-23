@@ -58,7 +58,7 @@ export class AIClientManager {
     rotateKey(): boolean {
         if (this.currentKeyIndex < this.apiKeys.length - 1) {
             this.currentKeyIndex++;
-            if (this.debug) logger.info(`[AIClientManager] Rotating to API Key #${this.currentKeyIndex + 1}`);
+            if (this.debug) logger.info(`[AIClientManager] 🔄 Rotating to API Key #${this.currentKeyIndex + 1}`);
             this.initializeClient();
             return true;
         }
@@ -74,7 +74,7 @@ export class AIClientManager {
         if (this.provider === 'gemini') {
             const openaiKeys = config.ai.openai.apiKeys;
             if (openaiKeys && openaiKeys.length > 0) {
-                logger.info('[AIClientManager] Switching from Gemini to OpenAI due to 4xx error.');
+                logger.info('[AIClientManager] 🔀 Switching from Gemini to OpenAI due to 4xx error.');
                 this.provider = 'openai';
                 this.apiKeys = typeof openaiKeys === 'string' ? [openaiKeys] : openaiKeys;
                 this.currentKeyIndex = 0;
@@ -85,7 +85,7 @@ export class AIClientManager {
         } else if (this.provider === 'openai') {
             const geminiKey = config.ai.gemini.apiKey;
             if (geminiKey) {
-                logger.info('[AIClientManager] Switching from OpenAI to Gemini due to 4xx error.');
+                logger.info('[AIClientManager] 🔀 Switching from OpenAI to Gemini due to 4xx error.');
                 this.provider = 'gemini';
                 this.apiKeys = [geminiKey];
                 this.currentKeyIndex = 0;
@@ -111,7 +111,7 @@ export class AIClientManager {
             return this.callGemini(promptText, timeout);
         } else {
             logger.error(
-                `[AIClientManager] No AI client initialised! provider=${this.provider}, openai=${!!this.openai}, gemini=${!!this.gemini}`
+                `[AIClientManager] ❌ No AI client initialised! provider=${this.provider}, openai=${!!this.openai}, gemini=${!!this.gemini}`
             );
             throw new Error(
                 `[AIClientManager] No AI client initialised for provider "${this.provider}". Check API key configuration.`
@@ -120,7 +120,7 @@ export class AIClientManager {
     }
 
     private async callOpenAI(promptText: string, timeout: number): Promise<AICallResult> {
-        logger.info(`[AIClientManager] Sending request to OpenAI (model: ${this.modelName})...`);
+        logger.info(`[AIClientManager] 📤 Sending request to OpenAI (model: ${this.modelName})...`);
         const completion = await this.withTimeout(
             signal =>
                 this.openai!.chat.completions.create(
@@ -139,16 +139,16 @@ export class AIClientManager {
                   total: usage.total_tokens ?? 0,
               }
             : undefined;
-        logger.info(`[AIClientManager] OpenAI response received. Result: "${raw}"`);
+        logger.info(`[AIClientManager] 📥 OpenAI response received. Result: "${raw}"`);
         logger.info(
-            `[AIClientManager] OpenAI Metadata - ID: ${completion.id}, Model: ${completion.model}, Tokens (Prompt/Completion/Total): ${usage?.prompt_tokens}/${usage?.completion_tokens}/${usage?.total_tokens}`
+            `[AIClientManager] 📊 OpenAI Metadata - ID: ${completion.id}, Model: ${completion.model}, Tokens (Prompt/Completion/Total): ${usage?.prompt_tokens}/${usage?.completion_tokens}/${usage?.total_tokens}`
         );
         logger.debug(`[AIClientManager] Full completion choices: ${JSON.stringify(completion.choices)}`);
         return { raw, ...(tokensUsed ? { tokensUsed } : {}) };
     }
 
     private async callGemini(promptText: string, timeout: number): Promise<AICallResult> {
-        logger.info(`[AIClientManager] Sending request to Gemini (model: ${this.modelName})...`);
+        logger.info(`[AIClientManager] 📤 Sending request to Gemini (model: ${this.modelName})...`);
         const model = this.gemini!.getGenerativeModel({ model: this.modelName });
         // Gemini SDK does not support AbortSignal; signal is accepted but unused
         const response = await this.withTimeout(_signal => model.generateContent(promptText), timeout, 'Gemini');
@@ -161,9 +161,9 @@ export class AIClientManager {
                   total: usageMetadata.totalTokenCount ?? 0,
               }
             : undefined;
-        logger.info(`[AIClientManager] Gemini response received. Result: "${raw}"`);
+        logger.info(`[AIClientManager] 📥 Gemini response received. Result: "${raw}"`);
         logger.info(
-            `[AIClientManager] Gemini Metadata - Tokens (Prompt/Candidates/Total): ${usageMetadata?.promptTokenCount}/${usageMetadata?.candidatesTokenCount}/${usageMetadata?.totalTokenCount}`
+            `[AIClientManager] 📊 Gemini Metadata - Tokens (Prompt/Candidates/Total): ${usageMetadata?.promptTokenCount}/${usageMetadata?.candidatesTokenCount}/${usageMetadata?.totalTokenCount}`
         );
         logger.debug(
             `[AIClientManager] Gemini full response details: ${JSON.stringify({

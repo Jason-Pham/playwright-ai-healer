@@ -168,7 +168,7 @@ describe('AutoHealer', () => {
             `;
 
             // Run the actual evaluate function in JSDOM
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
 
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
@@ -203,7 +203,7 @@ describe('AutoHealer', () => {
                 </main>
             `;
 
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -227,7 +227,7 @@ describe('AutoHealer', () => {
             const longText = 'a'.repeat(300);
             document.body.innerHTML = `<div><button id="btn">${longText}</button></div>`;
 
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -251,7 +251,7 @@ describe('AutoHealer', () => {
                 </ul>
             `;
 
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -331,7 +331,7 @@ describe('AutoHealer', () => {
             // Setup config to ensure no fallback is possible
             const { config } = await import('./config/index.js');
             const originalOpenAiKeys = config.ai.openai.apiKeys;
-            config.ai.openai.apiKeys = undefined as any;
+            config.ai.openai.apiKeys = undefined as unknown as string[];
 
             // Fail with 429
             mockGeminiGenerateContent.mockRejectedValueOnce({ status: 429, message: 'Rate Limit Exceeded' });

@@ -21,7 +21,7 @@ export function validateSelector(selector: string): boolean {
     const dangerousPrefixes = ['javascript:', 'data:'];
     for (const prefix of dangerousPrefixes) {
         if (trimmed.toLowerCase().startsWith(prefix)) {
-            logger.warn(`[SelectorValidator] Rejected — dangerous prefix "${prefix}": "${trimmed}"`);
+            logger.warn(`[SelectorValidator] 🛡️ Rejected — dangerous prefix "${prefix}": "${trimmed}"`);
             return false;
         }
     }
@@ -33,7 +33,7 @@ export function validateSelector(selector: string): boolean {
     const dangerousSubstrings = ['<script', '</', '<!--', 'eval(', 'document.', 'window.'];
     for (const pattern of dangerousSubstrings) {
         if (trimmed.toLowerCase().includes(pattern.toLowerCase())) {
-            logger.warn(`[SelectorValidator] Rejected — dangerous pattern "${pattern}": "${trimmed}"`);
+            logger.warn(`[SelectorValidator] 🛡️ Rejected — dangerous pattern "${pattern}": "${trimmed}"`);
             return false;
         }
     }
@@ -74,6 +74,6 @@ export function validateSelector(selector: string): boolean {
     }
 
     // Default deny: selector did not match any known-safe pattern
-    logger.warn(`[SelectorValidator] Rejected — selector does not match any safe pattern: "${trimmed}"`);
+    logger.warn(`[SelectorValidator] 🛡️ Rejected — selector does not match any safe pattern: "${trimmed}"`);
     return false;
 }
