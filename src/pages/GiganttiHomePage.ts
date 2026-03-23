@@ -25,12 +25,14 @@ export class GiganttiHomePage extends BasePage {
         const inputLocator = this.page.locator(searchInput);
 
         // Retry logic to handle race conditions where input might be cleared by site hydration
-        await expect(async () => {
-            await this.safeFill(inputLocator, term, { force: true });
-            // Small wait to ensure value persists (catch hydration clearing)
-            await this.page.waitForTimeout(this.timeouts.stabilization);
-            await expect(inputLocator).toHaveValue(term, { timeout: this.timeouts.short });
-        }).toPass({ timeout: this.timeouts.default });
+        await this.withSecurityCheck(() =>
+            expect(async () => {
+                await this.safeFill(inputLocator, term, { force: true });
+                // Small wait to ensure value persists (catch hydration clearing)
+                await this.page.waitForTimeout(this.timeouts.stabilization);
+                await expect(inputLocator).toHaveValue(term, { timeout: this.timeouts.short });
+            }).toPass({ timeout: this.timeouts.default })
+        );
 
         const searchBtn = this.page.locator(searchButton).first();
         await this.safeClick(searchBtn);

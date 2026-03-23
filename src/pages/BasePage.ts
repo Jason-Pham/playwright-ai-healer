@@ -31,6 +31,8 @@ export abstract class BasePage {
     protected siteHandler: SiteHandler;
 
     private securityChallengeFailed = false;
+    private _securityChallengeReject: ((err: Error) => void) | null = null;
+    private readonly _securityChallengeSignal: Promise<never>;
 
     /**
      * @param page - Playwright page instance.
@@ -42,6 +44,13 @@ export abstract class BasePage {
         this.autoHealer = autoHealer;
         this.siteHandler = siteHandler;
 
+        this._securityChallengeSignal = new Promise<never>((_, reject) => {
+            this._securityChallengeReject = reject;
+        });
+        // Attach a no-op handler so Node.js doesn't emit unhandledRejection
+        // if the signal fires after all racers have already resolved.
+        this._securityChallengeSignal.catch(() => {});
+
         // Monitor for Vercel security challenge failures
         this.page.on('response', response => {
             if (
@@ -52,6 +61,9 @@ export abstract class BasePage {
                 if (status >= 400) {
                     logger.warn(`🚨 Vercel security challenge failed with status ${status}`);
                     this.securityChallengeFailed = true;
+                    this._securityChallengeReject?.(
+                        new Error(`Vercel security challenge failed with status ${status}`)
+                    );
                 }
             }
         });
@@ -113,6 +125,27 @@ export abstract class BasePage {
         }
     }
 
+    /**
+     * Race `fn` against the security-challenge abort signal.
+     *
+     * If the Vercel security challenge fires while `fn` is running, the signal
+     * rejects immediately — aborting the wait without needing `toPass()` to time
+     * out — and then `checkSecurityChallenge()` marks the test as skipped.
+     * If `fn` fails for an unrelated reason the original error is re-thrown.
+     */
+    protected async withSecurityCheck<T>(fn: () => Promise<T>): Promise<T> {
+        const task = fn();
+        try {
+            return await Promise.race([task, this._securityChallengeSignal]);
+        } catch (e) {
+            // Suppress any future rejection from the still-running task so Node.js
+            // does not emit an unhandledRejection warning after we've moved on.
+            task.catch(() => {});
+            this.checkSecurityChallenge(); // throws SkipError when challenge has fired
+            throw e; // re-throw the original error when it's unrelated to the challenge
+        }
+    }
+
     protected async dismissOverlaysBeforeAction(): Promise<void> {
         await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
         this.checkSecurityChallenge();
@@ -151,12 +184,12 @@ export abstract class BasePage {
         await this.ensureOverlaysDismissed();
         if (typeof selectorOrLocator === 'string') {
             if (this.autoHealer) {
-                await this.autoHealer.click(selectorOrLocator, options);
+                await this.withSecurityCheck(() => this.autoHealer!.click(selectorOrLocator, options));
             } else {
-                await this.page.click(selectorOrLocator, options);
+                await this.withSecurityCheck(() => this.page.click(selectorOrLocator, options));
             }
         } else {
-            await selectorOrLocator.click(options);
+            await this.withSecurityCheck(() => selectorOrLocator.click(options));
         }
     }
 
@@ -191,18 +224,20 @@ export abstract class BasePage {
 
         const timeout = options?.timeout ?? config.test.timeouts.default;
 
-        await expect(async () => {
-            await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
-            await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
+        await this.withSecurityCheck(() =>
+            expect(async () => {
+                await selectorOrLocator.focus({ timeout: config.test.timeouts.short }).catch(() => {});
+                await selectorOrLocator.clear({ timeout: config.test.timeouts.short }).catch(() => {});
 
-            await selectorOrLocator.fill(value, {
-                force: true,
-                timeout: config.test.timeouts.short,
-                ...options,
-            });
+                await selectorOrLocator.fill(value, {
+                    force: true,
+                    timeout: config.test.timeouts.short,
+                    ...options,
+                });
 
-            await expect(selectorOrLocator).toHaveValue(value, { timeout: config.test.timeouts.short });
-        }).toPass({ timeout });
+                await expect(selectorOrLocator).toHaveValue(value, { timeout: config.test.timeouts.short });
+            }).toPass({ timeout })
+        );
     }
 
     /**
