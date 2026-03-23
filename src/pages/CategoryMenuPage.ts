@@ -38,7 +38,15 @@ export class CategoryMenuPage extends BasePage {
         const xpathSelector = locators.gigantti.navLink.replace(/{}/g, label);
         const xpathLink = this.page.locator(xpathSelector).first();
 
-        if (await xpathLink.isVisible({ timeout: timeouts.default }).catch(() => false)) {
+        // Race isVisible() against the security-challenge signal so the test skips
+        // immediately when status 708 is detected, rather than waiting the full timeout.
+        let visible = false;
+        try {
+            visible = await this.withSecurityCheck(() => xpathLink.isVisible({ timeout: timeouts.default }));
+        } catch {
+            this.checkSecurityChallenge(); // skip if challenge fired; otherwise isVisible timed out
+        }
+        if (visible) {
             await this.safeClick(xpathLink, { force: true });
         } else {
             // Exclude product cards so we only match navigation links, not search results
