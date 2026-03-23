@@ -114,8 +114,8 @@ export abstract class BasePage {
     }
 
     protected async dismissOverlaysBeforeAction(): Promise<void> {
-        this.checkSecurityChallenge();
         await this.waitForPageLoad({ networking: true, timeout: config.test.timeouts.default });
+        this.checkSecurityChallenge();
         await this.siteHandler.dismissOverlays(this.page);
         this.overlaysDismissed = true;
     }
@@ -128,6 +128,7 @@ export abstract class BasePage {
             // after the initial dismissal (e.g. due to site JS re-initialisation).
             // GiganttiHandler uses an instant isVisible() check here, so this is
             // near-zero overhead when the banner is already gone.
+            this.checkSecurityChallenge();
             await this.siteHandler.dismissOverlays(this.page);
         }
     }
