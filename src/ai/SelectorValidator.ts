@@ -18,7 +18,7 @@ export function validateSelector(selector: string): boolean {
     const trimmed = selector.trim();
 
     // Denylist: dangerous prefixes (case-insensitive)
-    const dangerousPrefixes = ['javascript:', 'data:'];
+    const dangerousPrefixes = ['javascript:', 'data:', 'vbscript:'];
     for (const prefix of dangerousPrefixes) {
         if (trimmed.toLowerCase().startsWith(prefix)) {
             logger.warn(`[SelectorValidator] 🛡️ Rejected — dangerous prefix "${prefix}": "${trimmed}"`);
