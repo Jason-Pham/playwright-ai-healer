@@ -20,8 +20,7 @@ if (fs.existsSync(envPath)) {
 // Ensure the local .env overrides the env-specific file
 const basePath = path.resolve('.env');
 if (fs.existsSync(basePath)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    dotenv.config({ path: basePath, override: true, quiet: true } as any);
+    dotenv.config({ path: basePath, override: true });
 }
 
 export default defineConfig({
