@@ -14,7 +14,7 @@ on:
 
 jobs:
   unit-tests:
-    runs-on: ubuntu-24.04
+    runs-on: self-hosted
     timeout-minutes: 5
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -57,15 +57,15 @@ jobs:
       matrix:
         include:
           - name: Chromium Browsers
-            runs-on: ubuntu-24.04
+            runs-on: self-hosted
             projectFlags: --project=chromium --project=chrome --project=edge --project=mobile-chrome
             browsers: chromium chrome msedge
           - name: Firefox
-            runs-on: ubuntu-24.04
+            runs-on: self-hosted
             projectFlags: --project=firefox
             browsers: firefox
           - name: WebKit Browsers
-            runs-on: macos-latest
+            runs-on: self-hosted
             projectFlags: --project=webkit --project=mobile-safari --project=tablet
             browsers: webkit
 
