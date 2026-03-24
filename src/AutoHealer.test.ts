@@ -3,12 +3,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Page } from '@playwright/test';
 import { mockGeminiGenerateContent } from './test-setup.js';
 import { AutoHealer } from './AutoHealer.js';
+import { validateSelector } from './ai/SelectorValidator.js';
 
 const { mockLocatorManager } = vi.hoisted(() => {
     return {
         mockLocatorManager: {
             getLocator: vi.fn((key: string) => (key === 'app.btn' ? '#old-selector' : null)),
             updateLocator: vi.fn().mockResolvedValue(undefined),
+            recordSelectorFailure: vi.fn(),
+            recordSelectorHealed: vi.fn(),
         },
     };
 });
@@ -165,7 +168,7 @@ describe('AutoHealer', () => {
             `;
 
             // Run the actual evaluate function in JSDOM
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
 
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
@@ -200,7 +203,7 @@ describe('AutoHealer', () => {
                 </main>
             `;
 
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -224,7 +227,7 @@ describe('AutoHealer', () => {
             const longText = 'a'.repeat(300);
             document.body.innerHTML = `<div><button id="btn">${longText}</button></div>`;
 
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -248,7 +251,7 @@ describe('AutoHealer', () => {
                 </ul>
             `;
 
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -328,7 +331,7 @@ describe('AutoHealer', () => {
             // Setup config to ensure no fallback is possible
             const { config } = await import('./config/index.js');
             const originalOpenAiKeys = config.ai.openai.apiKeys;
-            config.ai.openai.apiKeys = undefined as any;
+            config.ai.openai.apiKeys = undefined as unknown as string[];
 
             // Fail with 429
             mockGeminiGenerateContent.mockRejectedValueOnce({ status: 429, message: 'Rate Limit Exceeded' });
@@ -412,154 +415,143 @@ describe('AutoHealer', () => {
     });
 
     describe('validateSelector()', () => {
-        // Access the private method via a typed cast — avoids `any`
-        type WithValidate = { validateSelector: (selector: string) => boolean };
-        const getValidator = (healer: AutoHealer) =>
-            (healer as unknown as WithValidate).validateSelector.bind(healer as unknown as WithValidate);
-
-        let healer: AutoHealer;
-
-        beforeEach(() => {
-            healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
-        });
-
         describe('valid CSS selectors', () => {
             it('should accept a simple element selector', () => {
-                expect(getValidator(healer)('button')).toBe(true);
+                expect(validateSelector('button')).toBe(true);
             });
 
             it('should accept an ID selector', () => {
-                expect(getValidator(healer)('#submit-btn')).toBe(true);
+                expect(validateSelector('#submit-btn')).toBe(true);
             });
 
             it('should accept a class selector', () => {
-                expect(getValidator(healer)('.primary-button')).toBe(true);
+                expect(validateSelector('.primary-button')).toBe(true);
             });
 
             it('should accept a compound selector with descendant combinator', () => {
-                expect(getValidator(healer)('form .submit-button')).toBe(true);
+                expect(validateSelector('form .submit-button')).toBe(true);
             });
 
             it('should accept a selector with child combinator', () => {
-                expect(getValidator(healer)('ul > li.active')).toBe(true);
+                expect(validateSelector('ul > li.active')).toBe(true);
             });
 
             it('should accept a selector with a pseudo-class', () => {
-                expect(getValidator(healer)('input:focus')).toBe(true);
+                expect(validateSelector('input:focus')).toBe(true);
             });
 
             it('should accept an attribute selector', () => {
-                expect(getValidator(healer)('[data-testid="search-input"]')).toBe(true);
+                expect(validateSelector('[data-testid="search-input"]')).toBe(true);
             });
 
             it('should accept a type + attribute compound selector', () => {
-                expect(getValidator(healer)('input[type="text"]')).toBe(true);
+                expect(validateSelector('input[type="text"]')).toBe(true);
             });
 
             it('should accept a selector with adjacent sibling combinator', () => {
-                expect(getValidator(healer)('label + input')).toBe(true);
+                expect(validateSelector('label + input')).toBe(true);
             });
         });
 
         describe('valid XPath selectors', () => {
             it('should accept an absolute XPath starting with //', () => {
-                expect(getValidator(healer)('//button[@id="submit"]')).toBe(true);
+                expect(validateSelector('//button[@id="submit"]')).toBe(true);
             });
 
             it('should accept a relative XPath starting with ./', () => {
-                expect(getValidator(healer)('./div/span[@class="label"]')).toBe(true);
+                expect(validateSelector('./div/span[@class="label"]')).toBe(true);
             });
 
             it('should accept an XPath with text()', () => {
-                expect(getValidator(healer)('//button[text()="Submit"]')).toBe(true);
+                expect(validateSelector('//button[text()="Submit"]')).toBe(true);
             });
 
             it('should accept an XPath with contains()', () => {
-                expect(getValidator(healer)('//input[contains(@placeholder,"Search")]')).toBe(true);
+                expect(validateSelector('//input[contains(@placeholder,"Search")]')).toBe(true);
             });
         });
 
         describe('valid Playwright text engine selectors', () => {
             it('should accept text= selector', () => {
-                expect(getValidator(healer)('text=Submit')).toBe(true);
+                expect(validateSelector('text=Submit')).toBe(true);
             });
 
             it('should accept role= selector', () => {
-                expect(getValidator(healer)('role=button')).toBe(true);
+                expect(validateSelector('role=button')).toBe(true);
             });
 
             it('should accept label= selector', () => {
-                expect(getValidator(healer)('label=Email address')).toBe(true);
+                expect(validateSelector('label=Email address')).toBe(true);
             });
 
             it('should accept placeholder= selector', () => {
-                expect(getValidator(healer)('placeholder=Enter your name')).toBe(true);
+                expect(validateSelector('placeholder=Enter your name')).toBe(true);
             });
 
             it('should accept alt= selector', () => {
-                expect(getValidator(healer)('alt=Company logo')).toBe(true);
+                expect(validateSelector('alt=Company logo')).toBe(true);
             });
 
             it('should accept title= selector', () => {
-                expect(getValidator(healer)('title=Close dialog')).toBe(true);
+                expect(validateSelector('title=Close dialog')).toBe(true);
             });
 
             it('should accept testid= selector', () => {
-                expect(getValidator(healer)('testid=login-form')).toBe(true);
+                expect(validateSelector('testid=login-form')).toBe(true);
             });
 
             it('should accept data-testid= selector', () => {
-                expect(getValidator(healer)('data-testid=search-input')).toBe(true);
+                expect(validateSelector('data-testid=search-input')).toBe(true);
             });
 
             it('should accept text= with mixed case prefix', () => {
-                expect(getValidator(healer)('TEXT=Submit')).toBe(true);
+                expect(validateSelector('TEXT=Submit')).toBe(true);
             });
         });
 
         describe('dangerous patterns — denylist', () => {
             it('should reject javascript: URI', () => {
-                expect(getValidator(healer)('javascript:alert(1)')).toBe(false);
+                expect(validateSelector('javascript:alert(1)')).toBe(false);
             });
 
             it('should reject javascript: URI with uppercase prefix', () => {
-                expect(getValidator(healer)('JavaScript:alert(1)')).toBe(false);
+                expect(validateSelector('JavaScript:alert(1)')).toBe(false);
             });
 
             it('should reject data: URI', () => {
-                expect(getValidator(healer)('data:text/html,<h1>hi</h1>')).toBe(false);
+                expect(validateSelector('data:text/html,<h1>hi</h1>')).toBe(false);
             });
 
             it('should reject a selector containing <script', () => {
-                expect(getValidator(healer)('<script>alert(1)</script>')).toBe(false);
+                expect(validateSelector('<script>alert(1)</script>')).toBe(false);
             });
 
             it('should reject a selector containing a closing tag </', () => {
-                expect(getValidator(healer)('</div>')).toBe(false);
+                expect(validateSelector('</div>')).toBe(false);
             });
 
             it('should reject a selector containing an HTML comment <!--', () => {
-                expect(getValidator(healer)('<!-- injected -->')).toBe(false);
+                expect(validateSelector('<!-- injected -->')).toBe(false);
             });
 
             it('should reject a selector containing eval(', () => {
-                expect(getValidator(healer)('#id eval(alert(1))')).toBe(false);
+                expect(validateSelector('#id eval(alert(1))')).toBe(false);
             });
 
             it('should reject a selector containing document.', () => {
-                expect(getValidator(healer)('document.getElementById("x")')).toBe(false);
+                expect(validateSelector('document.getElementById("x")')).toBe(false);
             });
 
             it('should reject a selector containing window.', () => {
-                expect(getValidator(healer)('window.location')).toBe(false);
+                expect(validateSelector('window.location')).toBe(false);
             });
 
             it('should reject a selector containing an inline <script tag (no closing slash needed)', () => {
-                expect(getValidator(healer)('#id<script>x</script>')).toBe(false);
+                expect(validateSelector('#id<script>x</script>')).toBe(false);
             });
 
             it('should reject a selector that starts an HTML comment sequence', () => {
-                expect(getValidator(healer)('<!--#id-->')).toBe(false);
+                expect(validateSelector('<!--#id-->')).toBe(false);
             });
         });
 
@@ -569,98 +561,98 @@ describe('AutoHealer', () => {
                 // vbscript:alert(1) passes the CSS safe-char regex because all its
                 // characters are alphanumeric or in the allowed set (:, (, ), digits).
                 // The denylist prefix check must fire before the regex allowlist.
-                expect(getValidator(healer)('vbscript:alert(1)')).toBe(false);
+                expect(validateSelector('vbscript:alert(1)')).toBe(false);
             });
 
             it('should reject VBSCRIPT: URI (case-insensitive prefix check)', () => {
-                expect(getValidator(healer)('VBSCRIPT:alert(1)')).toBe(false);
+                expect(validateSelector('VBSCRIPT:alert(1)')).toBe(false);
             });
 
             it('should reject vbscript: URI with mixed case', () => {
-                expect(getValidator(healer)('VbScRiPt:msgbox(1)')).toBe(false);
+                expect(validateSelector('VbScRiPt:msgbox(1)')).toBe(false);
             });
 
             it('should reject javascript: URI with leading BOM character (U+FEFF)', () => {
                 // trim() strips BOM — the prefix check must still fire after trim
-                expect(getValidator(healer)('\ufeffjavascript:alert(1)')).toBe(false);
+                expect(validateSelector('\ufeffjavascript:alert(1)')).toBe(false);
             });
 
             it('should reject data: URI with leading whitespace', () => {
-                expect(getValidator(healer)('  data:text/html,<h1>hi</h1>')).toBe(false);
+                expect(validateSelector('  data:text/html,<h1>hi</h1>')).toBe(false);
             });
 
             // ── Injection via newline / control characters ─────────────────
             it('should reject a selector containing a newline before a dangerous keyword', () => {
                 // The CSS safe-char regex does not allow \n; this must be rejected
-                expect(getValidator(healer)('#id\nwindow.location')).toBe(false);
+                expect(validateSelector('#id\nwindow.location')).toBe(false);
             });
 
             it('should reject a selector containing a carriage return', () => {
-                expect(getValidator(healer)('#id\reval(x)')).toBe(false);
+                expect(validateSelector('#id\reval(x)')).toBe(false);
             });
 
             it('should reject a selector containing a null byte', () => {
                 // Null byte cannot appear in the safe CSS char class
-                expect(getValidator(healer)('#id\x00evil')).toBe(false);
+                expect(validateSelector('#id\x00evil')).toBe(false);
             });
 
             // ── Unicode / lookalike bypasses ───────────────────────────────
             it('should reject a selector with Cyrillic lookalike characters mixed into dangerous payload', () => {
                 // Cyrillic 'а' (U+0430) vs ASCII 'a' — not in [a-zA-Z] range so safeCssPattern rejects
-                expect(getValidator(healer)('еvаl(аlert(1))')).toBe(false);
+                expect(validateSelector('еvаl(аlert(1))')).toBe(false);
             });
 
             // ── eval() variants ────────────────────────────────────────────
             it('should reject eval( in uppercase (case-insensitive substring check)', () => {
-                expect(getValidator(healer)('#id EVAL(alert(1))')).toBe(false);
+                expect(validateSelector('#id EVAL(alert(1))')).toBe(false);
             });
 
             it('should reject eval( embedded mid-selector after a valid prefix', () => {
-                expect(getValidator(healer)('#btn eval(document.cookie)')).toBe(false);
+                expect(validateSelector('#btn eval(document.cookie)')).toBe(false);
             });
 
             // ── document. / window. injection ─────────────────────────────
             it('should reject document. in an XPath string literal', () => {
                 // Even inside a valid-looking XPath the denylist must fire
-                expect(getValidator(healer)('//div[contains(document.cookie,"x")]')).toBe(false);
+                expect(validateSelector('//div[contains(document.cookie,"x")]')).toBe(false);
             });
 
             it('should reject window. inside a Playwright text= selector', () => {
-                expect(getValidator(healer)('text=window.location')).toBe(false);
+                expect(validateSelector('text=window.location')).toBe(false);
             });
 
             // ── CSS construct bypasses ─────────────────────────────────────
             it('should reject a CSS block with expression() injection', () => {
                 // Braces are not in the safe CSS char class
-                expect(getValidator(healer)('*{expression(alert(1))}')).toBe(false);
+                expect(validateSelector('*{expression(alert(1))}')).toBe(false);
             });
 
             // ── Chained / multi-payload ────────────────────────────────────
             it('should reject a selector with multiple chained dangerous patterns', () => {
-                expect(getValidator(healer)('javascript:eval(document.write("<script>"))')).toBe(false);
+                expect(validateSelector('javascript:eval(document.write("<script>"))')).toBe(false);
             });
 
             it('should reject a selector that is only dangerous characters with no safe prefix', () => {
-                expect(getValidator(healer)('{}[];')).toBe(false);
+                expect(validateSelector('{}[];')).toBe(false);
             });
         });
 
         describe('edge cases', () => {
             it('should reject an empty string', () => {
-                expect(getValidator(healer)('')).toBe(false);
+                expect(validateSelector('')).toBe(false);
             });
 
             it('should reject a whitespace-only string', () => {
-                expect(getValidator(healer)('   ')).toBe(false);
+                expect(validateSelector('   ')).toBe(false);
             });
 
             it('should reject a selector with only unknown special characters', () => {
-                expect(getValidator(healer)('{}')).toBe(false);
+                expect(validateSelector('{}')).toBe(false);
             });
 
             it('should accept a selector with leading/trailing whitespace after trim', () => {
                 // Trim is applied internally so surrounding spaces should be fine
-                expect(getValidator(healer)('  #submit-btn  ')).toBe(true);
+                expect(validateSelector('  #submit-btn  ')).toBe(true);
             });
         });
 
