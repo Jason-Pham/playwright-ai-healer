@@ -18,6 +18,7 @@ npm run lint                          # ESLint check
 npm run lint:fix                      # ESLint auto-fix
 npm run format:check                  # Prettier check
 npm run format                        # Prettier auto-format
+git commit -am "style: apply lint and format fixes"
 
 # Unit tests (Vitest, ~1s)
 npm run test:unit                     # Run once
@@ -48,23 +49,29 @@ This is a **self-healing Playwright test automation framework**. When a selector
 Test → BasePage.safeClick/safeFill
      → AutoHealer.click/fill
      → page.click(selector)  ← if fails →
-     → getSimplifiedDOM() → AI provider (Gemini/OpenAI)
-     → AI returns new selector
+     → DOMSerializer.getSimplifiedDOM() → AIClientManager.makeRequest() → AI provider (Gemini/OpenAI)
+     → ResponseParser.parseAIResponse() cleans raw output
      → retry action with new selector
      → LocatorManager.updateLocator() persists new selector
 ```
 
 ### Key Files
 
-| File                          | Role                                                                                                                                            |
-| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/AutoHealer.ts`           | Core healing logic: wraps Playwright actions, queries AI, handles retries/key rotation, records `HealingEvent[]`                                |
-| `src/config/index.ts`         | Centralized config validated with Zod; exports `config` object; loads `.env.{TEST_ENV}` via `Environment.ts`                                    |
-| `src/config/locators.json`    | Persistent selector store; updated at runtime by `LocatorManager` when healing succeeds                                                         |
-| `src/utils/LocatorManager.ts` | Singleton; reads/writes `locators.json` with file locking (`proper-lockfile`); dot-path key access (e.g., `gigantti.searchInput`)               |
-| `src/utils/SiteHandler.ts`    | Strategy pattern for site-specific overlay dismissal; `GiganttiHandler` handles cookie banners; `NoOpHandler` is a no-op                        |
-| `src/pages/BasePage.ts`       | Abstract base for all page objects; wraps interactions with overlay dismissal, `AutoHealer` delegation, and Vercel security challenge detection |
-| `tests/fixtures/base.ts`      | Playwright fixtures providing `autoHealer` and `giganttiPage` to E2E tests                                                                      |
+| File                            | Role                                                                                                                                                                               |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/AutoHealer.ts`             | Public healing API (`click`, `fill`, `hover`…) + `heal()` orchestration; records `HealingEvent[]`                                                                                  |
+| `src/ai/AIClientManager.ts`     | Owns AI client lifecycle (OpenAI/Gemini), API key rotation, provider failover, and raw `makeRequest()` with timeout                                                                |
+| `src/ai/DOMSerializer.ts`       | `getSimplifiedDOM(page)` — focused snapshot of interactive elements for the AI prompt                                                                                              |
+| `src/ai/ResponseParser.ts`      | `parseAIResponse()` — strips markdown fences, backticks, and quotes from raw AI output                                                                                             |
+| `src/config/index.ts`           | Centralized config validated with Zod; exports `config` object; loads `.env.{TEST_ENV}` via `Environment.ts`                                                                       |
+| `src/config/locators.json`      | Persistent selector store; updated at runtime by `LocatorManager` when healing succeeds                                                                                            |
+| `src/utils/LocatorManager.ts`   | Singleton; reads/writes `locators.json` with file locking (`proper-lockfile`); dot-path key access (e.g., `gigantti.searchInput`)                                                  |
+| `src/utils/SiteHandler.ts`      | Strategy pattern for site-specific overlay dismissal; `GiganttiHandler` handles cookie banners; `NoOpHandler` is a no-op                                                           |
+| `src/pages/BasePage.ts`         | Abstract base for all page objects; wraps interactions with overlay dismissal, `AutoHealer` delegation, and Vercel security challenge detection                                    |
+| `src/pages/GiganttiHomePage.ts` | Home page entry point; `searchFor()`, `navigateToCategory(string)`, and typed `selectCategory<K>(key, subcategoryKey?)` delegating to `CategoryMenuPage`                           |
+| `src/pages/CategoryMenuPage.ts` | Typed category navigation POM; `select<K extends CategoryKey>(key, subcategoryKey?)` resolves Finnish nav labels from config and navigates via XPath + scoped `getByRole` fallback |
+| `src/pages/CategoryPage.ts`     | Product listing / category landing page; `verifyProductsDisplayed()` accepts both product-card grids and subcategory tile pages; `clickFirstProduct()` returns `ProductDetailPage` |
+| `tests/fixtures/base.ts`        | Playwright fixtures providing `autoHealer` and `giganttiPage` to E2E tests                                                                                                         |
 
 ### Environment Configuration
 
@@ -119,6 +126,7 @@ GitHub Actions (`.github/workflows/playwright.yml`) runs on push/PR to `main`:
 | `devops-engineer`  | sonnet | CI/CD pipeline, npm deps, Playwright config, env vars, pre-push hooks, build optimisation                                               |
 
 <!-- gitnexus:start -->
+
 ## GitNexus — Code Intelligence
 
 This project is indexed by GitNexus as **self-healing-agent** (211 symbols, 485 relationships, 20 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
@@ -155,35 +163,36 @@ This project is indexed by GitNexus as **self-healing-agent** (211 symbols, 485 
 
 ## Tools Quick Reference
 
-| Tool | When to use | Command |
-|------|-------------|---------|
-| `query` | Find code by concept | `gitnexus_query({query: "auth validation"})` |
-| `context` | 360-degree view of one symbol | `gitnexus_context({name: "validateUser"})` |
-| `impact` | Blast radius before editing | `gitnexus_impact({target: "X", direction: "upstream"})` |
-| `detect_changes` | Pre-commit scope check | `gitnexus_detect_changes({scope: "staged"})` |
-| `rename` | Safe multi-file rename | `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` |
-| `cypher` | Custom graph queries | `gitnexus_cypher({query: "MATCH ..."})` |
+| Tool             | When to use                   | Command                                                                 |
+| ---------------- | ----------------------------- | ----------------------------------------------------------------------- |
+| `query`          | Find code by concept          | `gitnexus_query({query: "auth validation"})`                            |
+| `context`        | 360-degree view of one symbol | `gitnexus_context({name: "validateUser"})`                              |
+| `impact`         | Blast radius before editing   | `gitnexus_impact({target: "X", direction: "upstream"})`                 |
+| `detect_changes` | Pre-commit scope check        | `gitnexus_detect_changes({scope: "staged"})`                            |
+| `rename`         | Safe multi-file rename        | `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` |
+| `cypher`         | Custom graph queries          | `gitnexus_cypher({query: "MATCH ..."})`                                 |
 
 ## Impact Risk Levels
 
-| Depth | Meaning | Action |
-|-------|---------|--------|
-| d=1 | WILL BREAK — direct callers/importers | MUST update these |
-| d=2 | LIKELY AFFECTED — indirect deps | Should test |
-| d=3 | MAY NEED TESTING — transitive | Test if critical path |
+| Depth | Meaning                               | Action                |
+| ----- | ------------------------------------- | --------------------- |
+| d=1   | WILL BREAK — direct callers/importers | MUST update these     |
+| d=2   | LIKELY AFFECTED — indirect deps       | Should test           |
+| d=3   | MAY NEED TESTING — transitive         | Test if critical path |
 
 ## Resources
 
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/self-healing-agent/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/self-healing-agent/clusters` | All functional areas |
-| `gitnexus://repo/self-healing-agent/processes` | All execution flows |
-| `gitnexus://repo/self-healing-agent/process/{name}` | Step-by-step execution trace |
+| Resource                                            | Use for                                  |
+| --------------------------------------------------- | ---------------------------------------- |
+| `gitnexus://repo/self-healing-agent/context`        | Codebase overview, check index freshness |
+| `gitnexus://repo/self-healing-agent/clusters`       | All functional areas                     |
+| `gitnexus://repo/self-healing-agent/processes`      | All execution flows                      |
+| `gitnexus://repo/self-healing-agent/process/{name}` | Step-by-step execution trace             |
 
 ## Self-Check Before Finishing
 
 Before completing any code modification task, verify:
+
 1. `gitnexus_impact` was run for all modified symbols
 2. No HIGH/CRITICAL risk warnings were ignored
 3. `gitnexus_detect_changes()` confirms changes match expected scope

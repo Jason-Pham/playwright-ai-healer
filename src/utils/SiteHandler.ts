@@ -53,7 +53,7 @@ export class GiganttiHandler implements SiteHandler {
                 .isVisible()
                 .catch(() => false);
             if (!wrapperVisible) return;
-            logger.debug('[GiganttiHandler] Cookie banner re-appeared after initial dismissal; re-dismissing...');
+            logger.debug('[GiganttiHandler] 🍪 Cookie banner re-appeared after initial dismissal; re-dismissing...');
         } else {
             try {
                 // Wait for cookie banner to appear (it renders asynchronously after page load).
@@ -71,18 +71,22 @@ export class GiganttiHandler implements SiteHandler {
             // condition: if the response arrived before the listener was set up,
             // it would needlessly wait for the full timeout duration.
             await page
-                .waitForFunction(() => (window as any).isCookieInformationAPIReady === true, {
-                    timeout: config.test.timeouts.cookie,
-                })
+                .waitForFunction(
+                    () => (window as unknown as Record<string, unknown>).isCookieInformationAPIReady === true,
+                    {
+                        timeout: config.test.timeouts.cookie,
+                    }
+                )
                 .catch(() => {
                     // SDK not ready in time — proceed to fallback click
                 });
 
-            logger.debug('Dismissing Gigantti cookie banner...');
+            logger.debug('🍪 Dismissing Gigantti cookie banner...');
 
             // Use SDK API to accept all cookies; fall back to direct click
             await page.evaluate(selector => {
-                const ci = (window as any).CookieInformation;
+                const win = window as unknown as Record<string, unknown>;
+                const ci = win.CookieInformation as { submitAllCategories?: () => void } | undefined;
                 if (typeof ci?.submitAllCategories === 'function') {
                     ci.submitAllCategories();
                 } else {
@@ -104,7 +108,7 @@ export class GiganttiHandler implements SiteHandler {
             // insufficient: the button can become hidden while the wrapper stays visible.
             const cookieWrapper = page.locator(cookieWrapperSelector).first();
             await cookieWrapper.waitFor({ state: 'hidden', timeout: config.test.timeouts.cookie }).catch(async () => {
-                logger.warn('Cookie banner failed to dismiss normally. Attempting to force hide.');
+                logger.warn('⚠️ Cookie banner failed to dismiss normally. Attempting to force hide.');
                 // Fallback: Force hide the banner if it's still visible.
                 // Uses pointer-events:none in addition to display:none so that even if
                 // WebKit's JS re-enables the element, it cannot intercept pointer events.
@@ -161,7 +165,7 @@ export class GiganttiHandler implements SiteHandler {
             });
             this.dismissed = true;
         } catch (error) {
-            logger.warn(`Error dismissing cookie banner: ${error}`);
+            logger.warn(`❌ Error dismissing cookie banner: ${error}`);
         }
     }
 }

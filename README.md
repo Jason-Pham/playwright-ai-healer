@@ -154,20 +154,27 @@ AI_PROVIDER=openai OPENAI_API_KEY=sk-... docker-compose run --rm e2e-tests
 
 ```
 src/
-├── AutoHealer.ts              # Core AI healing logic
+├── AutoHealer.ts              # Public healing API (click, fill, hover…) + heal() orchestration
+├── ai/
+│   ├── AIClientManager.ts     # AI client lifecycle, key rotation, provider failover
+│   ├── DOMSerializer.ts       # getSimplifiedDOM() — interactive-element snapshot
+│   ├── ResponseParser.ts      # parseAIResponse() — cleans raw AI output
+│   └── index.ts               # Barrel re-export
 ├── config/
 │   ├── index.ts               # Centralized configuration
-│   └── locators.json          # Persistent selector storage
+│   ├── locators.json          # Persistent selector storage
+│   └── metrics.json           # Per-key selector failure/heal metrics
 ├── pages/
 │   ├── BasePage.ts            # Abstract base page
-│   ├── GiganttiHomePage.ts    # Entry point
-│   ├── CategoryPage.ts        # Product listings
+│   ├── GiganttiHomePage.ts    # Entry point; selectCategory<K>(key, sub?) for typed navigation
+│   ├── CategoryMenuPage.ts    # Typed category/subcategory navigation POM
+│   ├── CategoryPage.ts        # Product listings and category landing pages
 │   └── ProductDetailPage.ts   # Product details
 └── utils/
     ├── Environment.ts         # Multi-env loader
     ├── Logger.ts              # Winston wrapper
     ├── LocatorAdapter.ts      # Pluggable storage: FileAdapter | SQLiteAdapter
-    ├── LocatorManager.ts      # Selector persistence (facade over LocatorAdapter)
+    ├── LocatorManager.ts      # Selector persistence (facade over LocatorAdapter) + stability metrics
     └── SiteHandler.ts         # Overlay dismissal (Strategy pattern)
 
 tests/
@@ -234,6 +241,18 @@ async click(selector: string) {
 ```
 
 _Note: If the primary AI Provider (e.g. Gemini) hits a 4xx Rate Limit error, the `AutoHealer` automatically detects the quota failure and falls back to an alternate AI Provider (e.g. OpenAI) if configured!_
+
+### ⚡ Concurrent Healing (`healAll`)
+
+Heal multiple failing selectors in one call — AI requests fire in parallel, Playwright interactions stay sequential:
+
+```typescript
+const results = await healer.healAll([
+    { action: 'click', selectorOrKey: 'home.searchButton' },
+    { action: 'fill', selectorOrKey: 'home.searchInput', value: 'laptop' },
+]);
+// results: HealAllResult[] — per-operation outcome, healed selector, and error
+```
 
 ### 🎭 Healing Demo
 

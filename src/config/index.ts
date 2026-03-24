@@ -1,6 +1,37 @@
 import { z } from 'zod';
 import { loadEnvironment } from '../utils/Environment.js';
 
+const categoriesData = {
+    // Top-level nav labels must match the exact anchor text in the Gigantti icon nav bar
+    computers: {
+        label: 'Tietotekniikka',
+        // Subcategory labels must match tiles visible on the computers landing page
+        subcategories: {
+            allComputers: 'Tietokoneet',
+            components: 'Tietokonekomponentit',
+            monitors: 'Näytöt ja tarvikkeet',
+        },
+    },
+    phones: {
+        label: 'Puhelimet, tabletit ja älykellot',
+        subcategories: { smartphones: 'Älypuhelimet' },
+    },
+    tablets: { label: 'Tabletit', subcategories: {} },
+    tvs: {
+        label: 'TV, ääni ja älykoti',
+        subcategories: { headphones: 'Kuulokkeet ja tarvikkeet', oled: 'OLED-televisiot' },
+    },
+    gaming: { label: 'Gaming', subcategories: { consoles: 'Pelikonsolit', games: 'Pelit' } },
+    cameras: { label: 'Kamerat ja videokamerat', subcategories: {} },
+    appliances: {
+        label: 'Kodinkoneet',
+        subcategories: { refrigerators: 'Jääkaapit ja pakastimet', washingMachines: 'Pesukoneet' },
+    },
+} as const;
+
+export type CategoryKey = keyof typeof categoriesData;
+export type SubCategoryKey<K extends CategoryKey> = keyof (typeof categoriesData)[K]['subcategories'];
+
 // Define the schema for environment variables
 const envSchema = z.object({
     ENV: z.enum(['dev', 'staging', 'prod']).default('dev'),
@@ -59,7 +90,7 @@ type AppConfig = {
     testData: {
         searchTerms: string[];
         getRandomSearchTerm(): string;
-        categories: { computers: string };
+        categories: typeof categoriesData;
     };
 };
 
@@ -165,9 +196,7 @@ function buildConfig(): AppConfig {
                 const terms = this.searchTerms;
                 return terms[Math.floor(Math.random() * terms.length)] ?? 'laptop';
             },
-            categories: {
-                computers: 'Tietotekniikka',
-            },
+            categories: categoriesData,
         },
     };
 }
