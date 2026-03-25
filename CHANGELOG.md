@@ -24,7 +24,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Per-provider circuit breaker** (`src/utils/CircuitBreaker.ts`) — `AutoHealer` now maintains one `CircuitBreaker` per AI provider. After 5 consecutive server-error exhaustions the circuit opens and healing fast-fails with a clear log line instead of hammering the endpoint. The circuit transitions to `HALF_OPEN` after 60 s and closes on the next successful response. 11 unit tests cover all state transitions.
 - **`vbscript:` in selector denylist** — `vbscript:alert(1)` previously passed the CSS safe-character regex; the prefix is now explicitly blocked before the regex allowlist runs.
 - **Adversarial selector-validator test suite** — 16 new tests covering protocol bypasses (`vbscript:`, BOM-prefix `javascript:`), control-character injection (newline, CR, null byte), Unicode lookalike characters, `eval()` variants, `document.`/`window.` inside XPath and Playwright prefixes, CSS `expression()` blocks, and chained multi-payload selectors.
-- **`DomSimplifier` class** (`src/utils/DomSimplifier.ts`) — DOM snapshot logic extracted from `AutoHealer` into a dedicated class, satisfying the Single Responsibility Principle and enabling isolated unit testing of the snapshot algorithm.
 - **`docs` script** — `npm run docs` generates a TypeDoc HTML API reference into `docs/` from JSDoc annotations in `src/`.
 - **`CategoryMenuPage`** — new page object (`src/pages/CategoryMenuPage.ts`) for typed category navigation; `select<K extends CategoryKey>(key, subcategoryKey?)` navigates to a top-level category and optionally drills into a subcategory tile, reusing the XPath + `getByRole` fallback strategy from `GiganttiHomePage`.
 - **Typed category system** — `categoriesData` const in `src/config/index.ts` defines 7 top-level categories (`computers`, `phones`, `tablets`, `tvs`, `gaming`, `cameras`, `appliances`) each with their Finnish nav label and available subcategory tiles. Exports `CategoryKey` and `SubCategoryKey<K>` types for compile-time validation — invalid keys are caught by TypeScript.
@@ -34,10 +33,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Nav link fallback in `CategoryMenuPage._navigateByLabel` scoped to `a:not([data-testid="product-card"])` to prevent matching product card links when searching for navigation anchors.
 - Multi-stage `Dockerfile` (`deps` → `runner`) reduces rebuild time by caching the `npm ci` layer separately from the Playwright image layer.
 - `docker-compose.yml` now exposes two named services: `unit-tests` (runs `npm run validate`) and `e2e-tests` (runs `npm run test:prod`, mounts `playwright-report/`, `test-results/`, and `logs/` as host volumes).
-
-### Changed
-
-- `AutoHealer` now delegates DOM snapshot capture to `DomSimplifier` via a constructor-injected instance.
 
 ### Fixed
 
