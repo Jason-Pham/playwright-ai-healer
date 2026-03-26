@@ -35,7 +35,14 @@ export interface SiteHandler {
  * isVisible() check and return immediately if the banner is gone.
  */
 export class GiganttiHandler implements SiteHandler {
-    private dismissed = false;
+    /**
+     * Tracks which Pages have already had their cookie banner dismissed.
+     * Using a WeakMap keyed on Page (rather than an instance field) ensures
+     * that all GiganttiHandler instances sharing the same Playwright Page
+     * agree on the dismissed state — critical when page objects are chained
+     * (e.g. HomePPage → CategoryMenuPage → CategoryPage).
+     */
+    private static readonly _dismissed = new WeakMap<Page, boolean>();
 
     async dismissOverlays(page: Page): Promise<void> {
         // Handle Gigantti cookie consent banner using CookieInformation SDK API.
@@ -44,7 +51,7 @@ export class GiganttiHandler implements SiteHandler {
 
         const cookieWrapperSelector = locators.gigantti.cookieBannerWrapper;
 
-        if (this.dismissed) {
+        if (GiganttiHandler._dismissed.get(page)) {
             // Fast re-check path: the banner was already dismissed once.
             // isVisible() is instant (no polling) — return immediately if gone.
             // If visible, the banner re-appeared; fall through to re-dismiss.
@@ -163,7 +170,7 @@ export class GiganttiHandler implements SiteHandler {
                     { btnSelector: cookieBtnSelector, wrapperSelector: cookieWrapperSelector }
                 );
             });
-            this.dismissed = true;
+            GiganttiHandler._dismissed.set(page, true);
         } catch (error) {
             logger.warn(`❌ Error dismissing cookie banner: ${error}`);
         }
