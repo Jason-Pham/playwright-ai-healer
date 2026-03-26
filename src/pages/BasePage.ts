@@ -45,6 +45,8 @@ export abstract class BasePage {
         Page,
         { signal: Promise<never>; reject: ((err: Error) => void) | null }
     >();
+    /** Guards against registering more than one response listener per Page. */
+    private static readonly _pageListenerAttached = new WeakSet<Page>();
 
     /**
      * @param page - Playwright page instance.
@@ -78,26 +80,29 @@ export abstract class BasePage {
         );
 
         // Monitor for Vercel security challenge failures.
-        // Multiple handlers on the same page are fine: WeakSet/WeakMap ops are
-        // idempotent and Promise.reject() is a no-op after the first call.
-        this.page.on('response', response => {
-            if (
-                config.ai.security?.vercelChallengePath &&
-                response.url().includes(config.ai.security.vercelChallengePath)
-            ) {
-                const status = response.status();
-                if (status >= 400) {
-                    logger.warn(
-                        `🚨 [${this.constructor.name}] Vercel security challenge failed` +
-                            ` with status ${status} — aborting all pending operations on this page`
-                    );
-                    BasePage._pageChallengeFailed.add(page);
-                    BasePage._pageSignals
-                        .get(page)
-                        ?.reject?.(new Error(`Vercel security challenge failed with status ${status}`));
+        // Register at most one listener per Page to prevent accumulation across
+        // multiple BasePage subclass instances sharing the same Playwright Page.
+        if (!BasePage._pageListenerAttached.has(page)) {
+            BasePage._pageListenerAttached.add(page);
+            this.page.on('response', response => {
+                if (
+                    config.ai.security.vercelChallengePath &&
+                    response.url().includes(config.ai.security.vercelChallengePath)
+                ) {
+                    const status = response.status();
+                    if (status >= 400) {
+                        logger.warn(
+                            `🚨 [BasePage] Vercel security challenge failed` +
+                                ` with status ${status} — aborting all pending operations on this page`
+                        );
+                        BasePage._pageChallengeFailed.add(page);
+                        BasePage._pageSignals
+                            .get(page)
+                            ?.reject?.(new Error(`Vercel security challenge failed with status ${status}`));
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     /**
