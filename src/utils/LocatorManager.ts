@@ -131,10 +131,15 @@ export class LocatorManager {
      * Using the same `proper-lockfile` strategy as `FileAdapter` ensures
      * parallel Playwright workers cannot clobber each other's metric counts.
      */
+    /**
+     * Returns `null` from `mutate` to signal that the update should be skipped
+     * (no file write occurs). This avoids a separate pre-lock guard check that
+     * would read stale in-memory state under parallel workers.
+     */
     private async atomicMetricUpdate(
         key: string,
-        mutate: (existing: SelectorMetrics) => SelectorMetrics
-    ): Promise<void> {
+        mutate: (existing: SelectorMetrics) => SelectorMetrics | null
+    ): Promise<boolean> {
         let release: (() => Promise<void>) | undefined;
         try {
             release = await lockfile.lock(this.metricsPath, {
@@ -143,10 +148,14 @@ export class LocatorManager {
             // Re-read under lock so we don't clobber a concurrent worker's write
             this.loadMetrics();
             const existing = this.metrics[key] ?? { failureCount: 0 };
-            this.metrics[key] = mutate(existing);
+            const updated = mutate(existing);
+            if (updated === null) return false; // caller signalled skip
+            this.metrics[key] = updated;
             fs.writeFileSync(this.metricsPath, JSON.stringify(this.metrics, null, 2), 'utf-8');
+            return true;
         } catch (error) {
             logger.error(`[LocatorManager] ❌ Failed to update metrics for '${key}': ${String(error)}`);
+            return false;
         } finally {
             if (release) await release();
         }
@@ -162,15 +171,21 @@ export class LocatorManager {
      * @param key - Dot-path locator key (e.g. `'gigantti.searchInput'`)
      */
     public async recordSelectorFailure(key: string): Promise<void> {
-        if (!this.metrics[key]?.healedAt) return; // not yet healed — skip
-        await this.atomicMetricUpdate(key, existing => ({
-            ...existing,
-            failureCount: existing.failureCount + 1,
-            lastFailedAt: new Date().toISOString(),
-        }));
-        logger.warn(
-            `[LocatorManager] ⚠️ Healed selector '${key}' failed again (total failures: ${this.metrics[key]?.failureCount ?? 0})`
-        );
+        // The guard is evaluated under the file lock (after re-reading metrics) so that
+        // parallel Playwright workers see the latest healedAt value written by other workers.
+        const didUpdate = await this.atomicMetricUpdate(key, existing => {
+            if (!existing.healedAt) return null; // not yet healed — skip (signals no write)
+            return {
+                ...existing,
+                failureCount: existing.failureCount + 1,
+                lastFailedAt: new Date().toISOString(),
+            };
+        });
+        if (didUpdate) {
+            logger.warn(
+                `[LocatorManager] ⚠️ Healed selector '${key}' failed again (total failures: ${this.metrics[key]?.failureCount ?? 0})`
+            );
+        }
     }
 
     /**
