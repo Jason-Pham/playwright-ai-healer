@@ -340,7 +340,10 @@ describe('AutoHealer', () => {
             await healer.click('#broken');
 
             const { test } = await import('@playwright/test');
-            expect(test.skip).toHaveBeenCalledWith(true, expect.stringContaining('Client Error (4xx)'));
+            expect(test.skip).toHaveBeenCalledWith(
+                true,
+                expect.stringContaining('could not find a suitable replacement selector')
+            );
 
             // Restore config
             config.ai.openai.apiKeys = originalOpenAiKeys;

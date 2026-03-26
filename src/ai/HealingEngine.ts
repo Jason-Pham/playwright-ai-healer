@@ -1,5 +1,4 @@
 import type { Page } from '@playwright/test';
-import { test } from '@playwright/test';
 import { config } from '../config/index.js';
 import { logger } from '../utils/Logger.js';
 import type { AIClientManager } from './AIClientManager.js';
@@ -199,13 +198,8 @@ export class HealingEngine {
                                 continue keyLoop;
                             } else {
                                 logger.error(
-                                    `[HealingEngine:heal] ❌ No alternate provider configured or provider already switched. Skip healing.`
+                                    `[HealingEngine:heal] ❌ No alternate provider configured or provider already switched. Healing aborted.`
                                 );
-                                test.info().annotations.push({
-                                    type: 'warning',
-                                    description: 'Test skipped due to AI Client Error (4xx)',
-                                });
-                                test.skip(true, 'Test skipped due to AI Client Error (4xx)');
                                 return null;
                             }
                         }
@@ -250,16 +244,6 @@ export class HealingEngine {
             }
         } catch (aiError) {
             const aiErrorTyped = aiError as Error;
-            logger.error(`[HealingEngine:heal] 🚨 HEALING EXCEPTION: ${aiErrorTyped.message || String(aiErrorTyped)}`);
-            // If it's a skip error, re-throw it so Playwright skips the test
-            if (
-                String(aiErrorTyped).includes('Test skipped') ||
-                aiErrorTyped.message?.includes('Test skipped') ||
-                aiErrorTyped.message?.includes('Test is skipped')
-            ) {
-                logger.info(`[HealingEngine:heal] ⏩ Re-throwing skip error to Playwright.`);
-                throw aiErrorTyped;
-            }
             logger.error(
                 `[HealingEngine:heal] ❌ AI Healing failed (${this.clientManager.getProvider()}): ${aiErrorTyped.message || String(aiErrorTyped)}`
             );
