@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { loadEnvironment } from '../utils/Environment.js';
+import { logger } from '../utils/Logger.js';
 
 const categoriesData = {
     // Top-level nav labels must match the exact anchor text in the Gigantti icon nav bar
@@ -194,7 +195,9 @@ function buildConfig(): AppConfig {
             ],
             getRandomSearchTerm(): string {
                 const terms = this.searchTerms;
-                return terms[Math.floor(Math.random() * terms.length)] ?? 'laptop';
+                const term = terms[Math.floor(Math.random() * terms.length)] ?? 'laptop';
+                logger.debug(`[config] getRandomSearchTerm selected: "${term}"`);
+                return term;
             },
             categories: categoriesData,
         },
