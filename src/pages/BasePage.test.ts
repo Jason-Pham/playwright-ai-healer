@@ -44,10 +44,12 @@ describe('BasePage', () => {
             expect(mockPage.on).toHaveBeenCalledWith('response', expect.any(Function));
 
             // Extract the listener from the mock calls
-            const onCalls = (mockPage.on as any).mock.calls;
-            const responseCall = onCalls.find((call: any[]) => call[0] === 'response');
+            const onMock = mockPage.on as ReturnType<typeof vi.fn>;
+            const responseCall = onMock.mock.calls.find((call: unknown[]) => call[0] === 'response') as
+                | unknown[]
+                | undefined;
             expect(responseCall).toBeDefined();
-            const listener = responseCall[1];
+            const listener = responseCall![1] as (response: { url: () => string; status: () => number }) => void;
 
             // Simulate failed security challenge response
             const mockResponse = {
@@ -62,7 +64,7 @@ describe('BasePage', () => {
             // @ts-expect-error - testing protected method
             const skipSpy = vi.spyOn(basePage, 'skipTest').mockImplementation(() => {});
 
-            await basePage.safeClick({ click: vi.fn() } as any);
+            await basePage.safeClick({ click: vi.fn() } as unknown as Locator);
 
             expect(skipSpy).toHaveBeenCalledWith(expect.stringContaining('Aborting test'));
         });
@@ -142,9 +144,9 @@ describe('BasePage', () => {
                 waitFor: vi.fn(),
             };
 
-            (mockPage.locator as any).mockReturnValue({
+            vi.mocked(mockPage.locator!).mockReturnValue({
                 first: () => mockCombinedLocator,
-            });
+            } as unknown as Locator);
 
             const selectors = ['.one', '#two'];
             await basePage.findFirstElement(selectors, { state: 'visible' });
@@ -159,9 +161,9 @@ describe('BasePage', () => {
                 waitFor: vi.fn(),
             };
 
-            (mockPage.locator as any).mockReturnValue({
+            vi.mocked(mockPage.locator!).mockReturnValue({
                 first: () => mockCombinedLocator,
-            });
+            } as unknown as Locator);
 
             const selectors = ['.one', '#two'];
             await basePage.findFirstElement(selectors);
@@ -182,27 +184,29 @@ describe('BasePage', () => {
     });
 
     describe('waitForPageLoad', () => {
-        it('should wait for load and domcontentloaded but not networkidle when networking is omitted', async () => {
+        it('should wait for domcontentloaded and load but not networkidle when networking is omitted', async () => {
             await basePage.waitForPageLoad();
 
-            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', undefined);
             expect(mockPage.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', undefined);
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', undefined);
             expect(mockPage.waitForLoadState).not.toHaveBeenCalledWith('networkidle', expect.anything());
         });
 
-        it('should wait for all three load states when networking is true', async () => {
+        it('should wait for domcontentloaded, load and networkidle when networking is true', async () => {
             await basePage.waitForPageLoad({ networking: true });
 
-            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', undefined);
             expect(mockPage.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', undefined);
-            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('networkidle', undefined);
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', undefined);
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('networkidle', {
+                timeout: config.test.timeouts.short,
+            });
         });
 
         it('should pass timeout option through and not call networkidle when networking is false', async () => {
             await basePage.waitForPageLoad({ timeout: 5000 });
 
-            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', { timeout: 5000 });
             expect(mockPage.waitForLoadState).toHaveBeenCalledWith('domcontentloaded', { timeout: 5000 });
+            expect(mockPage.waitForLoadState).toHaveBeenCalledWith('load', { timeout: 5000 });
             expect(mockPage.waitForLoadState).not.toHaveBeenCalledWith('networkidle', expect.anything());
         });
 

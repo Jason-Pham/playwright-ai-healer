@@ -18,8 +18,8 @@ export class CategoryPage extends BasePage {
         // Wait for page to fully load
         await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
 
-        // Primary selector from actual Gigantti search page structure
-        const productSelectors = [locators.gigantti.productCard];
+        // Primary selector for search result grids; fallback for category landing pages (subcategory tiles)
+        const productSelectors = [locators.gigantti.productCard, locators.gigantti.categoryTile];
 
         // Wait for products to be visible
         await this.findFirstElement(productSelectors, {
