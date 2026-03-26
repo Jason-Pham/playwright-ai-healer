@@ -28,7 +28,7 @@ const __dirname = path.dirname(__filename);
  * ```
  */
 export class LocatorManager {
-    private static instance: LocatorManager;
+    private static instance: LocatorManager | undefined;
     private readonly adapter: LocatorAdapter;
     private readonly metricsPath: string;
     private metrics: MetricsStore = {};
@@ -64,7 +64,7 @@ export class LocatorManager {
      * ```
      */
     public static resetInstance(): void {
-        LocatorManager.instance = undefined as unknown as LocatorManager;
+        LocatorManager.instance = undefined;
     }
 
     /**
