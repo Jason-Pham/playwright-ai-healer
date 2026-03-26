@@ -179,7 +179,7 @@ export class AIClientManager {
         if (!apiKey) return;
 
         if (this.provider === 'openai') {
-            this.openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+            this.openai = new OpenAI({ apiKey });
         } else {
             this.gemini = new GoogleGenerativeAI(apiKey);
         }
