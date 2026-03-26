@@ -34,7 +34,7 @@ vi.mock('../../src/config/index.js', () => ({
         ai: {
             gemini: { modelName: 'mock-gemini-model' },
             openai: { modelName: 'mock-openai-model' },
-            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7 },
+            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7, failureMode: 'skip' as 'fail' | 'skip' },
             prompts: {
                 healingPrompt: () => 'mock prompt',
             },

@@ -58,6 +58,7 @@ const envSchema = z.object({
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
     LOCATOR_STORE: z.enum(['file', 'sqlite']).default('file'),
+    HEALING_FAILURE_MODE: z.enum(['fail', 'skip']).default('fail'),
 });
 
 type AppConfig = {
@@ -67,7 +68,13 @@ type AppConfig = {
         provider: string;
         gemini: { apiKey: string | undefined; modelName: string };
         openai: { apiKeys: string[]; modelName: string; apiKey: string | undefined };
-        healing: { maxRetries: number; retryDelay: number; confidenceThreshold: number; domSnapshotCharLimit: number };
+        healing: {
+            maxRetries: number;
+            retryDelay: number;
+            confidenceThreshold: number;
+            domSnapshotCharLimit: number;
+            failureMode: 'fail' | 'skip';
+        };
         security: { vercelChallengePath: string };
         prompts: { healingPrompt: (selector: string, error: string, html: string) => string };
     };
@@ -132,6 +139,7 @@ function buildConfig(): AppConfig {
                 retryDelay: 5000,
                 confidenceThreshold: 0.7,
                 domSnapshotCharLimit: env.DOM_SNAPSHOT_CHAR_LIMIT,
+                failureMode: env.HEALING_FAILURE_MODE,
             },
             security: {
                 vercelChallengePath: '.well-known/vercel/security/request-challenge',

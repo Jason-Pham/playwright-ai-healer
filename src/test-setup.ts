@@ -22,7 +22,13 @@ vi.mock('./config/index.js', () => ({
                 modelName: 'gpt-4o',
                 apiKey: undefined,
             },
-            healing: { maxRetries: 3, retryDelay: 5000, confidenceThreshold: 0.7, domSnapshotCharLimit: 2000 },
+            healing: {
+                maxRetries: 3,
+                retryDelay: 5000,
+                confidenceThreshold: 0.7,
+                domSnapshotCharLimit: 2000,
+                failureMode: 'fail' as 'fail' | 'skip',
+            },
             security: { vercelChallengePath: '.well-known/vercel/security/request-challenge' },
             prompts: {
                 healingPrompt: (selector: string, error: string, html: string) =>
