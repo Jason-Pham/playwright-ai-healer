@@ -128,6 +128,103 @@ describe('LocatorManager', () => {
         });
     });
 
+    describe('Selector Stability Metrics', () => {
+        it('recordSelectorFailure is a no-op for a selector that was never healed', async () => {
+            const { LocatorManager, mockedFs } = await getLocatorManager();
+            vi.mocked(mockedFs.existsSync).mockReturnValue(false);
+
+            const manager = LocatorManager.getInstance();
+            await manager.recordSelectorFailure('gigantti.searchInput');
+
+            // No metrics entry should have been created
+            expect(manager.getMetrics('gigantti.searchInput')).toEqual({ failureCount: 0 });
+            expect(mockedFs.writeFileSync).not.toHaveBeenCalled();
+        });
+
+        it('recordSelectorHealed sets healedAt and resets failureCount', async () => {
+            const { LocatorManager, mockedFs } = await getLocatorManager();
+            vi.mocked(mockedFs.existsSync).mockReturnValue(false);
+            vi.mocked(mockedFs.writeFileSync).mockImplementation(() => {});
+
+            const manager = LocatorManager.getInstance();
+            await manager.recordSelectorHealed('gigantti.searchInput');
+
+            const metrics = manager.getMetrics('gigantti.searchInput');
+            expect(metrics.failureCount).toBe(0);
+            expect(metrics.healedAt).toBeDefined();
+            expect(typeof metrics.healedAt).toBe('string');
+            expect(mockedFs.writeFileSync).toHaveBeenCalled();
+        });
+
+        it('recordSelectorFailure increments failureCount for a previously healed selector', async () => {
+            const { LocatorManager, mockedFs } = await getLocatorManager();
+            vi.mocked(mockedFs.existsSync).mockReturnValue(false);
+            vi.mocked(mockedFs.writeFileSync).mockImplementation(() => {});
+
+            const manager = LocatorManager.getInstance();
+            // Heal first so the guard passes
+            await manager.recordSelectorHealed('gigantti.searchInput');
+            await manager.recordSelectorFailure('gigantti.searchInput');
+
+            const metrics = manager.getMetrics('gigantti.searchInput');
+            expect(metrics.failureCount).toBe(1);
+            expect(metrics.lastFailedAt).toBeDefined();
+        });
+
+        it('recordSelectorHealed resets failureCount from a previous heal cycle', async () => {
+            const { LocatorManager, mockedFs } = await getLocatorManager();
+            vi.mocked(mockedFs.existsSync).mockReturnValue(false);
+            vi.mocked(mockedFs.writeFileSync).mockImplementation(() => {});
+
+            const manager = LocatorManager.getInstance();
+            await manager.recordSelectorHealed('gigantti.searchInput');
+            await manager.recordSelectorFailure('gigantti.searchInput');
+            await manager.recordSelectorFailure('gigantti.searchInput');
+            // Heal again — failureCount should reset to 0
+            await manager.recordSelectorHealed('gigantti.searchInput');
+
+            expect(manager.getMetrics('gigantti.searchInput').failureCount).toBe(0);
+        });
+
+        it('getMetrics() returns shallow copy of all entries', async () => {
+            const { LocatorManager, mockedFs } = await getLocatorManager();
+            vi.mocked(mockedFs.existsSync).mockReturnValue(false);
+            vi.mocked(mockedFs.writeFileSync).mockImplementation(() => {});
+
+            const manager = LocatorManager.getInstance();
+            await manager.recordSelectorHealed('a.b');
+            await manager.recordSelectorHealed('c.d');
+
+            const all = manager.getMetrics();
+            expect(Object.keys(all)).toContain('a.b');
+            expect(Object.keys(all)).toContain('c.d');
+            // Mutation of returned object must not affect internal state
+            (all as Record<string, unknown>)['injected'] = true;
+            expect(manager.getMetrics('injected')).toEqual({ failureCount: 0 });
+        });
+
+        it('getMetrics(key) returns default for an unknown key', async () => {
+            const { LocatorManager, mockedFs } = await getLocatorManager();
+            vi.mocked(mockedFs.existsSync).mockReturnValue(false);
+
+            const manager = LocatorManager.getInstance();
+            expect(manager.getMetrics('unknown.key')).toEqual({ failureCount: 0 });
+        });
+
+        it('handles corrupt metrics.json gracefully and resets to empty store', async () => {
+            const { LocatorManager, mockedFs } = await getLocatorManager();
+            // First call (locators.json) returns valid JSON; second (metrics.json) returns corrupt data
+            vi.mocked(mockedFs.existsSync).mockReturnValue(true);
+            vi.mocked(mockedFs.readFileSync)
+                .mockReturnValueOnce('{}') // locators.json
+                .mockReturnValueOnce('{ corrupt json !!!'); // metrics.json
+
+            const manager = LocatorManager.getInstance();
+            // Should not throw and should return empty metrics
+            expect(manager.getMetrics('any.key')).toEqual({ failureCount: 0 });
+        });
+    });
+
     describe('File Handling', () => {
         it('should handle missing locators file gracefully', async () => {
             const { LocatorManager, mockedFs } = await getLocatorManager();
