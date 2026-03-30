@@ -181,3 +181,16 @@ export class NoOpHandler implements SiteHandler {
         // Do nothing
     }
 }
+
+/**
+ * BooksToScrapeHandler - SiteHandler for books.toscrape.com.
+ *
+ * Books to Scrape is a clean test site with no cookie banners or overlays.
+ * This handler is a named no-op that exists for clarity and future extensibility
+ * (e.g. if the site ever adds consent dialogs or promotional modals).
+ */
+export class BooksToScrapeHandler implements SiteHandler {
+    async dismissOverlays(_page: Page): Promise<void> {
+        // books.toscrape.com has no overlays to dismiss
+    }
+}
