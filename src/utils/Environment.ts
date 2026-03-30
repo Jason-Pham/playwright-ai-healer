@@ -39,8 +39,7 @@ export function loadEnvironment(): Environment {
     // This ensures that local values in .env always take precedence over env-specific files.
     const basePath = path.resolve(process.cwd(), '.env');
     if (fs.existsSync(basePath)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        dotenv.config({ path: basePath, override: true, quiet: true } as any);
+        dotenv.config({ path: basePath, override: true });
     }
 
     // Set ENV so config can read it
