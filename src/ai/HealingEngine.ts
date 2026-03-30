@@ -6,7 +6,8 @@ import type { AIClientManager } from './AIClientManager.js';
 import { getSimplifiedDOM } from './DOMSerializer.js';
 import { parseAIResponse } from './ResponseParser.js';
 import { validateSelector } from './SelectorValidator.js';
-import type { AIError, HealingResult, HealingEvent } from '../types.js';
+import { RetryOrchestrator } from './RetryOrchestrator.js';
+import type { HealingResult, HealingEvent } from '../types.js';
 
 /**
  * Encapsulates the AI-powered selector healing logic.
@@ -86,134 +87,30 @@ export class HealingEngine {
 
         let healingSuccess = false;
         let healingResult: HealingResult | null = null;
-        let hasSwitchedProvider = false;
         let tokensUsed: { prompt: number; completion: number; total: number } | undefined;
 
         try {
+            // 3. Execute AI request with automatic retry / key rotation / provider failover
+            logger.info(`[HealingEngine:heal] 🔁 Step 3: Starting AI request via RetryOrchestrator`);
+            const orchestrator = new RetryOrchestrator(this.clientManager);
+
             let rawResult: string | undefined;
-
-            let maxKeyRotations = this.clientManager.getKeyCount();
-            logger.info(
-                `[HealingEngine:heal] 🔁 Step 3: Starting AI request loop (maxKeyRotations=${maxKeyRotations})`
-            );
-
-            // Outer loop for key rotation
-            keyLoop: for (let k = 0; k < maxKeyRotations; k++) {
-                let retryCount = 0;
-                const maxRetries = 3;
-                logger.info(
-                    `[HealingEngine:heal] 🔑 Key rotation iteration k=${k}, using key index ${this.clientManager.getCurrentKeyIndex()}`
+            try {
+                const { result: aiResult } = await orchestrator.execute(() =>
+                    this.clientManager.makeRequest(promptText, config.test.timeouts.default)
                 );
-
-                while (retryCount <= maxRetries) {
-                    logger.info(
-                        `[HealingEngine:heal] 🎲 Attempt: keyIteration=${k}, retryCount=${retryCount}/${maxRetries}`
-                    );
-                    try {
-                        const aiResult = await this.clientManager.makeRequest(promptText, config.test.timeouts.default);
-                        rawResult = aiResult.raw;
-                        tokensUsed = aiResult.tokensUsed;
-                        logger.info(`[HealingEngine:heal] ✅ AI request succeeded, breaking out of retry loop.`);
-                        break keyLoop;
-                    } catch (reqError) {
-                        const reqErrorTyped = reqError as AIError;
-                        const errorMessage = reqErrorTyped.message?.toLowerCase() || '';
-                        logger.error(
-                            `[HealingEngine:heal] ❌ AI request FAILED. Status: ${reqErrorTyped.status}, Message: "${reqErrorTyped.message}"`
-                        );
-                        logger.debug(
-                            `[HealingEngine:heal] Full error object: ${JSON.stringify(reqErrorTyped, Object.getOwnPropertyNames(reqErrorTyped))}`
-                        );
-
-                        // Handle 503 Service Unavailable / 5xx Server Errors / Timeouts
-                        const isServerError =
-                            (reqErrorTyped.status && reqErrorTyped.status >= 500) ||
-                            /\b503\b/.test(errorMessage) ||
-                            /\b500\b/.test(errorMessage) ||
-                            errorMessage.includes('service unavailable') ||
-                            errorMessage.includes('overloaded') ||
-                            errorMessage.includes('internal server error') ||
-                            errorMessage.includes('bad gateway') ||
-                            errorMessage.includes('timed out');
-
-                        logger.info(`[HealingEngine:heal] 🔍 Error classification: isServerError=${isServerError}`);
-
-                        if (isServerError) {
-                            if (retryCount < maxRetries) {
-                                retryCount++;
-                                const delay = Math.pow(2, retryCount) * 1000;
-                                logger.warn(
-                                    `[HealingEngine:heal] ⏳ AI Server Error (${reqErrorTyped.status}). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${maxRetries})`
-                                );
-                                await new Promise(resolve => setTimeout(resolve, delay));
-                                continue;
-                            } else {
-                                logger.error(
-                                    `[HealingEngine:heal] ❌ AI Server Error after ${maxRetries} retries. Giving up.`
-                                );
-                                throw reqErrorTyped;
-                            }
-                        }
-
-                        // Handle 401 Auth Errors specifically for key rotation
-                        const isAuthError =
-                            reqErrorTyped.status === 401 ||
-                            /\b401\b/.test(errorMessage) ||
-                            errorMessage.includes('unauthorized');
-
-                        logger.info(`[HealingEngine:heal] 🔍 Error classification: isAuthError=${isAuthError}`);
-
-                        if (isAuthError) {
-                            logger.warn(`[HealingEngine:heal] 🔑 Auth Error (401). Attempting key rotation...`);
-                            const rotated = this.clientManager.rotateKey();
-                            if (rotated) {
-                                logger.info(
-                                    `[HealingEngine:heal] 🔄 Key rotation result: ${rotated} (new index: ${this.clientManager.getCurrentKeyIndex()})`
-                                );
-                                continue keyLoop;
-                            }
-                            logger.info(
-                                `[HealingEngine:heal] ⚠️ Key rotation exhausted. Falling through to provider switch.`
-                            );
-                        }
-
-                        // Handle 4xx Client Errors (Rate limit, Auth fallback, Quota, etc)
-                        const is4xxError =
-                            (reqErrorTyped.status && reqErrorTyped.status >= 400 && reqErrorTyped.status < 500) ||
-                            /\b429\b/.test(errorMessage) ||
-                            errorMessage.includes('rate limit') ||
-                            errorMessage.includes('resource exhausted') ||
-                            errorMessage.includes('insufficient quota') ||
-                            isAuthError;
-
-                        logger.info(`[HealingEngine:heal] 🔍 Error classification: is4xxError=${is4xxError}`);
-
-                        if (is4xxError) {
-                            logger.warn(
-                                `[HealingEngine:heal] ⚠️ Client Error (4xx) detected: ${reqErrorTyped.status}. Attempting to switch AI provider...`
-                            );
-                            if (!hasSwitchedProvider && this.clientManager.switchProvider()) {
-                                hasSwitchedProvider = true;
-                                maxKeyRotations = this.clientManager.getKeyCount();
-                                k = -1; // Reset loop to restart with the new provider
-                                continue keyLoop;
-                            } else {
-                                logger.error(
-                                    `[HealingEngine:heal] ❌ No alternate provider configured or provider already switched. Skip healing.`
-                                );
-                                test.info().annotations.push({
-                                    type: 'warning',
-                                    description: 'Test skipped due to AI Client Error (4xx)',
-                                });
-                                test.skip(true, 'Test skipped due to AI Client Error (4xx)');
-                                return null;
-                            }
-                        }
-
-                        logger.error(`[HealingEngine:heal] 🚨 Unhandled error type. Re-throwing.`);
-                        throw reqErrorTyped;
-                    }
-                }
+                rawResult = aiResult.raw;
+                tokensUsed = aiResult.tokensUsed;
+                logger.info(`[HealingEngine:heal] ✅ AI request succeeded.`);
+            } catch {
+                // If all retries/rotations/failover exhausted, skip the test
+                logger.error(`[HealingEngine:heal] ❌ All retry strategies exhausted. Skipping test.`);
+                test.info().annotations.push({
+                    type: 'warning',
+                    description: 'Test skipped due to AI Client Error',
+                });
+                test.skip(true, 'Test skipped due to AI Client Error');
+                return null;
             }
 
             // 4. Parse and validate AI result
