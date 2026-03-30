@@ -6,6 +6,7 @@ import type { AIClientManager } from './AIClientManager.js';
 import { getSimplifiedDOM } from './DOMSerializer.js';
 import { parseAIResponse } from './ResponseParser.js';
 import { validateSelector } from './SelectorValidator.js';
+import { HealingMetrics } from '../utils/HealingMetrics.js';
 import type { AIError, HealingResult, HealingEvent } from '../types.js';
 
 /**
@@ -270,7 +271,7 @@ export class HealingEngine {
                 `[HealingEngine:heal] 📋 Success: ${healingSuccess}, Result: ${healingResult ? healingResult.selector : 'null'}`
             );
             // Record the healing event
-            this.healingEvents.push({
+            const healingEvent: HealingEvent = {
                 timestamp: new Date().toISOString(),
                 originalSelector,
                 result: healingResult,
@@ -280,7 +281,9 @@ export class HealingEngine {
                 durationMs,
                 ...(tokensUsed ? { tokensUsed } : {}),
                 domSnapshotLength: htmlSnapshot.length,
-            });
+            };
+            this.healingEvents.push(healingEvent);
+            HealingMetrics.getInstance().recordEvent(healingEvent);
         }
 
         return healingResult;
