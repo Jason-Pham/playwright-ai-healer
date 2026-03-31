@@ -77,6 +77,11 @@ jobs:
             projectFlags: --project=webkit --project=mobile-safari --project=tablet
             browsers: webkit
             browser-engine: webkit
+          - name: Books to Scrape
+            runs-on: ubuntu-24.04
+            projectFlags: --project=books-to-scrape
+            browsers: chromium
+            browser-engine: chromium
 
     name: E2E — ${{ matrix.name }}
 

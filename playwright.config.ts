@@ -71,6 +71,16 @@ export default defineConfig({
             },
         },
 
+        // Books to Scrape (second target site)
+        {
+            name: 'books-to-scrape',
+            testMatch: 'books-to-scrape.spec.ts',
+            use: {
+                ...devices['Desktop Chrome'],
+                baseURL: process.env['BOOKS_BASE_URL'] || 'https://books.toscrape.com/',
+            },
+        },
+
         // Desktop browsers - All major engines
         {
             name: 'chromium',
