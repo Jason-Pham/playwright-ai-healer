@@ -5,8 +5,7 @@ import { config } from '../config/index.js';
 
 import locators from '../config/locators.json' with { type: 'json' };
 
-const { bookDetailTitle, bookDetailPrice, addToCartButton } =
-    locators.booksToScrape;
+const { bookDetailTitle, bookDetailPrice, addToCartButton } = locators.booksToScrape;
 
 /**
  * BookDetailPage - Page object for individual book detail pages on Books to Scrape.
@@ -81,8 +80,6 @@ export class BookDetailPage extends BasePage {
         const price = await this.getPrice();
         expect(price.length).toBeGreaterThan(0);
 
-        logger.debug(
-            `Verified book displayed: "${title}" at ${price}`
-        );
+        logger.debug(`Verified book displayed: "${title}" at ${price}`);
     }
 }

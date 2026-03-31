@@ -6,15 +6,7 @@ import { BookDetailPage } from './BookDetailPage.js';
 
 import locators from '../config/locators.json' with { type: 'json' };
 
-const {
-    categoryLink,
-    bookCard,
-    bookTitle,
-    bookPrice,
-    nextPageButton,
-} = locators.booksToScrape;
-
-const BOOKS_BASE_URL = 'https://books.toscrape.com/';
+const { categoryLink, bookCard, bookTitle, bookPrice, nextPageButton } = locators.booksToScrape;
 
 /**
  * BooksHomePage - Page object for the Books to Scrape home page.
@@ -32,7 +24,7 @@ const BOOKS_BASE_URL = 'https://books.toscrape.com/';
  * ```
  */
 export class BooksHomePage extends BasePage {
-    private readonly url = BOOKS_BASE_URL;
+    private readonly url = config.app.booksBaseUrl;
     private readonly timeouts = config.test.timeouts;
 
     /**

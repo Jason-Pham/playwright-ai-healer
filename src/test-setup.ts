@@ -13,7 +13,7 @@ export const mockOpenaiCreate = vi.fn();
 vi.mock('./config/index.js', () => ({
     config: {
         env: 'dev',
-        app: { baseUrl: 'https://www.gigantti.fi/' },
+        app: { baseUrl: 'https://www.gigantti.fi/', booksBaseUrl: 'https://books.toscrape.com/' },
         ai: {
             provider: 'gemini',
             gemini: { apiKey: 'mock-gemini-key', modelName: 'gemini-flash-latest' },

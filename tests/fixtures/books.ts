@@ -24,28 +24,16 @@ export const test = base.extend<BooksFixtures>({
             apiKeys = ai.gemini.apiKey;
             model = ai.gemini.modelName;
         } else if (ai.openai.apiKeys && ai.openai.apiKeys.length > 0) {
-            logger.debug(
-                `[Books Fixture] Checking openai keys. Length: ${ai.openai.apiKeys.length}`
-            );
+            logger.debug(`[Books Fixture] Checking openai keys. Length: ${ai.openai.apiKeys.length}`);
             provider = 'openai';
             apiKeys = ai.openai.apiKeys;
             model = ai.openai.modelName;
         } else {
-            logger.error(
-                '[Books Fixture] No API keys found for Gemini or OpenAI'
-            );
-            throw new Error(
-                'API Key missing! Check src/config/index.ts or .env'
-            );
+            logger.error('[Books Fixture] No API keys found for Gemini or OpenAI');
+            throw new Error('API Key missing! Check src/config/index.ts or .env');
         }
 
-        const healer = new AutoHealer(
-            page,
-            apiKeys,
-            provider,
-            model,
-            true
-        );
+        const healer = new AutoHealer(page, apiKeys, provider, model, true);
         await use(healer);
     },
 

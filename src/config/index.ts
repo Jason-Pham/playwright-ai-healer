@@ -58,11 +58,12 @@ const envSchema = z.object({
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
     LOCATOR_STORE: z.enum(['file', 'sqlite']).default('file'),
+    BOOKS_BASE_URL: z.string().url().default('https://books.toscrape.com/'),
 });
 
 type AppConfig = {
     env: string;
-    app: { baseUrl: string };
+    app: { baseUrl: string; booksBaseUrl: string };
     ai: {
         provider: string;
         gemini: { apiKey: string | undefined; modelName: string };
@@ -112,6 +113,7 @@ function buildConfig(): AppConfig {
         env: env.ENV,
         app: {
             baseUrl: env.BASE_URL,
+            booksBaseUrl: env.BOOKS_BASE_URL,
         },
         ai: {
             provider: env.AI_PROVIDER,
