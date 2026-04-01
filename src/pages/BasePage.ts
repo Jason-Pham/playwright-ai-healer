@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { AutoHealer } from '../AutoHealer.js';
 import { logger } from '../utils/Logger.js';
 import { config } from '../config/index.js';
-import { type SiteHandler, GiganttiHandler } from '../utils/SiteHandler.js';
+import { type SiteHandler, BooksToScrapeHandler } from '../utils/SiteHandler.js';
 
 /**
  * BasePage - Abstract base class for all page objects.
@@ -17,8 +17,7 @@ import { type SiteHandler, GiganttiHandler } from '../utils/SiteHandler.js';
  * ```typescript
  * class SearchPage extends BasePage {
  *   async search(term: string) {
- *     await this.safeClick('gigantti.searchInput');
- *     await this.safeFill('gigantti.searchInput', term);
+ *     await this.safeClick('booksToScrape.bookTitle');
  *   }
  * }
  * ```
@@ -34,7 +33,7 @@ export abstract class BasePage {
     // Per-page (static) security-challenge tracking
     //
     // Each test creates multiple BasePage subclass instances that share the same
-    // Playwright Page (e.g. GiganttiHomePage → CategoryMenuPage via selectCategory).
+    // Playwright Page (e.g. BooksHomePage -> BookDetailPage via clickBook).
     // Using instance fields means the NEW subclass instance starts with a fresh
     // signal that was never fired, even if the parent already detected the
     // challenge.  Static WeakMaps keyed on the Page object fix this: all
@@ -49,9 +48,9 @@ export abstract class BasePage {
     /**
      * @param page - Playwright page instance.
      * @param autoHealer - Optional AutoHealer for self-healing. Omit to use plain Playwright.
-     * @param siteHandler - Site-specific overlay handler. Defaults to `GiganttiHandler`.
+     * @param siteHandler - Site-specific overlay handler. Defaults to `BooksToScrapeHandler`.
      */
-    constructor(page: Page, autoHealer?: AutoHealer, siteHandler: SiteHandler = new GiganttiHandler()) {
+    constructor(page: Page, autoHealer?: AutoHealer, siteHandler: SiteHandler = new BooksToScrapeHandler()) {
         this.page = page;
         this.autoHealer = autoHealer;
         this.siteHandler = siteHandler;
@@ -204,8 +203,6 @@ export abstract class BasePage {
         } else {
             // Always re-check on subsequent actions: the banner may have re-appeared
             // after the initial dismissal (e.g. due to site JS re-initialisation).
-            // GiganttiHandler uses an instant isVisible() check here, so this is
-            // near-zero overhead when the banner is already gone.
             this.checkSecurityChallenge();
             await this.siteHandler.dismissOverlays(this.page);
         }
@@ -214,7 +211,7 @@ export abstract class BasePage {
     /**
      * Click an element, dismissing overlays first and delegating to `AutoHealer` when available.
      *
-     * Accepts a dot-notation locator key (e.g. `gigantti.searchInput`) or a raw CSS selector.
+     * Accepts a dot-notation locator key (e.g. `booksToScrape.bookTitle`) or a raw CSS selector.
      * When a string selector is provided and `autoHealer` is configured, healing is attempted
      * automatically on failure. When a `Locator` object is provided, it is clicked directly.
      *

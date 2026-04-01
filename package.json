@@ -11,8 +11,6 @@
         "test:chromium": "cross-env TEST_ENV=prod playwright test --project=chromium",
         "test:chrome": "cross-env TEST_ENV=prod playwright test --project=chrome",
         "test:edge": "cross-env TEST_ENV=prod playwright test --project=edge",
-        "test:books": "cross-env TEST_ENV=prod playwright test tests/books-to-scrape.spec.ts --project=books-to-scrape",
-        "test:books:debug": "cross-env TEST_ENV=prod LOG_LEVEL=debug playwright test tests/books-to-scrape.spec.ts --project=books-to-scrape --headed --workers=1",
         "test:healing-demo": "cross-env TEST_ENV=prod playwright test tests/healing-demo.spec.ts --project=chromium",
         "test:firefox": "cross-env TEST_ENV=prod playwright test --project=firefox",
         "test:debug:firefox": "cross-env TEST_ENV=prod LOG_LEVEL=debug playwright test --project=firefox --headed --workers=1",

@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/books.js';
+import { test, expect } from './fixtures/base.js';
 
 test.describe('Books to Scrape E2E Tests', () => {
     test.describe('Browse & Verify', () => {

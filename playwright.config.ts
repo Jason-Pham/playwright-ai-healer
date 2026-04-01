@@ -36,7 +36,7 @@ export default defineConfig({
 
     use: {
         headless: process.env['HEADLESS'] !== 'false',
-        baseURL: process.env['BASE_URL'] || 'https://www.gigantti.fi/',
+        baseURL: process.env['BASE_URL'] || 'https://books.toscrape.com/',
         screenshot: 'on-first-failure',
         video: 'retain-on-failure',
         trace: 'retain-on-failure',
@@ -68,16 +68,6 @@ export default defineConfig({
             use: {
                 ...devices['Desktop Chrome'],
                 headless: true,
-            },
-        },
-
-        // Books to Scrape (second target site)
-        {
-            name: 'books-to-scrape',
-            testMatch: 'books-to-scrape.spec.ts',
-            use: {
-                ...devices['Desktop Chrome'],
-                baseURL: process.env['BOOKS_BASE_URL'] || 'https://books.toscrape.com/',
             },
         },
 

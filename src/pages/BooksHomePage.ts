@@ -13,7 +13,7 @@ const { categoryLink, bookCard, bookTitle, bookPrice, nextPageButton } = locator
  *
  * Provides navigation by sidebar category, book counting, book clicking,
  * and pagination support. Demonstrates that the self-healing framework
- * generalizes beyond the primary Gigantti target site.
+ * generalizes as the primary test target.
  *
  * @example
  * ```typescript
@@ -24,7 +24,7 @@ const { categoryLink, bookCard, bookTitle, bookPrice, nextPageButton } = locator
  * ```
  */
 export class BooksHomePage extends BasePage {
-    private readonly url = config.app.booksBaseUrl;
+    private readonly url = config.app.baseUrl;
     private readonly timeouts = config.test.timeouts;
 
     /**
