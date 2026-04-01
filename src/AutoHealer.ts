@@ -31,8 +31,8 @@ import type {
  * @example
  * ```typescript
  * const healer = new AutoHealer(page, process.env['GEMINI_API_KEY']!, 'gemini');
- * await healer.click('gigantti.searchInput');
- * await healer.fill('gigantti.searchInput', 'laptop');
+ * await healer.click('booksToScrape.searchInput');
+ * await healer.fill('booksToScrape.searchInput', 'laptop');
  * ```
  */
 export class AutoHealer {
@@ -310,9 +310,9 @@ export class AutoHealer {
      * @example
      * ```typescript
      * const results = await healer.healAll([
-     *   { selectorOrKey: 'gigantti.searchInput', action: 'click' },
-     *   { selectorOrKey: 'gigantti.cookieBtn',   action: 'click' },
-     *   { selectorOrKey: 'gigantti.filterBox',   action: 'fill', value: 'laptop' },
+     *   { selectorOrKey: 'booksToScrape.searchInput', action: 'click' },
+     *   { selectorOrKey: 'booksToScrape.cookieBtn',   action: 'click' },
+     *   { selectorOrKey: 'booksToScrape.filterBox',   action: 'fill', value: 'laptop' },
      * ]);
      * results.forEach(r => console.log(r.selectorOrKey, r.success, r.healedSelector));
      * ```
