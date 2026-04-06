@@ -404,13 +404,13 @@ describe('AutoHealer Core Logic', () => {
                 response: { text: () => 'FAIL' },
             });
 
-            const operations = [{ selectorOrKey: 'gigantti.searchInput', action: 'click' as const }];
+            const operations = [{ selectorOrKey: 'booksToScrape.searchInput', action: 'click' as const }];
 
             // Act
             await autoHealer.healAll(operations);
 
             // Assert
-            expect(mockRecordSelectorFailure).toHaveBeenCalledWith('gigantti.searchInput');
+            expect(mockRecordSelectorFailure).toHaveBeenCalledWith('booksToScrape.searchInput');
         });
     });
 });
