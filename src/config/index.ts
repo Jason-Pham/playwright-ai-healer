@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { loadEnvironment } from '../utils/Environment.js';
 
+const categoriesData = {
+    travel: { label: 'Travel' },
+    mystery: { label: 'Mystery' },
+    'historical-fiction': { label: 'Historical Fiction' },
+    'science-fiction': { label: 'Science Fiction' },
+    poetry: { label: 'Poetry' },
+} as const;
+
+export type CategoryKey = keyof typeof categoriesData;
+
 // Define the schema for environment variables
 const envSchema = z.object({
     ENV: z.enum(['dev', 'staging', 'prod']).default('dev'),
@@ -8,7 +18,7 @@ const envSchema = z.object({
         .string()
         .optional()
         .transform(val => {
-            if (!val || val === '/' || val === '') return 'https://www.gigantti.fi/';
+            if (!val || val === '/' || val === '') return 'https://books.toscrape.com/';
             return val;
         })
         .pipe(z.string().url()),
@@ -26,6 +36,11 @@ const envSchema = z.object({
         .transform(val => val !== 'false'),
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
+    LOG_EMOJI: z
+        .string()
+        .default('true')
+        .transform(val => val !== 'false'),
+    LOCATOR_STORE: z.enum(['file', 'sqlite']).default('file'),
 });
 
 type AppConfig = {
@@ -53,11 +68,12 @@ type AppConfig = {
             stabilization: number;
         };
     };
-    logging: { level: string; consoleLevel: string };
+    locatorStore: 'file' | 'sqlite';
+    logging: { level: string; consoleLevel: string; emoji: boolean };
     testData: {
         searchTerms: string[];
         getRandomSearchTerm(): string;
-        categories: { computers: string };
+        categories: typeof categoriesData;
     };
 };
 
@@ -106,13 +122,13 @@ function buildConfig(): AppConfig {
             prompts: {
                 healingPrompt: (selector: string, error: string, html: string) => `
       You are a Test Automation AI. A Playwright test failed to find or interact with an element.
-      
+
       Original Selector: "${selector}"
       Error: "${error}"
-      
-      Below is the current HTML of the page. 
+
+      Below is the current HTML of the page.
       Analyze it to find the MOST LIKELY new selector for the element the user intended to interact with.
-      
+
       CRITICAL INSTRUCTIONS:
       1. Return ONLY the new selector as a plain string.
       2. DO NOT return markdown formatting like backticks (e.g. no \`#selector\`).
@@ -141,31 +157,19 @@ function buildConfig(): AppConfig {
                 stabilization: 200,
             },
         },
+        locatorStore: env.LOCATOR_STORE,
         logging: {
             level: env.LOG_LEVEL,
             consoleLevel: env.CONSOLE_LOG_LEVEL,
+            emoji: env.LOG_EMOJI,
         },
         testData: {
-            searchTerms: [
-                'kannettava',
-                'puhelin',
-                'televisio',
-                'kuulokkeet',
-                'tabletti',
-                'kamera',
-                'peli',
-                'kaiutin',
-                'näppäimistö',
-                'näyttö',
-            ],
-            // Helper to get random search term
+            searchTerms: ['fiction', 'mystery', 'romance', 'poetry', 'travel'],
             getRandomSearchTerm(): string {
                 const terms = this.searchTerms;
-                return terms[Math.floor(Math.random() * terms.length)] || 'laptop';
+                return terms[Math.floor(Math.random() * terms.length)] ?? 'fiction';
             },
-            categories: {
-                computers: 'Tietotekniikka',
-            },
+            categories: categoriesData,
         },
     };
 }

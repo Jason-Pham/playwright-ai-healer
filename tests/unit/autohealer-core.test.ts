@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Page } from '@playwright/test';
 import { AutoHealer } from '../../src/AutoHealer.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { LocatorManager } from '../../src/utils/LocatorManager.js';
+
+/** Shape of the mock LocatorManager returned by the mocked getInstance(). */
+interface MockLocatorManagerInstance {
+    getLocator: ReturnType<typeof vi.fn>;
+    updateLocator: ReturnType<typeof vi.fn>;
+    recordSelectorFailure: ReturnType<typeof vi.fn>;
+    recordSelectorHealed: ReturnType<typeof vi.fn>;
+}
 
 // Mock dependencies
 vi.mock('@playwright/test', () => ({
@@ -43,6 +52,8 @@ vi.mock('../../src/utils/LocatorManager.js', () => ({
         getInstance: vi.fn(() => ({
             getLocator: vi.fn(),
             updateLocator: vi.fn().mockResolvedValue(undefined),
+            recordSelectorFailure: vi.fn(),
+            recordSelectorHealed: vi.fn(),
         })),
     },
 }));
@@ -65,9 +76,16 @@ vi.mock('@google/generative-ai', () => {
 
 describe('AutoHealer Core Logic', () => {
     let autoHealer: AutoHealer;
-    let mockPage: any;
-    let mockGenerateContent: any;
-    let mockUpdateLocator: any;
+    let mockPage: {
+        evaluate: ReturnType<typeof vi.fn>;
+        click: ReturnType<typeof vi.fn>;
+        fill: ReturnType<typeof vi.fn>;
+        locator: ReturnType<typeof vi.fn>;
+    };
+    let mockGenerateContent: ReturnType<typeof vi.fn>;
+    let mockUpdateLocator: ReturnType<typeof vi.fn>;
+    let mockRecordSelectorFailure: ReturnType<typeof vi.fn>;
+    let mockRecordSelectorHealed: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
         // Mock setTimeout to resolve immediately
@@ -90,25 +108,27 @@ describe('AutoHealer Core Logic', () => {
         vi.clearAllMocks();
 
         // Setup AI mock
-        const MockGenAI = vi.mocked(GoogleGenerativeAI);
         const mockModel = {
             generateContent: vi.fn(),
         };
-        (MockGenAI as any).mockImplementation(function () {
-            return {
-                getGenerativeModel: () => mockModel,
-            };
+        // Must use `function` (not arrow) because this mock is invoked with `new`
+        vi.mocked(GoogleGenerativeAI).mockImplementation(function () {
+            return { getGenerativeModel: () => mockModel } as unknown as GoogleGenerativeAI;
         });
         mockGenerateContent = mockModel.generateContent;
 
         // Setup LocatorManager mock
         mockUpdateLocator = vi.fn().mockResolvedValue(undefined);
-        (LocatorManager.getInstance as any).mockReturnValue({
+        mockRecordSelectorFailure = vi.fn().mockResolvedValue(undefined);
+        mockRecordSelectorHealed = vi.fn().mockResolvedValue(undefined);
+        vi.mocked(LocatorManager.getInstance).mockReturnValue({
             getLocator: vi.fn(),
             updateLocator: mockUpdateLocator,
-        });
+            recordSelectorFailure: mockRecordSelectorFailure,
+            recordSelectorHealed: mockRecordSelectorHealed,
+        } as unknown as LocatorManager);
 
-        autoHealer = new AutoHealer(mockPage, 'mock-key', 'gemini');
+        autoHealer = new AutoHealer(mockPage as unknown as Page, 'mock-key', 'gemini');
     });
 
     describe('click() Healing Flow', () => {
@@ -149,7 +169,9 @@ describe('AutoHealer Core Logic', () => {
             const healedSelector = '#new-submit';
 
             // Mock LocatorManager to return broken selector for the key
-            (LocatorManager.getInstance() as any).getLocator.mockReturnValue(brokenSelector);
+            (LocatorManager.getInstance() as unknown as MockLocatorManagerInstance).getLocator.mockReturnValue(
+                brokenSelector
+            );
 
             // Mock page failure and AI success
             mockPage.click.mockRejectedValueOnce(new Error('Element not found')).mockResolvedValueOnce(undefined);
@@ -161,6 +183,24 @@ describe('AutoHealer Core Logic', () => {
 
             // Expect updateLocator to be called
             expect(mockUpdateLocator).toHaveBeenCalledWith(key, healedSelector);
+            // Expect recordSelectorHealed to be called after a successful heal
+            expect(mockRecordSelectorHealed).toHaveBeenCalledWith(key);
+        });
+
+        it('should record selector failure when a keyed selector fails', async () => {
+            const key = 'submitButton';
+            const brokenSelector = '#old-submit';
+            const healedSelector = '#new-submit';
+
+            (LocatorManager.getInstance() as unknown as MockLocatorManagerInstance).getLocator.mockReturnValue(
+                brokenSelector
+            );
+            mockPage.click.mockRejectedValueOnce(new Error('Element not found')).mockResolvedValueOnce(undefined);
+            mockGenerateContent.mockResolvedValue({ response: { text: () => healedSelector } });
+
+            await autoHealer.click(key);
+
+            expect(mockRecordSelectorFailure).toHaveBeenCalledWith(key);
         });
 
         it('should skip test if healing fails (returns null)', async () => {
@@ -205,6 +245,172 @@ describe('AutoHealer Core Logic', () => {
             expect(mockPage.fill).toHaveBeenCalledTimes(2);
             expect(mockPage.fill).toHaveBeenNthCalledWith(1, brokenSelector, value, expect.anything());
             expect(mockPage.fill).toHaveBeenNthCalledWith(2, healedSelector, value, undefined);
+        });
+    });
+
+    describe('healAll()', () => {
+        it('should return all success when every operation passes in Phase 1', async () => {
+            // Arrange
+            mockPage.click.mockResolvedValue(undefined);
+            mockPage.fill.mockResolvedValue(undefined);
+
+            const operations = [
+                { selectorOrKey: '#btn-a', action: 'click' as const },
+                { selectorOrKey: '#input-b', action: 'fill' as const, value: 'hello' },
+            ];
+
+            // Act
+            const results = await autoHealer.healAll(operations);
+
+            // Assert
+            expect(results).toEqual([
+                { selectorOrKey: '#btn-a', success: true },
+                { selectorOrKey: '#input-b', success: true },
+            ]);
+            expect(mockGenerateContent).not.toHaveBeenCalled();
+        });
+
+        it('should heal a failing operation and return success with healedSelector', async () => {
+            // Arrange
+            const healedSelector = '#healed-btn';
+            const locatorManagerMock = LocatorManager.getInstance() as unknown as MockLocatorManagerInstance;
+            locatorManagerMock.getLocator.mockReturnValue('#broken-btn');
+
+            // Phase 1: click fails
+            mockPage.click
+                .mockRejectedValueOnce(new Error('Element not found'))
+                // Phase 3: retry succeeds
+                .mockResolvedValueOnce(undefined);
+
+            // AI returns a healed selector
+            mockGenerateContent.mockResolvedValue({
+                response: { text: () => healedSelector },
+            });
+
+            const operations = [{ selectorOrKey: 'page.button', action: 'click' as const }];
+
+            // Act
+            const results = await autoHealer.healAll(operations);
+
+            // Assert
+            expect(results).toEqual([
+                {
+                    selectorOrKey: 'page.button',
+                    success: true,
+                    healedSelector,
+                },
+            ]);
+            expect(mockUpdateLocator).toHaveBeenCalledWith('page.button', healedSelector);
+            expect(mockRecordSelectorHealed).toHaveBeenCalledWith('page.button');
+        });
+
+        it('should return failure with error message when AI returns null (FAIL)', async () => {
+            // Arrange
+            mockPage.click.mockRejectedValueOnce(new Error('Element not found'));
+
+            // AI returns FAIL → heal() returns null
+            mockGenerateContent.mockResolvedValue({
+                response: { text: () => 'FAIL' },
+            });
+
+            const operations = [{ selectorOrKey: '#broken', action: 'click' as const }];
+
+            // Act
+            const results = await autoHealer.healAll(operations);
+
+            // Assert
+            expect(results).toEqual([
+                {
+                    selectorOrKey: '#broken',
+                    success: false,
+                    error: 'AI could not find a replacement selector',
+                },
+            ]);
+        });
+
+        it('should return failure with healedSelector when retry also fails after healing', async () => {
+            // Arrange
+            const healedSelector = '#healed-btn';
+
+            // Phase 1: fails, Phase 3: also fails
+            mockPage.click
+                .mockRejectedValueOnce(new Error('Element not found'))
+                .mockRejectedValueOnce(new Error('Still not found'));
+
+            mockGenerateContent.mockResolvedValue({
+                response: { text: () => healedSelector },
+            });
+
+            const operations = [{ selectorOrKey: '#broken', action: 'click' as const }];
+
+            // Act
+            const results = await autoHealer.healAll(operations);
+
+            // Assert
+            expect(results).toHaveLength(1);
+            expect(results[0]).toMatchObject({
+                selectorOrKey: '#broken',
+                success: false,
+                healedSelector,
+            });
+            expect(results[0]?.error).toBeDefined();
+            expect(results[0]?.error).toContain('Still not found');
+        });
+
+        it('should fire AI healing concurrently for multiple failures', async () => {
+            // Arrange
+            const healedA = '#healed-a';
+            const healedB = '#healed-b';
+
+            // Both operations fail in Phase 1
+            mockPage.click
+                .mockRejectedValueOnce(new Error('A not found'))
+                .mockRejectedValueOnce(new Error('B not found'))
+                // Phase 3: both retries succeed
+                .mockResolvedValueOnce(undefined)
+                .mockResolvedValueOnce(undefined);
+
+            // AI heals both
+            mockGenerateContent
+                .mockResolvedValueOnce({ response: { text: () => healedA } })
+                .mockResolvedValueOnce({ response: { text: () => healedB } });
+
+            const operations = [
+                { selectorOrKey: '#btn-a', action: 'click' as const },
+                { selectorOrKey: '#btn-b', action: 'click' as const },
+            ];
+
+            // Act
+            const results = await autoHealer.healAll(operations);
+
+            // Assert — both healed successfully
+            expect(results).toEqual([
+                { selectorOrKey: '#btn-a', success: true, healedSelector: healedA },
+                { selectorOrKey: '#btn-b', success: true, healedSelector: healedB },
+            ]);
+            // heal() was called twice (one per failure, concurrently via Promise.allSettled)
+            expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+        });
+
+        it('should call recordSelectorFailure when a keyed selector fails in Phase 1', async () => {
+            // Arrange
+            const locatorManagerMock = LocatorManager.getInstance() as unknown as MockLocatorManagerInstance;
+            locatorManagerMock.getLocator.mockReturnValue('#resolved-selector');
+
+            mockPage.click.mockRejectedValueOnce(new Error('Element not found'));
+
+            // AI returns FAIL so we don't need to handle Phase 3
+            mockGenerateContent.mockResolvedValue({
+                response: { text: () => 'FAIL' },
+            });
+
+            const operations = [{ selectorOrKey: 'booksToScrape.searchInput', action: 'click' as const }];
+
+            // Act
+            await autoHealer.healAll(operations);
+
+            // Assert
+            expect(mockRecordSelectorFailure).toHaveBeenCalledWith('booksToScrape.searchInput');
         });
     });
 });
