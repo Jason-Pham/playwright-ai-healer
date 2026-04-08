@@ -18,6 +18,7 @@ playwright/.cache/
 test_output.txt
 lint_output.txt
 test.log
+*.db
 
 # OS — macOS
 .DS_Store
@@ -77,3 +78,6 @@ list-models.ts
 OPTIMIZATION_SUMMARY.md
 /agents/
 
+.gitnexus
+AGENTS.md
+.claude/worktrees/

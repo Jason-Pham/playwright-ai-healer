@@ -3,12 +3,15 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Page } from '@playwright/test';
 import { mockGeminiGenerateContent } from './test-setup.js';
 import { AutoHealer } from './AutoHealer.js';
+import { validateSelector } from './ai/SelectorValidator.js';
 
 const { mockLocatorManager } = vi.hoisted(() => {
     return {
         mockLocatorManager: {
             getLocator: vi.fn((key: string) => (key === 'app.btn' ? '#old-selector' : null)),
             updateLocator: vi.fn().mockResolvedValue(undefined),
+            recordSelectorFailure: vi.fn(),
+            recordSelectorHealed: vi.fn(),
         },
     };
 });
@@ -165,7 +168,7 @@ describe('AutoHealer', () => {
             `;
 
             // Run the actual evaluate function in JSDOM
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
 
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
@@ -200,7 +203,7 @@ describe('AutoHealer', () => {
                 </main>
             `;
 
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -224,7 +227,7 @@ describe('AutoHealer', () => {
             const longText = 'a'.repeat(300);
             document.body.innerHTML = `<div><button id="btn">${longText}</button></div>`;
 
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -248,7 +251,7 @@ describe('AutoHealer', () => {
                 </ul>
             `;
 
-            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: any) => fn());
+            (mockPage.evaluate as ReturnType<typeof vi.fn>).mockImplementation((fn: () => string) => fn());
             (mockPage.click as ReturnType<typeof vi.fn>)
                 .mockRejectedValueOnce(new Error('Timeout'))
                 .mockResolvedValueOnce(undefined);
@@ -328,7 +331,7 @@ describe('AutoHealer', () => {
             // Setup config to ensure no fallback is possible
             const { config } = await import('./config/index.js');
             const originalOpenAiKeys = config.ai.openai.apiKeys;
-            config.ai.openai.apiKeys = undefined as any;
+            config.ai.openai.apiKeys = undefined as unknown as string[];
 
             // Fail with 429
             mockGeminiGenerateContent.mockRejectedValueOnce({ status: 429, message: 'Rate Limit Exceeded' });
@@ -376,6 +379,325 @@ describe('AutoHealer', () => {
         });
     });
 
+    describe('hover()', () => {
+        it('should hover successfully without healing when element is found', async () => {
+            (mockPage.hover as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.hover('#existing-button');
+
+            expect(mockPage.hover).toHaveBeenCalledTimes(1);
+            expect(mockPage.hover).toHaveBeenCalledWith('#existing-button', expect.any(Object));
+        });
+
+        it('should attempt healing and retry when hover fails', async () => {
+            (mockPage.hover as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('TimeoutError'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.hover('#broken-selector');
+
+            expect(mockPage.hover).toHaveBeenCalledTimes(2);
+            expect(mockGeminiGenerateContent).toHaveBeenCalled();
+        });
+    });
+
+    describe('type()', () => {
+        it('should type successfully without healing when element is found', async () => {
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.type('#input-field', 'hello');
+
+            const locatorMock = mockPage.locator as ReturnType<typeof vi.fn>;
+            expect(locatorMock).toHaveBeenCalledWith('#input-field');
+        });
+
+        it('should pass delay option to pressSequentially', async () => {
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.type('#input-field', 'hello', { delay: 100 });
+
+            const locatorMock = mockPage.locator as ReturnType<typeof vi.fn>;
+            const locatorHandle = locatorMock.mock.results[0]?.value as { pressSequentially: ReturnType<typeof vi.fn> };
+            expect(locatorHandle.pressSequentially).toHaveBeenCalledWith(
+                'hello',
+                expect.objectContaining({ delay: 100 })
+            );
+        });
+
+        it('should attempt healing and retry when type fails', async () => {
+            const pressSequentiallyMock = vi
+                .fn()
+                .mockRejectedValueOnce(new Error('TimeoutError'))
+                .mockResolvedValueOnce(undefined);
+
+            const mockLocatorHandle = {
+                waitFor: vi.fn().mockResolvedValue(undefined),
+                pressSequentially: pressSequentiallyMock,
+                count: vi.fn().mockResolvedValue(1),
+            };
+            (mockPage.locator as ReturnType<typeof vi.fn>).mockReturnValue(mockLocatorHandle);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.type('#broken', 'hello');
+
+            expect(mockGeminiGenerateContent).toHaveBeenCalled();
+        });
+    });
+
+    describe('selectOption()', () => {
+        it('should select option successfully without healing', async () => {
+            (mockPage.selectOption as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.selectOption('#dropdown', 'option1');
+
+            expect(mockPage.selectOption).toHaveBeenCalledTimes(1);
+            expect(mockPage.selectOption).toHaveBeenCalledWith('#dropdown', 'option1', expect.any(Object));
+        });
+
+        it('should attempt healing and retry when selectOption fails', async () => {
+            (mockPage.selectOption as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('TimeoutError'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.selectOption('#broken-dropdown', 'option1');
+
+            expect(mockPage.selectOption).toHaveBeenCalledTimes(2);
+            expect(mockGeminiGenerateContent).toHaveBeenCalled();
+        });
+    });
+
+    describe('check()', () => {
+        it('should check successfully without healing', async () => {
+            (mockPage.check as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.check('#checkbox');
+
+            expect(mockPage.check).toHaveBeenCalledTimes(1);
+            expect(mockPage.check).toHaveBeenCalledWith('#checkbox', expect.any(Object));
+        });
+
+        it('should attempt healing and retry when check fails', async () => {
+            (mockPage.check as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('TimeoutError'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.check('#broken-checkbox');
+
+            expect(mockPage.check).toHaveBeenCalledTimes(2);
+            expect(mockGeminiGenerateContent).toHaveBeenCalled();
+        });
+    });
+
+    describe('uncheck()', () => {
+        it('should uncheck successfully without healing', async () => {
+            (mockPage.uncheck as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.uncheck('#checkbox');
+
+            expect(mockPage.uncheck).toHaveBeenCalledTimes(1);
+            expect(mockPage.uncheck).toHaveBeenCalledWith('#checkbox', expect.any(Object));
+        });
+
+        it('should attempt healing and retry when uncheck fails', async () => {
+            (mockPage.uncheck as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('TimeoutError'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.uncheck('#broken-checkbox');
+
+            expect(mockPage.uncheck).toHaveBeenCalledTimes(2);
+            expect(mockGeminiGenerateContent).toHaveBeenCalled();
+        });
+    });
+
+    describe('waitForSelector()', () => {
+        it('should wait for selector successfully without healing', async () => {
+            (mockPage.waitForSelector as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.waitForSelector('#element');
+
+            expect(mockPage.waitForSelector).toHaveBeenCalledTimes(1);
+            expect(mockPage.waitForSelector).toHaveBeenCalledWith('#element', expect.any(Object));
+        });
+
+        it('should attempt healing and retry when waitForSelector fails', async () => {
+            (mockPage.waitForSelector as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('TimeoutError'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini', undefined, true);
+            await healer.waitForSelector('#broken-selector');
+
+            expect(mockPage.waitForSelector).toHaveBeenCalledTimes(2);
+            expect(mockGeminiGenerateContent).toHaveBeenCalled();
+        });
+    });
+
+    describe('getHealingEvents()', () => {
+        it('should return empty array initially', () => {
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            expect(healer.getHealingEvents()).toEqual([]);
+        });
+
+        it('should return healing events after a healing attempt', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('TimeoutError'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            await healer.click('#broken');
+
+            const events = healer.getHealingEvents();
+            expect(events.length).toBe(1);
+            expect(events[0]!.originalSelector).toBe('#broken');
+            expect(events[0]!.success).toBe(true);
+        });
+    });
+
+    describe('healAll()', () => {
+        it('should return success for all operations when none fail', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+            (mockPage.fill as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([
+                { selectorOrKey: '#btn1', action: 'click' },
+                { selectorOrKey: '#input1', action: 'fill', value: 'test' },
+            ]);
+
+            expect(results).toHaveLength(2);
+            expect(results[0]!.success).toBe(true);
+            expect(results[1]!.success).toBe(true);
+        });
+
+        it('should heal failed operations and retry them', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Element not found'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([{ selectorOrKey: '#broken-btn', action: 'click' }]);
+
+            expect(results).toHaveLength(1);
+            expect(results[0]!.success).toBe(true);
+            expect(results[0]!.healedSelector).toBe('#healed-selector');
+        });
+
+        it('should report failure when healing returns null', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Element not found'));
+            mockGeminiGenerateContent.mockResolvedValue({
+                response: { text: () => 'FAIL' },
+            });
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([{ selectorOrKey: '#broken-btn', action: 'click' }]);
+
+            expect(results).toHaveLength(1);
+            expect(results[0]!.success).toBe(false);
+            expect(results[0]!.error).toBe('AI could not find a replacement selector');
+        });
+
+        it('should report failure when retry with healed selector also fails', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Element not found'));
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([{ selectorOrKey: '#broken-btn', action: 'click' }]);
+
+            expect(results).toHaveLength(1);
+            expect(results[0]!.success).toBe(false);
+            expect(results[0]!.healedSelector).toBe('#healed-selector');
+            expect(results[0]!.error).toBeDefined();
+        });
+
+        it('should update locator when healing succeeds with a locator key', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>)
+                .mockRejectedValueOnce(new Error('Element not found'))
+                .mockResolvedValueOnce(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            await healer.healAll([{ selectorOrKey: 'app.btn', action: 'click' }]);
+
+            expect(mockLocatorManager.updateLocator).toHaveBeenCalledWith('app.btn', '#healed-selector');
+            expect(mockLocatorManager.recordSelectorHealed).toHaveBeenCalledWith('app.btn');
+        });
+
+        it('should handle hover action in runOperation', async () => {
+            (mockPage.hover as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([{ selectorOrKey: '#link', action: 'hover' }]);
+
+            expect(results[0]!.success).toBe(true);
+            expect(mockPage.hover).toHaveBeenCalled();
+        });
+
+        it('should handle type action in runOperation', async () => {
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([{ selectorOrKey: '#input', action: 'type', value: 'text' }]);
+
+            expect(results[0]!.success).toBe(true);
+        });
+
+        it('should handle check action in runOperation', async () => {
+            (mockPage.check as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([{ selectorOrKey: '#chk', action: 'check' }]);
+
+            expect(results[0]!.success).toBe(true);
+            expect(mockPage.check).toHaveBeenCalled();
+        });
+
+        it('should handle uncheck action in runOperation', async () => {
+            (mockPage.uncheck as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([{ selectorOrKey: '#chk', action: 'uncheck' }]);
+
+            expect(results[0]!.success).toBe(true);
+            expect(mockPage.uncheck).toHaveBeenCalled();
+        });
+
+        it('should handle waitForSelector action in runOperation', async () => {
+            (mockPage.waitForSelector as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([{ selectorOrKey: '#el', action: 'waitForSelector' }]);
+
+            expect(results[0]!.success).toBe(true);
+            expect(mockPage.waitForSelector).toHaveBeenCalled();
+        });
+
+        it('should handle fill action in runOperation', async () => {
+            (mockPage.fill as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            const results = await healer.healAll([{ selectorOrKey: '#input', action: 'fill', value: 'hello' }]);
+
+            expect(results[0]!.success).toBe(true);
+            expect(mockPage.fill).toHaveBeenCalledWith('#input', 'hello', expect.any(Object));
+        });
+
+        it('should record selector failure for operations with locator keys', async () => {
+            (mockPage.click as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Element not found'));
+            mockGeminiGenerateContent.mockResolvedValue({
+                response: { text: () => 'FAIL' },
+            });
+
+            const healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
+            await healer.healAll([{ selectorOrKey: 'app.btn', action: 'click' }]);
+
+            expect(mockLocatorManager.recordSelectorFailure).toHaveBeenCalledWith('app.btn');
+        });
+    });
+
     describe('Confidence Threshold', () => {
         it('should skip test when healed selector matches 0 DOM elements', async () => {
             // First click fails, triggering healing
@@ -412,173 +734,244 @@ describe('AutoHealer', () => {
     });
 
     describe('validateSelector()', () => {
-        // Access the private method via a typed cast — avoids `any`
-        type WithValidate = { validateSelector: (selector: string) => boolean };
-        const getValidator = (healer: AutoHealer) =>
-            (healer as unknown as WithValidate).validateSelector.bind(healer as unknown as WithValidate);
-
-        let healer: AutoHealer;
-
-        beforeEach(() => {
-            healer = new AutoHealer(mockPage as Page, 'test-key', 'gemini');
-        });
-
         describe('valid CSS selectors', () => {
             it('should accept a simple element selector', () => {
-                expect(getValidator(healer)('button')).toBe(true);
+                expect(validateSelector('button')).toBe(true);
             });
 
             it('should accept an ID selector', () => {
-                expect(getValidator(healer)('#submit-btn')).toBe(true);
+                expect(validateSelector('#submit-btn')).toBe(true);
             });
 
             it('should accept a class selector', () => {
-                expect(getValidator(healer)('.primary-button')).toBe(true);
+                expect(validateSelector('.primary-button')).toBe(true);
             });
 
             it('should accept a compound selector with descendant combinator', () => {
-                expect(getValidator(healer)('form .submit-button')).toBe(true);
+                expect(validateSelector('form .submit-button')).toBe(true);
             });
 
             it('should accept a selector with child combinator', () => {
-                expect(getValidator(healer)('ul > li.active')).toBe(true);
+                expect(validateSelector('ul > li.active')).toBe(true);
             });
 
             it('should accept a selector with a pseudo-class', () => {
-                expect(getValidator(healer)('input:focus')).toBe(true);
+                expect(validateSelector('input:focus')).toBe(true);
             });
 
             it('should accept an attribute selector', () => {
-                expect(getValidator(healer)('[data-testid="search-input"]')).toBe(true);
+                expect(validateSelector('[data-testid="search-input"]')).toBe(true);
             });
 
             it('should accept a type + attribute compound selector', () => {
-                expect(getValidator(healer)('input[type="text"]')).toBe(true);
+                expect(validateSelector('input[type="text"]')).toBe(true);
             });
 
             it('should accept a selector with adjacent sibling combinator', () => {
-                expect(getValidator(healer)('label + input')).toBe(true);
+                expect(validateSelector('label + input')).toBe(true);
             });
         });
 
         describe('valid XPath selectors', () => {
             it('should accept an absolute XPath starting with //', () => {
-                expect(getValidator(healer)('//button[@id="submit"]')).toBe(true);
+                expect(validateSelector('//button[@id="submit"]')).toBe(true);
             });
 
             it('should accept a relative XPath starting with ./', () => {
-                expect(getValidator(healer)('./div/span[@class="label"]')).toBe(true);
+                expect(validateSelector('./div/span[@class="label"]')).toBe(true);
             });
 
             it('should accept an XPath with text()', () => {
-                expect(getValidator(healer)('//button[text()="Submit"]')).toBe(true);
+                expect(validateSelector('//button[text()="Submit"]')).toBe(true);
             });
 
             it('should accept an XPath with contains()', () => {
-                expect(getValidator(healer)('//input[contains(@placeholder,"Search")]')).toBe(true);
+                expect(validateSelector('//input[contains(@placeholder,"Search")]')).toBe(true);
             });
         });
 
         describe('valid Playwright text engine selectors', () => {
             it('should accept text= selector', () => {
-                expect(getValidator(healer)('text=Submit')).toBe(true);
+                expect(validateSelector('text=Submit')).toBe(true);
             });
 
             it('should accept role= selector', () => {
-                expect(getValidator(healer)('role=button')).toBe(true);
+                expect(validateSelector('role=button')).toBe(true);
             });
 
             it('should accept label= selector', () => {
-                expect(getValidator(healer)('label=Email address')).toBe(true);
+                expect(validateSelector('label=Email address')).toBe(true);
             });
 
             it('should accept placeholder= selector', () => {
-                expect(getValidator(healer)('placeholder=Enter your name')).toBe(true);
+                expect(validateSelector('placeholder=Enter your name')).toBe(true);
             });
 
             it('should accept alt= selector', () => {
-                expect(getValidator(healer)('alt=Company logo')).toBe(true);
+                expect(validateSelector('alt=Company logo')).toBe(true);
             });
 
             it('should accept title= selector', () => {
-                expect(getValidator(healer)('title=Close dialog')).toBe(true);
+                expect(validateSelector('title=Close dialog')).toBe(true);
             });
 
             it('should accept testid= selector', () => {
-                expect(getValidator(healer)('testid=login-form')).toBe(true);
+                expect(validateSelector('testid=login-form')).toBe(true);
             });
 
             it('should accept data-testid= selector', () => {
-                expect(getValidator(healer)('data-testid=search-input')).toBe(true);
+                expect(validateSelector('data-testid=search-input')).toBe(true);
             });
 
             it('should accept text= with mixed case prefix', () => {
-                expect(getValidator(healer)('TEXT=Submit')).toBe(true);
+                expect(validateSelector('TEXT=Submit')).toBe(true);
             });
         });
 
         describe('dangerous patterns — denylist', () => {
             it('should reject javascript: URI', () => {
-                expect(getValidator(healer)('javascript:alert(1)')).toBe(false);
+                expect(validateSelector('javascript:alert(1)')).toBe(false);
             });
 
             it('should reject javascript: URI with uppercase prefix', () => {
-                expect(getValidator(healer)('JavaScript:alert(1)')).toBe(false);
+                expect(validateSelector('JavaScript:alert(1)')).toBe(false);
             });
 
             it('should reject data: URI', () => {
-                expect(getValidator(healer)('data:text/html,<h1>hi</h1>')).toBe(false);
+                expect(validateSelector('data:text/html,<h1>hi</h1>')).toBe(false);
             });
 
             it('should reject a selector containing <script', () => {
-                expect(getValidator(healer)('<script>alert(1)</script>')).toBe(false);
+                expect(validateSelector('<script>alert(1)</script>')).toBe(false);
             });
 
             it('should reject a selector containing a closing tag </', () => {
-                expect(getValidator(healer)('</div>')).toBe(false);
+                expect(validateSelector('</div>')).toBe(false);
             });
 
             it('should reject a selector containing an HTML comment <!--', () => {
-                expect(getValidator(healer)('<!-- injected -->')).toBe(false);
+                expect(validateSelector('<!-- injected -->')).toBe(false);
             });
 
             it('should reject a selector containing eval(', () => {
-                expect(getValidator(healer)('#id eval(alert(1))')).toBe(false);
+                expect(validateSelector('#id eval(alert(1))')).toBe(false);
             });
 
             it('should reject a selector containing document.', () => {
-                expect(getValidator(healer)('document.getElementById("x")')).toBe(false);
+                expect(validateSelector('document.getElementById("x")')).toBe(false);
             });
 
             it('should reject a selector containing window.', () => {
-                expect(getValidator(healer)('window.location')).toBe(false);
+                expect(validateSelector('window.location')).toBe(false);
             });
 
             it('should reject a selector containing an inline <script tag (no closing slash needed)', () => {
-                expect(getValidator(healer)('#id<script>x</script>')).toBe(false);
+                expect(validateSelector('#id<script>x</script>')).toBe(false);
             });
 
             it('should reject a selector that starts an HTML comment sequence', () => {
-                expect(getValidator(healer)('<!--#id-->')).toBe(false);
+                expect(validateSelector('<!--#id-->')).toBe(false);
+            });
+        });
+
+        describe('adversarial bypass attempts', () => {
+            // ── Protocol bypasses ──────────────────────────────────────────
+            it('should reject vbscript: URI (code path: denylist prefix)', () => {
+                // vbscript:alert(1) passes the CSS safe-char regex because all its
+                // characters are alphanumeric or in the allowed set (:, (, ), digits).
+                // The denylist prefix check must fire before the regex allowlist.
+                expect(validateSelector('vbscript:alert(1)')).toBe(false);
+            });
+
+            it('should reject VBSCRIPT: URI (case-insensitive prefix check)', () => {
+                expect(validateSelector('VBSCRIPT:alert(1)')).toBe(false);
+            });
+
+            it('should reject vbscript: URI with mixed case', () => {
+                expect(validateSelector('VbScRiPt:msgbox(1)')).toBe(false);
+            });
+
+            it('should reject javascript: URI with leading BOM character (U+FEFF)', () => {
+                // trim() strips BOM — the prefix check must still fire after trim
+                expect(validateSelector('\ufeffjavascript:alert(1)')).toBe(false);
+            });
+
+            it('should reject data: URI with leading whitespace', () => {
+                expect(validateSelector('  data:text/html,<h1>hi</h1>')).toBe(false);
+            });
+
+            // ── Injection via newline / control characters ─────────────────
+            it('should reject a selector containing a newline before a dangerous keyword', () => {
+                // The CSS safe-char regex does not allow \n; this must be rejected
+                expect(validateSelector('#id\nwindow.location')).toBe(false);
+            });
+
+            it('should reject a selector containing a carriage return', () => {
+                expect(validateSelector('#id\reval(x)')).toBe(false);
+            });
+
+            it('should reject a selector containing a null byte', () => {
+                // Null byte cannot appear in the safe CSS char class
+                expect(validateSelector('#id\x00evil')).toBe(false);
+            });
+
+            // ── Unicode / lookalike bypasses ───────────────────────────────
+            it('should reject a selector with Cyrillic lookalike characters mixed into dangerous payload', () => {
+                // Cyrillic 'а' (U+0430) vs ASCII 'a' — not in [a-zA-Z] range so safeCssPattern rejects
+                expect(validateSelector('еvаl(аlert(1))')).toBe(false);
+            });
+
+            // ── eval() variants ────────────────────────────────────────────
+            it('should reject eval( in uppercase (case-insensitive substring check)', () => {
+                expect(validateSelector('#id EVAL(alert(1))')).toBe(false);
+            });
+
+            it('should reject eval( embedded mid-selector after a valid prefix', () => {
+                expect(validateSelector('#btn eval(document.cookie)')).toBe(false);
+            });
+
+            // ── document. / window. injection ─────────────────────────────
+            it('should reject document. in an XPath string literal', () => {
+                // Even inside a valid-looking XPath the denylist must fire
+                expect(validateSelector('//div[contains(document.cookie,"x")]')).toBe(false);
+            });
+
+            it('should reject window. inside a Playwright text= selector', () => {
+                expect(validateSelector('text=window.location')).toBe(false);
+            });
+
+            // ── CSS construct bypasses ─────────────────────────────────────
+            it('should reject a CSS block with expression() injection', () => {
+                // Braces are not in the safe CSS char class
+                expect(validateSelector('*{expression(alert(1))}')).toBe(false);
+            });
+
+            // ── Chained / multi-payload ────────────────────────────────────
+            it('should reject a selector with multiple chained dangerous patterns', () => {
+                expect(validateSelector('javascript:eval(document.write("<script>"))')).toBe(false);
+            });
+
+            it('should reject a selector that is only dangerous characters with no safe prefix', () => {
+                expect(validateSelector('{}[];')).toBe(false);
             });
         });
 
         describe('edge cases', () => {
             it('should reject an empty string', () => {
-                expect(getValidator(healer)('')).toBe(false);
+                expect(validateSelector('')).toBe(false);
             });
 
             it('should reject a whitespace-only string', () => {
-                expect(getValidator(healer)('   ')).toBe(false);
+                expect(validateSelector('   ')).toBe(false);
             });
 
             it('should reject a selector with only unknown special characters', () => {
-                expect(getValidator(healer)('{}')).toBe(false);
+                expect(validateSelector('{}')).toBe(false);
             });
 
             it('should accept a selector with leading/trailing whitespace after trim', () => {
                 // Trim is applied internally so surrounding spaces should be fine
-                expect(getValidator(healer)('  #submit-btn  ')).toBe(true);
+                expect(validateSelector('  #submit-btn  ')).toBe(true);
             });
         });
 

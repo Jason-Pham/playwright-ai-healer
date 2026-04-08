@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Page } from '@playwright/test';
 import { AutoHealer } from '../../src/AutoHealer.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { test } from '@playwright/test';
+import type { HealingResult } from '../../src/types.js';
 
 // Mock dependencies
 vi.mock('@playwright/test', () => ({
@@ -25,7 +27,7 @@ vi.mock('../../src/config/index.js', () => ({
         ai: {
             gemini: { modelName: 'mock-gemini-model' },
             openai: { modelName: 'mock-openai-model' },
-            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7 },
+            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7, maxRetries: 3, retryDelay: 100 },
             prompts: {
                 healingPrompt: () => 'mock prompt',
             },
@@ -65,8 +67,13 @@ vi.mock('@google/generative-ai', () => {
 
 describe('AutoHealer Error Handling', () => {
     let autoHealer: AutoHealer;
-    let mockPage: any;
-    let mockGenerateContent: any;
+    let mockPage: {
+        evaluate: ReturnType<typeof vi.fn>;
+        click: ReturnType<typeof vi.fn>;
+        fill: ReturnType<typeof vi.fn>;
+        locator: ReturnType<typeof vi.fn>;
+    };
+    let mockGenerateContent: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
         // Mock setTimeout to resolve immediately
@@ -89,26 +96,24 @@ describe('AutoHealer Error Handling', () => {
         vi.clearAllMocks();
 
         // Setup GoogleGenerativeAI mock
-        const MockGenAI = vi.mocked(GoogleGenerativeAI);
         const mockModel = {
             generateContent: vi.fn(),
         };
-        (MockGenAI as any).mockImplementation(function () {
-            return {
-                getGenerativeModel: () => mockModel,
-            };
+        // Must use `function` (not arrow) because this mock is invoked with `new`
+        vi.mocked(GoogleGenerativeAI).mockImplementation(function () {
+            return { getGenerativeModel: () => mockModel } as unknown as GoogleGenerativeAI;
         });
         mockGenerateContent = mockModel.generateContent;
     });
 
     describe('503 Service Unavailable', () => {
         beforeEach(() => {
-            autoHealer = new AutoHealer(mockPage, 'mock-key', 'gemini');
+            autoHealer = new AutoHealer(mockPage as unknown as Page, 'mock-key', 'gemini');
         });
 
         it('should retry on 503 error and succeed if service recovers', async () => {
             const error503 = new Error('503 Service Unavailable');
-            (error503 as any).status = 503;
+            Object.assign(error503, { status: 503 });
 
             mockGenerateContent
                 .mockRejectedValueOnce(error503)
@@ -119,20 +124,24 @@ describe('AutoHealer Error Handling', () => {
                     },
                 });
 
-            const result = await (autoHealer as any).heal('broken-selector', new Error('Element not found'));
+            const result = await (
+                autoHealer as unknown as { heal(s: string, e: Error): Promise<HealingResult | null> }
+            ).heal('broken-selector', new Error('Element not found'));
 
             expect(mockGenerateContent).toHaveBeenCalledTimes(3);
             expect(result).not.toBeNull();
-            expect(result.selector).toBe('corrected-selector');
+            expect(result!.selector).toBe('corrected-selector');
         });
 
         it('should fail after max retries if 503 persists', async () => {
             const error503 = new Error('503 Service Unavailable');
-            (error503 as any).status = 503;
+            Object.assign(error503, { status: 503 });
 
             mockGenerateContent.mockRejectedValue(error503);
 
-            const result = await (autoHealer as any).heal('broken-selector', new Error('Element not found'));
+            const result = await (
+                autoHealer as unknown as { heal(s: string, e: Error): Promise<HealingResult | null> }
+            ).heal('broken-selector', new Error('Element not found'));
 
             // Initial + 3 retries = 4 calls
             expect(mockGenerateContent).toHaveBeenCalledTimes(4);
@@ -142,17 +151,20 @@ describe('AutoHealer Error Handling', () => {
 
     describe('429 Rate Limit', () => {
         beforeEach(() => {
-            autoHealer = new AutoHealer(mockPage, 'mock-key', 'gemini');
+            autoHealer = new AutoHealer(mockPage as unknown as Page, 'mock-key', 'gemini');
         });
 
         it('should skip the test on 429 Rate Limit error', async () => {
             const error429 = new Error('429 Too Many Requests');
-            (error429 as any).status = 429;
+            Object.assign(error429, { status: 429 });
 
             mockGenerateContent.mockRejectedValueOnce(error429);
 
             try {
-                await (autoHealer as any).heal('broken-selector', new Error('Element not found'));
+                await (autoHealer as unknown as { heal(s: string, e: Error): Promise<HealingResult | null> }).heal(
+                    'broken-selector',
+                    new Error('Element not found')
+                );
             } catch {
                 // heal re-throws if test.skip triggers logic that might throw in mock,
                 // but checking side effects is key
@@ -165,10 +177,10 @@ describe('AutoHealer Error Handling', () => {
     describe('401 Unauthorized (Key Rotation)', () => {
         it('should rotate keys and retry on 401 error', async () => {
             const keys = ['key1', 'key2'];
-            autoHealer = new AutoHealer(mockPage, keys, 'gemini');
+            autoHealer = new AutoHealer(mockPage as unknown as Page, keys, 'gemini');
 
             const error401 = new Error('401 Unauthorized');
-            (error401 as any).status = 401;
+            Object.assign(error401, { status: 401 });
 
             // Fail first key with 401, succeed with second key
             mockGenerateContent.mockRejectedValueOnce(error401).mockResolvedValueOnce({
@@ -177,22 +189,26 @@ describe('AutoHealer Error Handling', () => {
                 },
             });
 
-            const result = await (autoHealer as any).heal('broken-selector', new Error('Element not found'));
+            const result = await (
+                autoHealer as unknown as { heal(s: string, e: Error): Promise<HealingResult | null> }
+            ).heal('broken-selector', new Error('Element not found'));
 
             expect(mockGenerateContent).toHaveBeenCalledTimes(2);
-            expect(result.selector).toBe('corrected-selector-key2');
+            expect(result!.selector).toBe('corrected-selector-key2');
         });
 
         it('should throw error if all keys fail with 401', async () => {
             const keys = ['key1', 'key2'];
-            autoHealer = new AutoHealer(mockPage, keys, 'gemini');
+            autoHealer = new AutoHealer(mockPage as unknown as Page, keys, 'gemini');
 
             const error401 = new Error('401 Unauthorized');
-            (error401 as any).status = 401;
+            Object.assign(error401, { status: 401 });
 
             mockGenerateContent.mockRejectedValue(error401);
 
-            const result = await (autoHealer as any).heal('broken-selector', new Error('Element not found'));
+            const result = await (
+                autoHealer as unknown as { heal(s: string, e: Error): Promise<HealingResult | null> }
+            ).heal('broken-selector', new Error('Element not found'));
 
             expect(result).toBeNull();
             expect(mockGenerateContent).toHaveBeenCalledTimes(2); // One for each key

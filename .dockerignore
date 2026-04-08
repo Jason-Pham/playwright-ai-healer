@@ -3,6 +3,9 @@ test-results
 playwright-report
 .git
 .env
+.env.*
+*.env
 site
 coverage
 logs
+.claude

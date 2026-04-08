@@ -9,6 +9,8 @@
         "test:prod": "cross-env TEST_ENV=prod playwright test --project=prod",
         "test:prod:all-browsers": "cross-env TEST_ENV=prod playwright test --project=chromium --project=chrome --project=firefox --project=webkit --project=edge --project=mobile-chrome --project=mobile-safari --project=tablet",
         "test:chromium": "cross-env TEST_ENV=prod playwright test --project=chromium",
+        "test:chrome": "cross-env TEST_ENV=prod playwright test --project=chrome",
+        "test:edge": "cross-env TEST_ENV=prod playwright test --project=edge",
         "test:healing-demo": "cross-env TEST_ENV=prod playwright test tests/healing-demo.spec.ts --project=chromium",
         "test:firefox": "cross-env TEST_ENV=prod playwright test --project=firefox",
         "test:debug:firefox": "cross-env TEST_ENV=prod LOG_LEVEL=debug playwright test --project=firefox --headed --workers=1",
@@ -24,7 +26,9 @@
         "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"*.ts\" \"*.json\" \"*.md\"",
         "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"*.ts\" \"*.json\" \"*.md\"",
         "typecheck": "tsc --noEmit",
-        "validate": "npm run typecheck && npm run lint && npm run format:check && npm run test:unit"
+        "validate": "npm run typecheck && npm run lint && npm run format:check && npm run test:unit",
+        "docs": "typedoc --entryPoints src/index.ts --out docs",
+        "prepare": "git config core.hooksPath .githooks"
     },
     "keywords": [
         "playwright",
@@ -34,14 +38,16 @@
     ],
     "author": "",
     "license": "ISC",
+    "engines": {
+        "node": ">=24.0.0"
+    },
     "type": "module",
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
-        "@types/node": "^25.0.10",
+        "better-sqlite3": "^12.6.2",
         "dotenv": "^17.2.3",
         "openai": "^6.16.0",
         "proper-lockfile": "^4.1.2",
-        "ts-node": "^10.9.2",
         "typescript": "^5.9.3",
         "winston": "^3.19.0",
         "zod": "^4.3.6"
@@ -49,17 +55,21 @@
     "devDependencies": {
         "@eslint/js": "^9.39.2",
         "@playwright/test": "^1.58.2",
+        "@types/better-sqlite3": "^7.6.13",
+        "@types/node": "^25.0.10",
         "@types/proper-lockfile": "^4.1.4",
         "@typescript-eslint/eslint-plugin": "^8.54.0",
         "@typescript-eslint/parser": "^8.54.0",
         "@vitest/coverage-v8": "^4.0.18",
         "cross-env": "^7.0.3",
-        "eslint": "^9.39.2",
+        "eslint": "^10.1.0",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-playwright": "^2.5.1",
         "jsdom": "^28.0.0",
         "playwright": "^1.58.2",
         "prettier": "^3.8.1",
+        "ts-node": "^10.9.2",
+        "typedoc": "^0.28.1",
         "typescript-eslint": "^8.54.0",
         "vitest": "^4.0.18"
     }
