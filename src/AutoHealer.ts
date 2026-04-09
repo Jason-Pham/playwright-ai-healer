@@ -166,22 +166,23 @@ export class AutoHealer {
                     }
                 } catch (retryError) {
                     logger.error(`[AutoHealer] ❌ Failed to interact with healed selector: ${String(retryError)}`);
-                    test.info().annotations.push({
-                        type: 'warning',
-                        description: `Test skipped because healed selector '${result.selector}' failed during interaction.`,
-                    });
-                    test.skip(
-                        true,
-                        `Test skipped because healed selector '${result.selector}' failed during interaction.`
-                    );
+                    const msg = `Healed selector '${result.selector}' failed during interaction.`;
+                    if (config.ai.healing.failureMode === 'skip') {
+                        test.info().annotations.push({ type: 'warning', description: `Test skipped because ${msg}` });
+                        test.skip(true, `Test skipped because ${msg}`);
+                    } else {
+                        throw new Error(`[AutoHealer] ${msg}`);
+                    }
                 }
             } else {
-                logger.warn(`[AutoHealer] 🚫 AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+                logger.warn(`[AutoHealer] 🚫 AI could not find a new selector.`);
+                const msg = 'AutoHealer AI could not find a suitable replacement selector.';
+                if (config.ai.healing.failureMode === 'skip') {
+                    test.info().annotations.push({ type: 'warning', description: `Test skipped because ${msg}` });
+                    test.skip(true, `Test skipped because ${msg}`);
+                } else {
+                    throw new Error(`[AutoHealer] ${msg}`);
+                }
             }
         }
     }
