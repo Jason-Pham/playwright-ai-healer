@@ -36,6 +36,10 @@ const envSchema = z.object({
         .transform(val => val !== 'false'),
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
+    LOG_EMOJI: z
+        .string()
+        .default('true')
+        .transform(val => val !== 'false'),
     LOCATOR_STORE: z.enum(['file', 'sqlite']).default('file'),
     HEALING_FAILURE_MODE: z.enum(['fail', 'skip']).default('fail'),
 });
@@ -72,7 +76,7 @@ type AppConfig = {
         };
     };
     locatorStore: 'file' | 'sqlite';
-    logging: { level: string; consoleLevel: string };
+    logging: { level: string; consoleLevel: string; emoji: boolean };
     testData: {
         searchTerms: string[];
         getRandomSearchTerm(): string;
@@ -165,6 +169,7 @@ function buildConfig(): AppConfig {
         logging: {
             level: env.LOG_LEVEL,
             consoleLevel: env.CONSOLE_LOG_LEVEL,
+            emoji: env.LOG_EMOJI,
         },
         testData: {
             searchTerms: ['fiction', 'mystery', 'romance', 'poetry', 'travel'],

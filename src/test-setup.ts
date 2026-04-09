@@ -49,7 +49,7 @@ vi.mock('./config/index.js', () => ({
                 stabilization: 200,
             },
         },
-        logging: { level: 'info', consoleLevel: 'info' },
+        logging: { level: 'info', consoleLevel: 'info', emoji: true },
         testData: {
             searchTerms: ['fiction', 'mystery', 'romance', 'poetry', 'travel'],
             getRandomSearchTerm() {
