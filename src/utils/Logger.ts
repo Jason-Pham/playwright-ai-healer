@@ -101,14 +101,18 @@ export class Logger {
     }
 
     private log(level: 'info' | 'warn' | 'error' | 'debug', message: string): void {
-        winstonLogger.log(level, message);
+        // Strip Unicode emoji when LOG_EMOJI=false (e.g. for CI log parsers or Windows terminals)
+        const msg = config.logging.emoji
+            ? message
+            : message.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim();
+        winstonLogger.log(level, msg);
 
         // Optionally attach to Playwright test report
         if (this.playwrightTestInfo) {
             try {
                 this.playwrightTestInfo.annotations.push({
                     type: level,
-                    description: message,
+                    description: msg,
                 });
             } catch {
                 // Ignore if test context is not active

@@ -159,7 +159,7 @@ export class LocatorManager {
      * was successfully healed at least once. This prevents inflating counts
      * for original (never-healed) selectors that happen to fail.
      *
-     * @param key - Dot-path locator key (e.g. `'gigantti.searchInput'`)
+     * @param key - Dot-path locator key (e.g. `'booksToScrape.bookTitle'`)
      */
     public async recordSelectorFailure(key: string): Promise<void> {
         if (!this.metrics[key]?.healedAt) return; // not yet healed — skip
@@ -179,7 +179,7 @@ export class LocatorManager {
      * Resets `failureCount` to 0 so the counter tracks failures since the
      * most recent heal, not lifetime failures.
      *
-     * @param key - Dot-path locator key (e.g. `'gigantti.searchInput'`)
+     * @param key - Dot-path locator key (e.g. `'booksToScrape.bookTitle'`)
      */
     public async recordSelectorHealed(key: string): Promise<void> {
         await this.atomicMetricUpdate(key, existing => ({
