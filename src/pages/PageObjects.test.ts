@@ -56,6 +56,7 @@ describe('Page Objects', () => {
 
         mockPage = {
             goto: vi.fn(),
+            click: vi.fn(),
             locator: vi.fn().mockReturnValue(mockLocator),
             getByRole: vi.fn().mockReturnValue(mockLocator),
             waitForLoadState: vi.fn().mockResolvedValue(undefined),
@@ -133,7 +134,7 @@ describe('Page Objects', () => {
 
         it('should add book to cart', async () => {
             await detailPage.addToCart();
-            expect(mockAutoHealer.click).toHaveBeenCalledWith('.btn-primary', expect.any(Object));
+            expect(mockPage.click).toHaveBeenCalledWith('.btn-primary', expect.any(Object));
         });
 
         it('should verify book is displayed', async () => {
