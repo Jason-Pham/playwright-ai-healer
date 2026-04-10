@@ -6,7 +6,8 @@ import { BookDetailPage } from './BookDetailPage.js';
 
 import locators from '../config/locators.json' with { type: 'json' };
 
-const { categoryLink, bookCard, bookTitle, bookPrice, nextPageButton } = locators.booksToScrape;
+const { categoryLink, bookCard, bookTitle, bookPrice, addToCartButton, nextPageButton } =
+    locators.booksToScrape;
 
 /**
  * BooksHomePage - Page object for the Books to Scrape home page.
@@ -102,6 +103,19 @@ export class BooksHomePage extends BasePage {
         expect(count).toBeGreaterThan(0);
 
         logger.debug(`Verified ${count} books are displayed.`);
+    }
+
+    /**
+     * Click the "Add to basket" button for a specific book on the listing page.
+     *
+     * @param index - Zero-based index of the book (default: 0).
+     */
+    async addToCart(index: number = 0): Promise<void> {
+        logger.debug(`Adding book at index ${index} to cart...`);
+        const button = this.page.locator(bookCard).nth(index).locator(addToCartButton);
+        await this.safeClick(button, { timeout: this.timeouts.default });
+        await this.waitForPageLoad({ networking: true, timeout: this.timeouts.default });
+        logger.debug('Book added to cart.');
     }
 
     /**

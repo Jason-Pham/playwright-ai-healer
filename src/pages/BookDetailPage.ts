@@ -5,7 +5,7 @@ import { config } from '../config/index.js';
 
 import locators from '../config/locators.json' with { type: 'json' };
 
-const { bookDetailTitle, bookDetailPrice, addToCartButton } = locators.booksToScrape;
+const { bookDetailTitle, bookDetailPrice } = locators.booksToScrape;
 
 /**
  * BookDetailPage - Page object for individual book detail pages on Books to Scrape.
@@ -50,21 +50,6 @@ export class BookDetailPage extends BasePage {
         });
         const text = await priceEl.textContent();
         return text?.trim() ?? '';
-    }
-
-    /**
-     * Click the "Add to basket" button on the detail page.
-     */
-    async addToCart(): Promise<void> {
-        logger.debug('Adding book to cart...');
-        await this.safeClick(this.page.locator(addToCartButton), {
-            timeout: this.timeouts.default,
-        });
-        await this.waitForPageLoad({
-            networking: true,
-            timeout: this.timeouts.default,
-        });
-        logger.debug('Book added to cart.');
     }
 
     /**
