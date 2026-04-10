@@ -73,13 +73,13 @@ jobs:
             projectFlags: --project=firefox
             browsers: firefox
             browser-engine: firefox
-            testFilter: --grep-invert "Self-Healing|Add to Cart"
+            testFilter: --grep-invert "Self-Healing"
           - name: WebKit Browsers
             runs-on: macos-latest
             projectFlags: --project=webkit --project=mobile-safari --project=tablet
             browsers: webkit
             browser-engine: webkit
-            testFilter: --grep-invert "Self-Healing|Add to Cart"
+            testFilter: --grep-invert "Self-Healing"
 
     name: E2E — ${{ matrix.name }}
 
