@@ -134,7 +134,8 @@ describe('Page Objects', () => {
 
         it('should add book to cart', async () => {
             await detailPage.addToCart();
-            expect(mockPage.click).toHaveBeenCalledWith('.btn-primary', expect.any(Object));
+            expect(mockPage.locator).toHaveBeenCalledWith('.btn-primary');
+            expect(mockLocator.click).toHaveBeenCalledWith(expect.any(Object));
         });
 
         it('should verify book is displayed', async () => {
