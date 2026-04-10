@@ -56,6 +56,7 @@ describe('Page Objects', () => {
 
         mockPage = {
             goto: vi.fn(),
+            click: vi.fn(),
             locator: vi.fn().mockReturnValue(mockLocator),
             getByRole: vi.fn().mockReturnValue(mockLocator),
             waitForLoadState: vi.fn().mockResolvedValue(undefined),
@@ -109,6 +110,13 @@ describe('Page Objects', () => {
             expect(mockPage.locator).toHaveBeenCalledWith('article.product_pod');
             expect(mockLocator.waitFor).toHaveBeenCalledWith(expect.objectContaining({ state: 'visible' }));
         });
+
+        it('should add book to cart from listing page', async () => {
+            await homePage.addToCart(0);
+            expect(mockPage.locator).toHaveBeenCalledWith('article.product_pod');
+            expect(mockLocator.locator).toHaveBeenCalledWith('.btn-primary');
+            expect(mockLocator.click).toHaveBeenCalledWith(expect.any(Object));
+        });
     });
 
     describe('BookDetailPage', () => {
@@ -129,11 +137,6 @@ describe('Page Objects', () => {
             const price = await detailPage.getPrice();
             expect(mockPage.locator).toHaveBeenCalledWith('.product_main .price_color');
             expect(price).toBe('Test Text');
-        });
-
-        it('should add book to cart', async () => {
-            await detailPage.addToCart();
-            expect(mockAutoHealer.click).toHaveBeenCalledWith('.btn-primary', expect.any(Object));
         });
 
         it('should verify book is displayed', async () => {

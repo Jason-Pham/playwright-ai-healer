@@ -73,10 +73,11 @@ export abstract class BasePage {
         }
 
         const alreadyFailed = BasePage._pageChallengeFailed.has(page);
-        logger.info(
-            `[BasePage:${this.constructor.name}] instance created` +
-                (alreadyFailed ? ' — page challenge ALREADY failed, skip will trigger on first action' : '')
-        );
+        if (alreadyFailed) {
+            logger.info(
+                `[BasePage:${this.constructor.name}] page challenge ALREADY failed, skip will trigger on first action`
+            );
+        }
 
         // Monitor for Vercel security challenge failures.
         // Register at most one listener per Page to prevent accumulation across
