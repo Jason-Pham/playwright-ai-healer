@@ -72,12 +72,11 @@ test.describe('Books to Scrape E2E Tests', () => {
     });
 
     test.describe('Add to Cart', () => {
-        test('should add a book to the cart from the detail page', async ({ booksPage, page }) => {
+        test('should add a book to the cart from the detail page', async ({ booksPage }) => {
             await booksPage.open();
             const detailPage = await booksPage.clickBook(0);
             await detailPage.verifyBookDisplayed();
-            await page.click('.btn-primary.btn-block');
-            await page.waitForLoadState('load');
+            await detailPage.addToCart();
         });
     });
 

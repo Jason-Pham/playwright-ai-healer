@@ -57,7 +57,7 @@ export class BookDetailPage extends BasePage {
      */
     async addToCart(): Promise<void> {
         logger.debug('Adding book to cart...');
-        await this.safeClick(addToCartButton, {
+        await this.page.click(addToCartButton, {
             timeout: this.timeouts.default,
         });
         await this.waitForPageLoad({
