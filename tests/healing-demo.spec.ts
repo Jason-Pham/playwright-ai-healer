@@ -9,7 +9,6 @@ import { config } from '../src/config/index.js';
  * fix, and retry with the corrected selector.
  */
 test.describe('Self-Healing Demo', () => {
-    test.skip(({ browserName }) => browserName !== 'chromium', 'Healing demo runs on Chrome only');
     test('should heal a broken book card selector', async ({ booksPage, autoHealer }) => {
         // Ensure autoHealer is available
         expect(autoHealer).toBeDefined();
