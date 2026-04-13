@@ -31,7 +31,7 @@ vi.mock('../utils/Logger.js', () => ({
 vi.mock('../config/index.js', () => ({
     config: {
         ai: {
-            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7 },
+            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7, maxRetries: 3, retryDelay: 100 },
             prompts: { healingPrompt: (_s: string, _e: string, _h: string) => 'mock-prompt' },
         },
         test: { timeouts: { default: 5000 } },
