@@ -31,8 +31,8 @@ import type {
  * @example
  * ```typescript
  * const healer = new AutoHealer(page, process.env['GEMINI_API_KEY']!, 'gemini');
- * await healer.click('gigantti.searchInput');
- * await healer.fill('gigantti.searchInput', 'laptop');
+ * await healer.click('booksToScrape.searchInput');
+ * await healer.fill('booksToScrape.searchInput', 'laptop');
  * ```
  */
 export class AutoHealer {
@@ -166,22 +166,23 @@ export class AutoHealer {
                     }
                 } catch (retryError) {
                     logger.error(`[AutoHealer] ❌ Failed to interact with healed selector: ${String(retryError)}`);
-                    test.info().annotations.push({
-                        type: 'warning',
-                        description: `Test skipped because healed selector '${result.selector}' failed during interaction.`,
-                    });
-                    test.skip(
-                        true,
-                        `Test skipped because healed selector '${result.selector}' failed during interaction.`
-                    );
+                    const msg = `Healed selector '${result.selector}' failed during interaction.`;
+                    if (config.ai.healing.failureMode === 'skip') {
+                        test.info().annotations.push({ type: 'warning', description: `Test skipped because ${msg}` });
+                        test.skip(true, `Test skipped because ${msg}`);
+                    } else {
+                        throw new Error(`[AutoHealer] ${msg}`);
+                    }
                 }
             } else {
-                logger.warn(`[AutoHealer] 🚫 AI could not find a new selector. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped because AutoHealer AI could not find a suitable replacement selector.',
-                });
-                test.skip(true, 'Test skipped because AutoHealer AI could not find a suitable replacement selector.');
+                logger.warn(`[AutoHealer] 🚫 AI could not find a new selector.`);
+                const msg = 'AutoHealer AI could not find a suitable replacement selector.';
+                if (config.ai.healing.failureMode === 'skip') {
+                    test.info().annotations.push({ type: 'warning', description: `Test skipped because ${msg}` });
+                    test.skip(true, `Test skipped because ${msg}`);
+                } else {
+                    throw new Error(`[AutoHealer] ${msg}`);
+                }
             }
         }
     }
@@ -309,9 +310,9 @@ export class AutoHealer {
      * @example
      * ```typescript
      * const results = await healer.healAll([
-     *   { selectorOrKey: 'gigantti.searchInput', action: 'click' },
-     *   { selectorOrKey: 'gigantti.cookieBtn',   action: 'click' },
-     *   { selectorOrKey: 'gigantti.filterBox',   action: 'fill', value: 'laptop' },
+     *   { selectorOrKey: 'booksToScrape.searchInput', action: 'click' },
+     *   { selectorOrKey: 'booksToScrape.cookieBtn',   action: 'click' },
+     *   { selectorOrKey: 'booksToScrape.filterBox',   action: 'fill', value: 'laptop' },
      * ]);
      * results.forEach(r => console.log(r.selectorOrKey, r.success, r.healedSelector));
      * ```

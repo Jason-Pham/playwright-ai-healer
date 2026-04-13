@@ -32,6 +32,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Lint
+        run: npm run lint
+
       - name: Run Unit Tests with Coverage
         run: npm run test:coverage
 
@@ -60,14 +66,17 @@ jobs:
             runs-on: ubuntu-24.04
             projectFlags: --project=chromium --project=chrome --project=edge --project=mobile-chrome
             browsers: chromium chrome msedge
+            browser-engine: chromium
           - name: Firefox
             runs-on: ubuntu-24.04
             projectFlags: --project=firefox
             browsers: firefox
+            browser-engine: firefox
           - name: WebKit Browsers
             runs-on: macos-latest
             projectFlags: --project=webkit --project=mobile-safari --project=tablet
             browsers: webkit
+            browser-engine: webkit
 
     name: E2E — ${{ matrix.name }}
 
@@ -91,10 +100,17 @@ jobs:
           path: |
             ~/.cache/ms-playwright
             ~/Library/Caches/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ matrix.browser-engine }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-${{ matrix.browser-engine }}-
 
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps ${{ matrix.browsers }}
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ matrix.browser-engine }}
 
       - name: Run Playwright tests
         run: npx playwright test ${{ matrix.projectFlags }}
