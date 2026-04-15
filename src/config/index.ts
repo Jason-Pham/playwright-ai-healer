@@ -2,35 +2,14 @@ import { z } from 'zod';
 import { loadEnvironment } from '../utils/Environment.js';
 
 const categoriesData = {
-    // Top-level nav labels must match the exact anchor text in the Gigantti icon nav bar
-    computers: {
-        label: 'Tietotekniikka',
-        // Subcategory labels must match tiles visible on the computers landing page
-        subcategories: {
-            allComputers: 'Tietokoneet',
-            components: 'Tietokonekomponentit',
-            monitors: 'Näytöt ja tarvikkeet',
-        },
-    },
-    phones: {
-        label: 'Puhelimet, tabletit ja älykellot',
-        subcategories: { smartphones: 'Älypuhelimet' },
-    },
-    tablets: { label: 'Tabletit', subcategories: {} },
-    tvs: {
-        label: 'TV, ääni ja älykoti',
-        subcategories: { headphones: 'Kuulokkeet ja tarvikkeet', oled: 'OLED-televisiot' },
-    },
-    gaming: { label: 'Gaming', subcategories: { consoles: 'Pelikonsolit', games: 'Pelit' } },
-    cameras: { label: 'Kamerat ja videokamerat', subcategories: {} },
-    appliances: {
-        label: 'Kodinkoneet',
-        subcategories: { refrigerators: 'Jääkaapit ja pakastimet', washingMachines: 'Pesukoneet' },
-    },
+    travel: { label: 'Travel' },
+    mystery: { label: 'Mystery' },
+    'historical-fiction': { label: 'Historical Fiction' },
+    'science-fiction': { label: 'Science Fiction' },
+    poetry: { label: 'Poetry' },
 } as const;
 
 export type CategoryKey = keyof typeof categoriesData;
-export type SubCategoryKey<K extends CategoryKey> = keyof (typeof categoriesData)[K]['subcategories'];
 
 // Define the schema for environment variables
 const envSchema = z.object({
@@ -39,7 +18,7 @@ const envSchema = z.object({
         .string()
         .optional()
         .transform(val => {
-            if (!val || val === '/' || val === '') return 'https://www.gigantti.fi/';
+            if (!val || val === '/' || val === '') return 'https://books.toscrape.com/';
             return val;
         })
         .pipe(z.string().url()),
@@ -57,7 +36,12 @@ const envSchema = z.object({
         .transform(val => val !== 'false'),
     LOG_LEVEL: z.string().default('info'),
     CONSOLE_LOG_LEVEL: z.string().default('info'),
+    LOG_EMOJI: z
+        .string()
+        .default('true')
+        .transform(val => val !== 'false'),
     LOCATOR_STORE: z.enum(['file', 'sqlite']).default('file'),
+    HEALING_FAILURE_MODE: z.enum(['fail', 'skip']).default('fail'),
 });
 
 type AppConfig = {
@@ -67,7 +51,13 @@ type AppConfig = {
         provider: string;
         gemini: { apiKey: string | undefined; modelName: string };
         openai: { apiKeys: string[]; modelName: string; apiKey: string | undefined };
-        healing: { maxRetries: number; retryDelay: number; confidenceThreshold: number; domSnapshotCharLimit: number };
+        healing: {
+            maxRetries: number;
+            retryDelay: number;
+            confidenceThreshold: number;
+            domSnapshotCharLimit: number;
+            failureMode: 'fail' | 'skip';
+        };
         security: { vercelChallengePath: string };
         prompts: { healingPrompt: (selector: string, error: string, html: string) => string };
     };
@@ -86,7 +76,7 @@ type AppConfig = {
         };
     };
     locatorStore: 'file' | 'sqlite';
-    logging: { level: string; consoleLevel: string };
+    logging: { level: string; consoleLevel: string; emoji: boolean };
     testData: {
         searchTerms: string[];
         getRandomSearchTerm(): string;
@@ -132,6 +122,7 @@ function buildConfig(): AppConfig {
                 retryDelay: 5000,
                 confidenceThreshold: 0.7,
                 domSnapshotCharLimit: env.DOM_SNAPSHOT_CHAR_LIMIT,
+                failureMode: env.HEALING_FAILURE_MODE,
             },
             security: {
                 vercelChallengePath: '.well-known/vercel/security/request-challenge',
@@ -139,13 +130,13 @@ function buildConfig(): AppConfig {
             prompts: {
                 healingPrompt: (selector: string, error: string, html: string) => `
       You are a Test Automation AI. A Playwright test failed to find or interact with an element.
-      
+
       Original Selector: "${selector}"
       Error: "${error}"
-      
-      Below is the current HTML of the page. 
+
+      Below is the current HTML of the page.
       Analyze it to find the MOST LIKELY new selector for the element the user intended to interact with.
-      
+
       CRITICAL INSTRUCTIONS:
       1. Return ONLY the new selector as a plain string.
       2. DO NOT return markdown formatting like backticks (e.g. no \`#selector\`).
@@ -178,23 +169,13 @@ function buildConfig(): AppConfig {
         logging: {
             level: env.LOG_LEVEL,
             consoleLevel: env.CONSOLE_LOG_LEVEL,
+            emoji: env.LOG_EMOJI,
         },
         testData: {
-            searchTerms: [
-                'kannettava',
-                'puhelin',
-                'televisio',
-                'kuulokkeet',
-                'tabletti',
-                'kamera',
-                'peli',
-                'kaiutin',
-                'näppäimistö',
-                'näyttö',
-            ],
+            searchTerms: ['fiction', 'mystery', 'romance', 'poetry', 'travel'],
             getRandomSearchTerm(): string {
                 const terms = this.searchTerms;
-                return terms[Math.floor(Math.random() * terms.length)] ?? 'laptop';
+                return terms[Math.floor(Math.random() * terms.length)] ?? 'fiction';
             },
             categories: categoriesData,
         },
