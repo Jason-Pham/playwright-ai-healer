@@ -6,8 +6,7 @@ import { BookDetailPage } from './BookDetailPage.js';
 
 import locators from '../config/locators.json' with { type: 'json' };
 
-const { categoryLink, bookCard, bookTitle, bookPrice, addToCartButton, nextPageButton } =
-    locators.booksToScrape;
+const { categoryLink, bookCard, bookTitle, bookPrice, addToCartButton, nextPageButton } = locators.booksToScrape;
 
 /**
  * BooksHomePage - Page object for the Books to Scrape home page.

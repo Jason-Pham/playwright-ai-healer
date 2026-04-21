@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { loadEnvironment } from '../utils/Environment.js';
+import { logger } from '../utils/Logger.js';
 
 const categoriesData = {
     travel: { label: 'Travel' },
@@ -175,7 +176,9 @@ function buildConfig(): AppConfig {
             searchTerms: ['fiction', 'mystery', 'romance', 'poetry', 'travel'],
             getRandomSearchTerm(): string {
                 const terms = this.searchTerms;
-                return terms[Math.floor(Math.random() * terms.length)] ?? 'fiction';
+                const term = terms[Math.floor(Math.random() * terms.length)] ?? 'laptop';
+                logger.debug(`[config] getRandomSearchTerm selected: "${term}"`);
+                return term;
             },
             categories: categoriesData,
         },
