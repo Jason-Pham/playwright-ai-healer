@@ -26,6 +26,9 @@ import { CircuitBreaker } from '../utils/CircuitBreaker.js';
  * ```
  */
 export class HealingEngine {
+    /** Maximum number of healing events retained in memory. Older entries are evicted. */
+    private static readonly MAX_HEALING_EVENTS = 500;
+
     private clientManager: AIClientManager;
     private healingEvents: HealingEvent[] = [];
     private readonly circuitBreakers: Map<string, CircuitBreaker> = new Map();
@@ -296,7 +299,7 @@ export class HealingEngine {
             logger.info(
                 `[HealingEngine:heal] 📋 Success: ${healingSuccess}, Result: ${healingResult ? healingResult.selector : 'null'}`
             );
-            // Record the healing event
+            // Record the healing event, evicting the oldest entry when the cap is reached.
             this.healingEvents.push({
                 timestamp: new Date().toISOString(),
                 originalSelector,
@@ -308,6 +311,9 @@ export class HealingEngine {
                 ...(tokensUsed ? { tokensUsed } : {}),
                 domSnapshotLength: htmlSnapshot.length,
             });
+            if (this.healingEvents.length > HealingEngine.MAX_HEALING_EVENTS) {
+                this.healingEvents.shift();
+            }
         }
 
         return healingResult;
