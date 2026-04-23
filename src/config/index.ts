@@ -129,11 +129,13 @@ function buildConfig(): AppConfig {
                 vercelChallengePath: '.well-known/vercel/security/request-challenge',
             },
             prompts: {
-                healingPrompt: (selector: string, error: string, html: string) => `
+                healingPrompt: (selector: string, error: string, html: string) => {
+                    const sanitize = (s: string): string => s.replace(/[<>"'`\\]/g, '').slice(0, 200);
+                    return `
       You are a Test Automation AI. A Playwright test failed to find or interact with an element.
 
-      Original Selector: "${selector}"
-      Error: "${error}"
+      Original Selector: "${sanitize(selector)}"
+      Error: "${sanitize(error)}"
 
       Below is the current HTML of the page.
       Analyze it to find the MOST LIKELY new selector for the element the user intended to interact with.
@@ -146,7 +148,8 @@ function buildConfig(): AppConfig {
 
       HTML Snippet:
       ${html}
-    `,
+    `;
+                },
             },
         },
         test: {
