@@ -7,6 +7,7 @@ import { getSimplifiedDOM } from './DOMSerializer.js';
 import { parseAIResponse } from './ResponseParser.js';
 import { validateSelector } from './SelectorValidator.js';
 import type { AIError, HealingResult, HealingEvent } from '../types.js';
+import { CircuitBreaker } from '../utils/CircuitBreaker.js';
 
 /**
  * Encapsulates the AI-powered selector healing logic.
@@ -25,8 +26,19 @@ import type { AIError, HealingResult, HealingEvent } from '../types.js';
  * ```
  */
 export class HealingEngine {
+    /** Maximum number of healing events retained in memory. Older entries are evicted. */
+    private static readonly MAX_HEALING_EVENTS = 500;
+
     private clientManager: AIClientManager;
     private healingEvents: HealingEvent[] = [];
+    private readonly circuitBreakers: Map<string, CircuitBreaker> = new Map();
+
+    private getCircuitBreaker(provider: string): CircuitBreaker {
+        if (!this.circuitBreakers.has(provider)) {
+            this.circuitBreakers.set(provider, new CircuitBreaker());
+        }
+        return this.circuitBreakers.get(provider)!;
+    }
 
     /**
      * Creates a HealingEngine instance.
@@ -97,10 +109,22 @@ export class HealingEngine {
                 `[HealingEngine:heal] 🔁 Step 3: Starting AI request loop (maxKeyRotations=${maxKeyRotations})`
             );
 
+            const provider = this.clientManager.getProvider();
+
+            // Fast-fail if the current provider's circuit breaker is open
+            const breaker = this.getCircuitBreaker(provider);
+            if (breaker.isOpen()) {
+                logger.warn(
+                    `[HealingEngine:heal] ⚡ Circuit breaker OPEN for provider "${provider}" ` +
+                        `(${breaker.getConsecutiveFailures()} consecutive failures). Fast-failing healing.`
+                );
+                return null;
+            }
+
             // Outer loop for key rotation
             keyLoop: for (let k = 0; k < maxKeyRotations; k++) {
                 let retryCount = 0;
-                const maxRetries = 3;
+                const maxRetries = config.ai.healing.maxRetries;
                 logger.info(
                     `[HealingEngine:heal] 🔑 Key rotation iteration k=${k}, using key index ${this.clientManager.getCurrentKeyIndex()}`
                 );
@@ -114,6 +138,7 @@ export class HealingEngine {
                         rawResult = aiResult.raw;
                         tokensUsed = aiResult.tokensUsed;
                         logger.info(`[HealingEngine:heal] ✅ AI request succeeded, breaking out of retry loop.`);
+                        this.getCircuitBreaker(this.clientManager.getProvider()).onSuccess();
                         break keyLoop;
                     } catch (reqError) {
                         const reqErrorTyped = reqError as AIError;
@@ -141,9 +166,13 @@ export class HealingEngine {
                         if (isServerError) {
                             if (retryCount < maxRetries) {
                                 retryCount++;
-                                const delay = Math.pow(2, retryCount) * 1000;
+                                // Exponential backoff with full jitter: avoids retry storms
+                                // under load against rate-limited or overloaded AI endpoints.
+                                const base = Math.pow(2, retryCount) * config.ai.healing.retryDelay;
+                                const jitter = Math.floor(Math.random() * base * 0.5);
+                                const delay = base + jitter;
                                 logger.warn(
-                                    `[HealingEngine:heal] ⏳ AI Server Error (${reqErrorTyped.status}). Retrying in ${delay / 1000}s... (Attempt ${retryCount}/${maxRetries})`
+                                    `[HealingEngine:heal] ⏳ AI Server Error (${reqErrorTyped.status}). Retrying in ${(delay / 1000).toFixed(1)}s (base=${base / 1000}s + jitter=${jitter}ms)... (Attempt ${retryCount}/${maxRetries})`
                                 );
                                 await new Promise(resolve => setTimeout(resolve, delay));
                                 continue;
@@ -151,6 +180,7 @@ export class HealingEngine {
                                 logger.error(
                                     `[HealingEngine:heal] ❌ AI Server Error after ${maxRetries} retries. Giving up.`
                                 );
+                                this.getCircuitBreaker(this.clientManager.getProvider()).onFailure();
                                 throw reqErrorTyped;
                             }
                         }
@@ -269,7 +299,7 @@ export class HealingEngine {
             logger.info(
                 `[HealingEngine:heal] 📋 Success: ${healingSuccess}, Result: ${healingResult ? healingResult.selector : 'null'}`
             );
-            // Record the healing event
+            // Record the healing event, evicting the oldest entry when the cap is reached.
             this.healingEvents.push({
                 timestamp: new Date().toISOString(),
                 originalSelector,
@@ -281,6 +311,9 @@ export class HealingEngine {
                 ...(tokensUsed ? { tokensUsed } : {}),
                 domSnapshotLength: htmlSnapshot.length,
             });
+            if (this.healingEvents.length > HealingEngine.MAX_HEALING_EVENTS) {
+                this.healingEvents.shift();
+            }
         }
 
         return healingResult;

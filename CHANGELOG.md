@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Logger module init TDZ** — `src/utils/Logger.ts` constructed its winston instance at module top-level, reading `config.logging.level`. Combined with the circular import between `Logger.ts` and `src/config/index.ts`, this raised `ReferenceError: Cannot access 'config' before initialization` whenever `config/index.ts` loaded first (e.g. under Playwright's worker boot). Winston construction is now deferred behind a lazy `getWinstonLogger()` getter so `config` is touched only at log-call time.
 - **Confidence threshold** — healed selectors are now verified against the live DOM before use; selectors matching zero elements are rejected (confidence below `config.ai.healing.confidenceThreshold`). Scoring is currently binary (0.0 or 1.0) with a TODO to extend to continuous scoring.
 - Unit test covering the confidence-threshold rejection path (healed selector passes validation but matches 0 DOM elements).
 - **Selector validation** — AI-returned selectors are checked against an allowlist of safe patterns (CSS, XPath, Playwright text engines) and a denylist of dangerous payloads (`javascript:`, `<script>`, `eval(`, etc.) before being used or persisted.
