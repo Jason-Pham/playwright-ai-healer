@@ -147,7 +147,7 @@ export class HealingEngine {
                             `[HealingEngine:heal] ❌ AI request FAILED. Status: ${reqErrorTyped.status}, Message: "${reqErrorTyped.message}"`
                         );
                         logger.debug(
-                            `[HealingEngine:heal] Full error object: ${JSON.stringify(reqErrorTyped, Object.getOwnPropertyNames(reqErrorTyped))}`
+                            `[HealingEngine:heal] Error details: ${JSON.stringify({ message: reqErrorTyped.message, status: reqErrorTyped.status, code: reqErrorTyped.code })}`
                         );
 
                         // Handle 503 Service Unavailable / 5xx Server Errors / Timeouts
