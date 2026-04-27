@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Healing failure → unconditional skip** — when the AI cannot return a usable replacement selector (FAIL response, 4xx with no fallback provider, validation/confidence rejection), `AutoHealer` now always calls `test.skip()` instead of throwing, regardless of `config.ai.healing.failureMode`. The test cannot proceed without a selector, so failing it adds noise rather than signal. The `failureMode` setting still gates the separate "healed selector failed during interaction" branch.
+
 ### Refactored
 
 - `AutoHealer.ts` split into four focused modules under `src/ai/`:

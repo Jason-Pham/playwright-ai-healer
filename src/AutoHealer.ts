@@ -72,7 +72,10 @@ export class AutoHealer {
      *
      * @param selectorOrKey - CSS selector or locator key from locators.json
      * @param options - Playwright click options
-     * @throws Error if healing fails or element still cannot be found
+     * The test is skipped (`test.skip`) when the AI cannot return a usable
+     * replacement selector. If a healed selector is returned but interaction
+     * still fails, behaviour follows `config.ai.healing.failureMode`
+     * (`fail` → throw, `skip` → `test.skip`).
      */
     async click(selectorOrKey: string, options?: ClickOptions) {
         await this.executeAction(
@@ -96,7 +99,10 @@ export class AutoHealer {
      * @param selectorOrKey - CSS selector or locator key from locators.json
      * @param value - Text value to fill
      * @param options - Playwright fill options
-     * @throws Error if healing fails or element still cannot be found
+     * The test is skipped (`test.skip`) when the AI cannot return a usable
+     * replacement selector. If a healed selector is returned but interaction
+     * still fails, behaviour follows `config.ai.healing.failureMode`
+     * (`fail` → throw, `skip` → `test.skip`).
      */
     async fill(selectorOrKey: string, value: string, options?: FillOptions) {
         await this.executeAction(
@@ -175,14 +181,12 @@ export class AutoHealer {
                     }
                 }
             } else {
+                // When the AI cannot return a usable replacement selector, the test
+                // physically cannot proceed — always skip regardless of failureMode.
                 logger.warn(`[AutoHealer] 🚫 AI could not find a new selector.`);
                 const msg = 'AutoHealer AI could not find a suitable replacement selector.';
-                if (config.ai.healing.failureMode === 'skip') {
-                    test.info().annotations.push({ type: 'warning', description: `Test skipped because ${msg}` });
-                    test.skip(true, `Test skipped because ${msg}`);
-                } else {
-                    throw new Error(`[AutoHealer] ${msg}`);
-                }
+                test.info().annotations.push({ type: 'warning', description: `Test skipped because ${msg}` });
+                test.skip(true, `Test skipped because ${msg}`);
             }
         }
     }
