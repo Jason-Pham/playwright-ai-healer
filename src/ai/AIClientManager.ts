@@ -191,7 +191,7 @@ export class AIClientManager {
         // timeout race is set up. This preserves correct error-priority ordering
         // even in test environments where setTimeout is stubbed to fire synchronously.
         const requestPromise = factory(controller.signal);
-        let timeoutId: ReturnType<typeof setTimeout>;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<never>((_, reject) => {
             timeoutId = setTimeout(() => {
                 controller.abort();
@@ -201,7 +201,7 @@ export class AIClientManager {
         try {
             return await Promise.race([requestPromise, timeoutPromise]);
         } finally {
-            clearTimeout(timeoutId!);
+            if (timeoutId !== undefined) clearTimeout(timeoutId);
         }
     }
 }
