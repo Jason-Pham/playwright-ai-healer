@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Page } from '@playwright/test';
 import { AutoHealer } from '../../src/AutoHealer.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { test } from '@playwright/test';
 import type { HealingResult } from '../../src/types.js';
 
 // Mock dependencies
@@ -27,7 +26,7 @@ vi.mock('../../src/config/index.js', () => ({
         ai: {
             gemini: { modelName: 'mock-gemini-model' },
             openai: { modelName: 'mock-openai-model' },
-            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7 },
+            healing: { domSnapshotCharLimit: 2000, confidenceThreshold: 0.7, maxRetries: 3, retryDelay: 100 },
             prompts: {
                 healingPrompt: () => 'mock prompt',
             },
@@ -160,8 +159,9 @@ describe('AutoHealer Error Handling', () => {
 
             mockGenerateContent.mockRejectedValueOnce(error429);
 
+            let result = undefined;
             try {
-                await (autoHealer as unknown as { heal(s: string, e: Error): Promise<HealingResult | null> }).heal(
+                result = await (autoHealer as unknown as { heal(s: string, e: Error): Promise<HealingResult | null> }).heal(
                     'broken-selector',
                     new Error('Element not found')
                 );
@@ -170,7 +170,9 @@ describe('AutoHealer Error Handling', () => {
                 // but checking side effects is key
             }
 
-            expect(test.skip).toHaveBeenCalledWith(true, expect.stringContaining('AI Client Error'));
+            // HealingEngine no longer calls test.skip directly; it returns null.
+            // AutoHealer then decides to skip or throw based on failureMode config.
+            expect(result).toBeNull();
         });
     });
 

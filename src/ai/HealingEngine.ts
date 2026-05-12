@@ -1,5 +1,4 @@
 import type { Page } from '@playwright/test';
-import { test } from '@playwright/test';
 import { config } from '../config/index.js';
 import { logger } from '../utils/Logger.js';
 import type { AIClientManager } from './AIClientManager.js';
@@ -7,12 +6,13 @@ import { getSimplifiedDOM } from './DOMSerializer.js';
 import { parseAIResponse } from './ResponseParser.js';
 import { validateSelector } from './SelectorValidator.js';
 import { RetryOrchestrator } from './RetryOrchestrator.js';
-import type { HealingResult, HealingEvent } from '../types.js';
+import type { AIError, HealingResult, HealingEvent } from '../types.js';
+import { CircuitBreaker } from '../utils/CircuitBreaker.js';
 
 /**
  * Encapsulates the AI-powered selector healing logic.
  *
- * Given a failed selector and an error, `HealingEngine` captures a DOM snapshot,
+ * Given a failed selector and an zerror, `HealingEngine` captures a DOM snapshot,
  * asks the configured AI provider for a replacement selector, validates the result,
  * and records a `HealingEvent` for reporting.
  *
@@ -26,8 +26,19 @@ import type { HealingResult, HealingEvent } from '../types.js';
  * ```
  */
 export class HealingEngine {
+    /** Maximum number of healing events retained in memory. Older entries are evicted. */
+    private static readonly MAX_HEALING_EVENTS = 500;
+
     private clientManager: AIClientManager;
     private healingEvents: HealingEvent[] = [];
+    private readonly circuitBreakers: Map<string, CircuitBreaker> = new Map();
+
+    private getCircuitBreaker(provider: string): CircuitBreaker {
+        if (!this.circuitBreakers.has(provider)) {
+            this.circuitBreakers.set(provider, new CircuitBreaker());
+        }
+        return this.circuitBreakers.get(provider)!;
+    }
 
     /**
      * Creates a HealingEngine instance.
@@ -70,8 +81,12 @@ export class HealingEngine {
             `[HealingEngine:heal] 🔑 Available API keys: ${this.clientManager.getKeyCount()}, Current key index: ${this.clientManager.getCurrentKeyIndex()}`
         );
 
-        // 1. Capture simplified DOM
-        logger.info(`[HealingEngine:heal] 📸 Step 1: Capturing simplified DOM...`);
+        // 1. Capture simplified DOM — ONCE, before the retry loop.
+        // The DOM state is static within a single heal() call (the page hasn't
+        // navigated or been mutated between retries), so we cache the snapshot
+        // and reuse it across all retry / key-rotation / provider-failover attempts.
+        // This avoids redundant page.evaluate() calls on each retry.
+        logger.info(`[HealingEngine:heal] 📸 Step 1: Capturing simplified DOM (cached for all retries)...`);
         const rawSnapshot = await getSimplifiedDOM(page);
         const htmlSnapshot = rawSnapshot.substring(0, config.ai.healing.domSnapshotCharLimit);
         logger.info(
@@ -94,6 +109,18 @@ export class HealingEngine {
             logger.info(`[HealingEngine:heal] 🔁 Step 3: Starting AI request via RetryOrchestrator`);
             const orchestrator = new RetryOrchestrator(this.clientManager);
 
+            const provider = this.clientManager.getProvider();
+
+            // Fast-fail if the current provider's circuit breaker is open
+            const breaker = this.getCircuitBreaker(provider);
+            if (breaker.isOpen()) {
+                logger.warn(
+                    `[HealingEngine:heal] ⚡ Circuit breaker OPEN for provider "${provider}" ` +
+                        `(${breaker.getConsecutiveFailures()} consecutive failures). Fast-failing healing.`
+                );
+                return null;
+            }
+
             let rawResult: string | undefined;
             try {
                 const { result: aiResult } = await orchestrator.execute(() =>
@@ -102,14 +129,10 @@ export class HealingEngine {
                 rawResult = aiResult.raw;
                 tokensUsed = aiResult.tokensUsed;
                 logger.info(`[HealingEngine:heal] ✅ AI request succeeded.`);
+                this.getCircuitBreaker(this.clientManager.getProvider()).onSuccess();
             } catch {
-                // If all retries/rotations/failover exhausted, skip the test
-                logger.error(`[HealingEngine:heal] ❌ All retry strategies exhausted. Skipping test.`);
-                test.info().annotations.push({
-                    type: 'warning',
-                    description: 'Test skipped due to AI Client Error',
-                });
-                test.skip(true, 'Test skipped due to AI Client Error');
+                logger.error(`[HealingEngine:heal] ❌ All retry strategies exhausted.`);
+                this.getCircuitBreaker(this.clientManager.getProvider()).onFailure();
                 return null;
             }
 
@@ -147,16 +170,6 @@ export class HealingEngine {
             }
         } catch (aiError) {
             const aiErrorTyped = aiError as Error;
-            logger.error(`[HealingEngine:heal] 🚨 HEALING EXCEPTION: ${aiErrorTyped.message || String(aiErrorTyped)}`);
-            // If it's a skip error, re-throw it so Playwright skips the test
-            if (
-                String(aiErrorTyped).includes('Test skipped') ||
-                aiErrorTyped.message?.includes('Test skipped') ||
-                aiErrorTyped.message?.includes('Test is skipped')
-            ) {
-                logger.info(`[HealingEngine:heal] ⏩ Re-throwing skip error to Playwright.`);
-                throw aiErrorTyped;
-            }
             logger.error(
                 `[HealingEngine:heal] ❌ AI Healing failed (${this.clientManager.getProvider()}): ${aiErrorTyped.message || String(aiErrorTyped)}`
             );
@@ -166,7 +179,7 @@ export class HealingEngine {
             logger.info(
                 `[HealingEngine:heal] 📋 Success: ${healingSuccess}, Result: ${healingResult ? healingResult.selector : 'null'}`
             );
-            // Record the healing event
+            // Record the healing event, evicting the oldest entry when the cap is reached.
             this.healingEvents.push({
                 timestamp: new Date().toISOString(),
                 originalSelector,
@@ -178,6 +191,9 @@ export class HealingEngine {
                 ...(tokensUsed ? { tokensUsed } : {}),
                 domSnapshotLength: htmlSnapshot.length,
             });
+            if (this.healingEvents.length > HealingEngine.MAX_HEALING_EVENTS) {
+                this.healingEvents.shift();
+            }
         }
 
         return healingResult;
